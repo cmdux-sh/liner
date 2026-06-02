@@ -2,10 +2,9 @@
 
 ## Unreleased
 
-- Reworked public documentation around the TUI as the primary experience.
-- Moved the mixtape format reference to `docs/mixtape-format.md`, moved the
-  agent skill bundle source to `docs/skill/`, and removed the old early example
-  project from the public repo.
+- Reworked public documentation around the terminal app workflow.
+- Moved the mixtape format reference to `docs/mixtape-format.md` and moved the
+  agent skill bundle source to `docs/skill/`.
 
 ## 0.5.7
 
@@ -222,7 +221,6 @@ Folder-model migration. The mixtape is now a project folder (`tape.yaml`, `synth
 - Tape format adds optional fields: `mode` (`quick` | `methodology`), `jtbd`, `methodology_version`.
 - `liner list` walks for project folders (directories containing `tape.yaml`) instead of flat `*.yaml` files.
 - `--emit-events` final `result` payload now reports the produced folder, `MIXTAPE.md` path, and per-source file paths instead of a rendered Markdown string.
-- Example reshaped from `examples/mobile-design.yaml` to `examples/mobile-design-foundations/` (runnable project folder).
 
 ## 0.1.0 — unreleased
 

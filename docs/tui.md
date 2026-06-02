@@ -1,6 +1,6 @@
-# TUI Guide
+# Terminal App Guide
 
-The TUI is the main Liner experience.
+This guide covers Liner's keyboard-driven terminal app.
 
 ```sh
 npx linersh
@@ -25,7 +25,7 @@ The TUI lets you:
 - compile into `MIXTAPE.md` and `sources/`
 - share and import `.mixtape` archives
 
-Agent-assisted phases are optional. They run through Claude Code or Codex if available on your machine. Compile/share/import are handled by the local Liner core.
+Agent-assisted phases run through Claude Code or Codex if available on your machine. Compile/share/import are handled by the local Liner core.
 
 ## Main Browser
 
@@ -115,7 +115,7 @@ A partial compile is still usable when `MIXTAPE.md` is written. The result scree
 3. Pick the file and enter a citation.
 4. Compile.
 
-The visible TUI share action uses the default archive behavior, which includes `personal/`. To exclude local files, use the optional CLI path:
+The share action uses the default archive behavior, which includes `personal/`. To exclude local files, use:
 
 ```sh
 liner share <folder> --no-personal

@@ -1,10 +1,8 @@
 # Liner
 
-Liner is a terminal app for building **mixtapes**: portable context bundles for AI work.
+Liner is a keyboard-driven terminal app for building **mixtapes**: portable context bundles for AI work.
 
-The main experience is the **TUI**. It helps you create a mixtape project, sharpen the job-to-be-done, add sources, review the authoring phases, compile the sources, and share the result. The CLI still exists, but it is an optional path for scripting or for people who prefer editing YAML and Markdown by hand.
-
-A **tape** is the recipe: `tape.yaml`. A **mixtape** is the project folder: `tape.yaml`, `synthesis.md`, `working/`, compiled `sources/`, and `MIXTAPE.md`. The compiled `MIXTAPE.md` is the entry point you paste into an AI conversation, with source files loaded when the conversation needs detail.
+A mixtape gives an AI system a focused set of sources, source notes, and a synthesis for a specific job-to-be-done. Instead of pasting the same links and notes into every conversation, you build a project folder once, compile it, and reuse the result anywhere Markdown files can be used.
 
 ## Install
 
@@ -21,11 +19,28 @@ npm install -g linersh
 liner
 ```
 
-The npm package ships the TUI plus the matching bundled core binary for your platform. Current platform support is macOS arm64/x64, Linux arm64/x64, and Windows x64.
+The npm package includes the terminal app and a bundled local core for macOS arm64/x64, Linux arm64/x64, and Windows x64.
 
-## Start
+## How It Works
 
-Run Liner from the folder where you want your mixtape workspace to live:
+Liner creates project folders inside a `mixtapes/` workspace. Each project contains:
+
+- `tape.yaml`: title, purpose, curator, and source list
+- `synthesis.md`: the framing the AI should read first
+- `working/`: notes from the research and review process
+- `sources/`: extracted source files written during compile
+- `MIXTAPE.md`: the compiled entry point for AI conversations
+
+The usual flow is:
+
+1. Create a mixtape.
+2. Define the job-to-be-done.
+3. Add web, YouTube, or local file sources.
+4. Write or review the synthesis.
+5. Compile the project.
+6. Paste `MIXTAPE.md` into an AI conversation and load source files when useful.
+
+Start from the directory where you want the workspace:
 
 ```sh
 mkdir liner-workspace
@@ -33,64 +48,49 @@ cd liner-workspace
 npx linersh
 ```
 
-The TUI creates and manages a `mixtapes/` folder in the current directory. Each subfolder is one mixtape project.
+For keybindings and workflow details, see [docs/tui.md](docs/tui.md).
 
-Inside the TUI you can:
+## Sources
 
-- create a new mixtape with the guided wizard
-- add web, YouTube, and local file sources
-- edit the tape recipe without writing YAML by hand
-- run optional agent-assisted authoring phases with Claude Code or Codex when installed
-- compile the mixtape into `MIXTAPE.md` and `sources/`
-- share or import `.mixtape` archives
+Liner supports three source types:
 
-For keybindings and the detailed TUI flow, see [docs/tui.md](docs/tui.md).
+- `web`: articles, docs, papers, and other web pages
+- `youtube`: video transcripts
+- `local_file`: files you place under a project's `personal/` folder
 
-## JavaScript-Rendered Pages
+Source notes are important. They tell the AI when a source matters, what part to pay attention to, and what not to overgeneralize from it.
 
-Most web sources work without extra setup. For pages that require a browser, such as JavaScript-heavy docs, enable Playwright support:
+For JavaScript-heavy web pages, run:
 
 ```sh
 liner setup-js
 ```
 
-That downloads headless Chromium, about 150 MB. The setup is optional and safe to rerun. The TUI also offers this during onboarding and when compile warnings show that JS rendering is needed.
+That installs Playwright's headless Chromium browser, about 150 MB. Most sources do not need it.
 
 ## Agent Assistance
 
-Liner can drive some authoring phases with Claude Code or Codex if one is installed and available on your `PATH`. Those runs use your own local agent account and write ordinary project files into the mixtape folder.
+If Claude Code or Codex is installed, Liner can use it to draft and revise research artifacts during the workflow. Agent runs use your local account and write ordinary files into the project folder.
 
-The core compile/share/import path is local and deterministic. It does not call an LLM, does not require an account, and does not send telemetry.
+Compiling, sharing, importing, and cache operations run locally. Liner does not require an account, does not call an LLM during compile, and does not send telemetry.
 
-## Optional CLI
+## Commands
 
-The CLI is there when you want a direct command or automation hook:
+Running `liner` with no arguments opens the terminal app.
 
 | Command | Use |
 | --- | --- |
-| `liner` | Open the TUI. |
-| `liner setup-js` | Install browser support for `render: js` web sources. |
+| `liner setup-js` | Install browser support for JavaScript-rendered web sources. |
 | `liner compile <folder>` | Fetch sources and write `MIXTAPE.md` plus `sources/`. |
 | `liner share <folder>` | Pack a project folder into a `.mixtape` archive. |
 | `liner import <archive> [dest]` | Unpack a `.mixtape` archive and refetch uncached sources. |
 | `liner list` | List mixtape project folders. |
 
-Advanced CLI flags and developer commands are available through `liner --help`.
+Advanced flags and developer commands are available through `liner --help`.
 
-## Tape Format
+## Format
 
-The short version:
-
-- `tape.yaml` needs `title`, `description`, `version: 1`, `curator`, and `sources`.
-- Source types are `web`, `youtube`, and `local_file`.
-- Source notes matter because they tell the consuming AI when and how to use each source.
-- `synthesis.md` is required before a mixtape is useful; it is copied into the top of `MIXTAPE.md`.
-
-See [docs/mixtape-format.md](docs/mixtape-format.md) for the full reference.
-
-## Examples
-
-The example folder is [mixtape-examples/](mixtape-examples/). The old early sample was removed because it no longer represented the quality bar. Better examples will live there when they are ready.
+See [docs/mixtape-format.md](docs/mixtape-format.md) for the tape format and project-folder reference.
 
 ## Development
 
@@ -100,7 +100,7 @@ Python core:
 uv run --extra dev pytest
 ```
 
-TUI:
+Terminal app:
 
 ```sh
 cd packages/tui
@@ -114,10 +114,10 @@ npm run build
 
 ```sh
 liner uninstall --yes
-npm uninstall -g linersh   # only if you installed it globally
+npm uninstall -g linersh   # only if installed globally
 ```
 
-`liner uninstall` removes Liner's local cache/config, Playwright's Chromium cache, and npm's `_npx` execution cache. It does not delete your mixtape project folders.
+`liner uninstall` removes Liner's local cache/config, Playwright's Chromium cache, and npm's `_npx` execution cache. It does not delete mixtape project folders.
 
 ## About
 

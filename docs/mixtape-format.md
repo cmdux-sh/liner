@@ -91,7 +91,7 @@ sources:
   - type: youtube
     url: https://www.youtube.com/watch?v=...
     note: "What this transcript contributes."
-    section: examples
+    section: talks
 ```
 
 Liner tries transcript extraction first and falls back through the available YouTube tooling. Some videos may still fail because of region locks, age gates, rate limits, removed transcripts, or platform changes.
