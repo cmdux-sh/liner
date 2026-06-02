@@ -19,7 +19,7 @@ from liner.handlers.pdf_extraction import extract_pdf_text
 from liner.project import ProjectFolder
 from liner.types import SourceContent, SourceSpec
 
-# 10MB cap — matches MIXTAPE-FORMAT.md.
+# 10MB cap; keep docs/mixtape-format.md in sync.
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}

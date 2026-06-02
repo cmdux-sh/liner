@@ -35,7 +35,7 @@ process.json
 *.tgz
 
 # Skill bundle copied into the TUI package at prepack time. The source of
-# truth is /cli-update-docs/ at the repo root; the copy is for npm-publish
+# truth is /docs/skill/ at the repo root; the copy is for npm-publish
 # layout only.
 packages/tui/cli-update-docs/
 

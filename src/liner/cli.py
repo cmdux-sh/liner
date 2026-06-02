@@ -113,8 +113,7 @@ def replay(
     project folder so the curator can run the same input through a fresh
     pipeline. Working artifacts, synthesis, and sources are NOT copied —
     they regenerate from scratch. The new tape records `parent: <source>`
-    so Phase 8 (empirical) can run a v1-vs-v2 comparison test instead of
-    the default with-vs-without test.
+    so the two compiled outputs can be compared later.
     """
     from liner.tape import load_tape
 
@@ -150,11 +149,11 @@ def replay(
     _replay_tape(project, src_tape, source.resolve())
 
     err_console.print(f"[green]Replay folder ready:[/] {project.path}")
-    err_console.print(f"  parent: [dim]{source.resolve()}[/] (Phase 8 will compare against this)")
+    err_console.print(f"  parent: [dim]{source.resolve()}[/]")
     err_console.print("Next steps:")
     err_console.print(f"  1. Open [bold]{project.path}[/] in the TUI (or run phases manually)")
     err_console.print("  2. Run all phases; the cloned JTBD + clarifications are pre-filled")
-    err_console.print(f"  3. After compile, run Phase 8 to compare against {source.name}")
+    err_console.print(f"  3. After compile, compare the result against {source.name}")
 
 
 def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> None:
@@ -333,7 +332,7 @@ def share(
     no_personal: bool = typer.Option(
         False,
         "--no-personal",
-        help="Exclude personal/ from the archive. Required for library submissions.",
+        help="Exclude personal/ from the archive before sharing private local files.",
     ),
     minimal: bool = typer.Option(
         False, "--minimal", help="Archive only tape.yaml. Recipient compiles from scratch."
@@ -347,7 +346,7 @@ def share(
         minimal=minimal,
     )
 
-    # Library-eligibility soft warning.
+    # Public-sharing soft warning.
     local_file_count = 0
     if project.tape_path.exists():
         try:
@@ -367,8 +366,8 @@ def share(
     if local_file_count > 0:
         err_console.print(
             f"[yellow]Note:[/] this mixtape contains {local_file_count} "
-            f"local_file source{'s' if local_file_count != 1 else ''} and is not "
-            "library-eligible. Library submissions must use only public, fetchable sources."
+            f"local_file source{'s' if local_file_count != 1 else ''}. Use "
+            "[bold]--no-personal[/] before sharing publicly if those files are private."
         )
 
 

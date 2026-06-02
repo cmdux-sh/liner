@@ -77,9 +77,8 @@ class Tape:
     jtbd_clarifications: tuple[JtbdClarification, ...] = ()
     methodology_version: str | None = None
     # When this tape was created by `liner replay <other>`, the absolute path
-    # of the source folder it was cloned from. Phase 8 (empirical) uses this
-    # to run a v1-vs-v2 comparison test instead of the default with-vs-without
-    # test.
+    # of the source folder it was cloned from. This lets later comparison
+    # tooling or manual review relate a replayed run to its parent.
     parent: str | None = None
 
 

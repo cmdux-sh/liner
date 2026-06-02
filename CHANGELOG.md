@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reworked public documentation around the TUI as the primary experience.
+- Moved the mixtape format reference to `docs/mixtape-format.md`, moved the
+  agent skill bundle source to `docs/skill/`, and removed the old early example
+  project from the public repo.
+
 ## 0.5.7
 
 - **Capture PDF downloads during JS fallback.** When a `.pdf` web source first
@@ -190,20 +195,20 @@ TUI npm bundle release. This is the package path for publishing the interactive 
 
 ## 0.3.0 — unreleased
 
-`local_file` source type + JavaScript-rendering support. Additive to the v1 tape format (now versioned as v1.1 in MIXTAPE-FORMAT.md). No breaking changes to existing tapes.
+`local_file` source type + JavaScript-rendering support. Additive to the v1 tape format. No breaking changes to existing tapes.
 
 - New source type `local_file` for content the curator has on disk (PDF, Markdown, text, HTML). Required fields: `path` (must resolve under the project's new `personal/` subdirectory) and `citation`. Max 10MB per file.
 - New `render` field on `web` sources. Default `server` (existing behavior); `js` opts into Playwright-backed rendering for JavaScript-only sites.
 - New optional dependency group `linersh[js]` — installs Playwright + Chromium for `render: js`. The default `pipx install linersh` stays lean (~30MB); `pipx install 'linersh[js]'` adds ~150MB.
 - `pdfplumber` added to core dependencies for PDF extraction.
-- New `liner share --no-personal` flag. `personal/` is included in exports by default; library submissions must pass `--no-personal` and use only public sources.
-- `share` prints a soft warning when the tape contains `local_file` sources, noting the result isn't library-eligible.
+- New `liner share --no-personal` flag. `personal/` is included in exports by default; pass `--no-personal` before sharing publicly when local files are private.
+- `share` prints a soft warning when the tape contains `local_file` sources.
 - Web handler signature changed from `fetch(url)` to `fetch(spec)` so handlers can see metadata they may need (e.g. `render`). Internal change; doesn't affect tape format.
 - TUI: new file-picker screen for `local_file` paths; source-modal type toggle (`T`) and `render` toggle (`R`); source-row icons updated.
 - 8 new tests; existing test suites extended.
 - New `scripts/uninstall.sh` — interactive bash uninstaller that removes the CLI, the Playwright browser, the local cache, and (optionally) globally installed TUI / dev `.venv` / mixtape workspace. Documented in README.
 - New `liner setup-js` subcommand. One-shot: installs Playwright via `pipx inject` (or `pip` for non-pipx envs) and downloads the Chromium binary. Idempotent. Replaces the documented two-step "`pipx install 'linersh[js]'` + remember the playwright path" recipe.
-- **Web rendering is now auto-fallback by default.** A `web` source with no `render` field tries server-rendered HTML first, and if the page turns out to be JS-walled, automatically falls back to headless Chromium (provided `liner setup-js` has been run). The compile output shows a warning when the fallback triggers so the curator sees the cost. Existing tapes with `render: js` continue to skip the server attempt; new `render: server` opt-out is available for library submissions or diagnostics.
+- **Web rendering is now auto-fallback by default.** A `web` source with no `render` field tries server-rendered HTML first, and if the page turns out to be JS-walled, automatically falls back to headless Chromium (provided `liner setup-js` has been run). The compile output shows a warning when the fallback triggers so the curator sees the cost. Existing tapes with `render: js` continue to skip the server attempt; new `render: server` opt-out is available for public-sharing constraints or diagnostics.
 
 ## 0.2.0 — unreleased
 
@@ -230,4 +235,4 @@ Initial Liner MVP. The project was originally prototyped as "yoyotape" and renam
 - SQLite cache at `~/.liner/cache.db` (30-day TTL for YouTube, 7-day for web).
 - Markdown and JSON output. Compiled mixtapes save as `<tape>.mixtape.md`.
 - `liner compile --emit-events` streams NDJSON progress events to stdout for programmatic clients (TUI, future MCP server).
-- Soft curator-note nudge in TUI per CURATION.md §6.
+- Soft curator-note nudge in the TUI source editor.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copy the curation skill bundle (cli-update-docs/) from the repo root into
+// Copy the agent skill bundle (docs/skill/) from the repo root into
 // the TUI package so it ships inside the published npm tarball.
 //
 // npm forbids `..` paths in `files`, so the bundle has to physically live
@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packageDir = resolve(here, "..");
 const repoRoot = resolve(packageDir, "..", "..");
 
-const src = join(repoRoot, "cli-update-docs");
+const src = join(repoRoot, "docs", "skill");
 const dest = join(packageDir, "cli-update-docs");
 
 if (!existsSync(src)) {

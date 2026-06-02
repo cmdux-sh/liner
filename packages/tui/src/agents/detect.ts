@@ -100,7 +100,7 @@ export function resolveSkillPathWithDiagnostics(): SkillPathResolution {
     return { path: envPath, envPath, searched: [join(envPath, "SKILL.md")] };
   }
 
-  const candidates = ["cli-update-docs", "skills/curating-mixtapes"];
+  const candidates = ["cli-update-docs", "docs/skill", "skills/curating-mixtapes"];
 
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const packageRoot = nearestPackageRoot(moduleDir);

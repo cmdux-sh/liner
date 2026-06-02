@@ -1212,10 +1212,9 @@ function hintsFor(
  * After a phase run completes, what's the obvious next screen? Returns null
  * when we should just go back to the hub.
  *
- * Mode-aware: quick mode skips the gate review screens (per CURATION.md v2.0
- * — "Quick mode defaults them to continue"). We auto-accept the gate state
- * file as a side effect here so the hub's progress strip still shows the
- * gate as ✓ complete.
+ * Mode-aware: quick mode skips the gate review screens. We auto-accept the
+ * gate state file as a side effect here so the hub's progress strip still
+ * shows the gate as complete.
  */
 function nextScreenFor(phaseId: PhaseId, tape: Tape, folder: string): Screen | null {
   const isQuick = (tape.mode ?? "quick") !== "methodology";

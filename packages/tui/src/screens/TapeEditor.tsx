@@ -269,7 +269,7 @@ export function TapeEditor({
             ⚠ {sourcesMissingNotes} source{sourcesMissingNotes === 1 ? "" : "s"} without a curator note
           </Text>
           <Text color={MUTED}>
-            {"  "}Notes are load-bearing — the AI uses them to weight sources. See CURATION.md §6.
+            {"  "}Notes tell the consuming AI when and how to use each source.
           </Text>
         </Box>
       ) : null}

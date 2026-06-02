@@ -76,7 +76,7 @@ def test_replay_clones_inputs_into_default_destination(tmp_path: Path) -> None:
     assert tape["jtbd"] == "Write good CLI prose."
     assert tape["mode"] == "quick"
     assert tape["curator"] == "tester"
-    # Parent is recorded so Phase 8 can run a comparison test.
+    # Parent is recorded so replayed outputs can be compared later.
     assert tape["parent"] == str(src.resolve())
     # Sources reset — the replay regenerates the pipeline from scratch.
     assert tape["sources"] == []
