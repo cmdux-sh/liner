@@ -4,6 +4,8 @@ Liner is a keyboard-driven terminal app for building **mixtapes**: portable cont
 
 A mixtape gives an AI system a focused set of sources, source notes, and a synthesis for a specific job-to-be-done. Instead of pasting the same links and notes into every conversation, you build a project folder once, compile it, and reuse the result anywhere Markdown files can be used.
 
+Learn more at [liner.sh](https://liner.sh).
+
 ## Install
 
 Requires Node 18+.
