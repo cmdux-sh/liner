@@ -1,0 +1,7 @@
+title: Future tape
+description: Version newer than supported.
+version: 999
+curator: tester
+sources:
+  - type: web
+    url: https://example.com

@@ -1,0 +1,6 @@
+title: Missing curator
+description: No curator field present.
+version: 1
+sources:
+  - type: web
+    url: https://example.com

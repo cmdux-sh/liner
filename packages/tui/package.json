@@ -1,0 +1,56 @@
+{
+  "name": "linersh",
+  "version": "0.5.7",
+  "description": "Liner — interactive tape editor for building curated mixtapes (AI-consumable context bundles).",
+  "type": "module",
+  "license": "MIT",
+  "author": "cmdux-sh",
+  "homepage": "https://liner.sh",
+  "bin": {
+    "liner": "bin/liner.js"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "cli-update-docs/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "node scripts/copy-skill-bundle.mjs && npm run build",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "predev": "node scripts/unhide-venv.mjs",
+    "dev": "tsx src/index.tsx",
+    "predev:built": "node scripts/unhide-venv.mjs",
+    "dev:built": "npm run build && node bin/liner.js",
+    "start": "node bin/liner.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ink": "^5.0.1",
+    "ink-big-text": "^2.0.0",
+    "ink-gradient": "^3.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1",
+    "yaml": "^2.6.1"
+  },
+  "optionalDependencies": {
+    "linersh-darwin-arm64": "0.5.7",
+    "linersh-darwin-x64": "0.5.7",
+    "linersh-linux-arm64": "0.5.7",
+    "linersh-linux-x64": "0.5.7",
+    "linersh-win32-x64": "0.5.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "ink-testing-library": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

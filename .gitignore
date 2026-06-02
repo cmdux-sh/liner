@@ -1,0 +1,44 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+uv.lock
+*.db
+.DS_Store
+
+# Node / TUI build artifacts
+node_modules/
+
+# Generated npm platform binary packages (large PyInstaller outputs).
+packages/platform/
+
+# Per-curator mixtape data — not committed; mixtapes are personal projects
+# that contain the curator's URLs, notes, fetched bodies, and agent run
+# transcripts (.liner-runs/ JSONL has raw model traffic). If we ever want
+# example mixtapes as fixtures, add them under a designated tests/fixtures/
+# path that's explicitly tracked.
+mixtapes/
+packages/tui/mixtapes/
+process.json
+.liner-runs/
+.liner-progress.json
+.liner-gates.json
+
+# Local-only build tarballs from `npm pack` (not source).
+*.tgz
+
+# Skill bundle copied into the TUI package at prepack time. The source of
+# truth is /cli-update-docs/ at the repo root; the copy is for npm-publish
+# layout only.
+packages/tui/cli-update-docs/
+
+# Worktrees (workspace state, not source)
+.claude/worktrees/
+.vercel

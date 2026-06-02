@@ -1,0 +1,103 @@
+[build-system]
+# Using setuptools (not hatchling) because hatchling's PEP 660 editable install
+# writes a `.pth` file named `_editable_impl_<name>.pth`, and Python 3.14 ignores
+# `.pth` files whose names begin with an underscore. Setuptools writes
+# `<name>.pth` without the prefix.
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linersh"
+version = "0.5.7"
+description = "Liner — compile curated bundles of sources (YouTube + web) into AI-consumable mixtapes."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "cmdux-sh" }]
+keywords = ["youtube", "transcript", "context", "llm", "cli", "mixtape", "liner"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "yt-dlp>=2024.10.0",
+    "youtube-transcript-api>=0.6.2",
+    "trafilatura>=1.12",
+    "rich>=13.7",
+    "platformdirs>=4.2",
+    "pdfplumber>=0.11",
+]
+
+[project.optional-dependencies]
+# Enables `render: js` for web sources via headless Chromium. Adds ~150MB.
+js = ["playwright>=1.40"]
+binary = [
+    "playwright>=1.40",
+    "pyinstaller>=6.0",
+]
+dev = [
+    "pytest>=8",
+    "pytest-recording>=0.13",
+    "vcrpy>=6",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "types-PyYAML",
+]
+
+[project.scripts]
+liner = "liner.cli:app"
+
+[project.urls]
+Homepage = "https://liner.sh"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["liner*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer's idiomatic pattern is `arg: T = typer.Option(...)`, which B008 flags;
+# and the win32 stdout.reconfigure() is genuinely best-effort.
+"src/liner/cli.py" = ["B008", "SIM105"]
+# The transcript-API fallback ladder relies on partial completion of try blocks;
+# contextlib.suppress hides that the variable is checked downstream.
+"src/liner/handlers/youtube.py" = ["SIM105"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src/liner"]
+
+[[tool.mypy.overrides]]
+module = ["trafilatura.*", "yt_dlp.*", "youtube_transcript_api.*", "pdfplumber.*", "playwright.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Skip network-marked tests by default. Run them explicitly with
+# `pytest -m network` or `pytest -m "network or not network"`.
+# The mocked handler tests in test_youtube_handler.py remain the always-on
+# safety net; network tests are a periodic verification that the real
+# YouTube + yt-dlp + youtube-transcript-api stack still talks to itself.
+addopts = "-q -m 'not network'"
+markers = [
+    "network: tests that hit live external services (YouTube, etc.). Opt-in via `-m network`.",
+]

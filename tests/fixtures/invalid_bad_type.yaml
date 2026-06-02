@@ -1,0 +1,7 @@
+title: Bad source type
+description: type not in allowed set.
+version: 1
+curator: tester
+sources:
+  - type: podcast
+    url: https://example.com/feed.rss

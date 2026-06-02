@@ -1,0 +1,193 @@
+name: Platform Bundles
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/platform-bundles.yml"
+      - "pyproject.toml"
+      - "src/**"
+      - "scripts/build-platform-package.py"
+      - "scripts/validate-platform-package.py"
+      - "scripts/smoke-local-npm-bundle.py"
+      - "packages/tui/**"
+  push:
+    branches:
+      - master
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/platform-bundles.yml"
+      - "pyproject.toml"
+      - "src/**"
+      - "scripts/build-platform-package.py"
+      - "scripts/validate-platform-package.py"
+      - "scripts/smoke-local-npm-bundle.py"
+      - "packages/tui/**"
+  workflow_dispatch:
+    inputs:
+      publish_to_npm:
+        description: "Publish platform packages first, then the linersh TUI package. Requires NPM_TOKEN."
+        required: true
+        type: boolean
+        default: false
+      npm_tag:
+        description: "npm dist-tag to use when publishing."
+        required: true
+        type: choice
+        default: latest
+        options:
+          - latest
+          - next
+
+permissions:
+  contents: read
+
+jobs:
+  build-platform:
+    name: Build ${{ matrix.package }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: linersh-darwin-arm64
+            runner: macos-15
+          - package: linersh-darwin-x64
+            runner: macos-15-intel
+          - package: linersh-linux-arm64
+            runner: ubuntu-24.04-arm
+          - package: linersh-linux-x64
+            runner: ubuntu-24.04
+          - package: linersh-win32-x64
+            runner: windows-2025
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Build platform package
+        shell: bash
+        run: |
+          python scripts/build-platform-package.py
+          test -d "packages/platform/${{ matrix.package }}"
+
+      - name: Validate platform package
+        shell: bash
+        run: python scripts/validate-platform-package.py --pack-dry-run "packages/platform/${{ matrix.package }}"
+
+      - name: Pack platform package
+        shell: bash
+        run: |
+          mkdir -p platform-tarballs
+          npm pack "packages/platform/${{ matrix.package }}" --pack-destination platform-tarballs
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.package }}
+          path: platform-tarballs/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  build-tui:
+    name: Build linersh TUI package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install TUI dependencies
+        working-directory: packages/tui
+        run: npm ci
+
+      - name: Verify TUI package
+        working-directory: packages/tui
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+          npm pack --dry-run
+
+      - name: Pack TUI package
+        working-directory: packages/tui
+        run: |
+          mkdir -p ../../tui-tarball
+          npm pack --pack-destination ../../tui-tarball
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linersh-tui
+          path: tui-tarball/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-platform:
+    name: Publish platform packages
+    runs-on: ubuntu-24.04
+    needs: build-platform
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_npm }}
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-tarballs
+          pattern: linersh-*-*
+          merge-multiple: true
+
+      - name: Publish platform tarballs
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN"
+          for tarball in release-tarballs/*.tgz; do
+            npm publish "$tarball" --access public --tag "$NPM_TAG"
+          done
+
+  publish-tui:
+    name: Publish linersh TUI package
+    runs-on: ubuntu-24.04
+    needs:
+      - build-tui
+      - publish-platform
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_npm }}
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: linersh-tui
+          path: tui-tarball
+
+      - name: Publish TUI tarball
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN"
+          npm publish tui-tarball/*.tgz --access public --tag "$NPM_TAG"

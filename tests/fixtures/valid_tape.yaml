@@ -1,0 +1,21 @@
+title: Test Tape
+description: A simple valid tape for tests.
+version: 1
+curator: tester
+tags: [test]
+
+sources:
+  - type: youtube
+    url: https://www.youtube.com/watch?v=aaaaaaaaaaa
+    note: "First source."
+    section: intro
+
+  - type: web
+    url: https://example.com/article
+    note: "Second source."
+    section: intro
+
+  - type: web
+    url: https://example.com/optional
+    note: "Optional source."
+    priority: optional
