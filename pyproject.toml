@@ -8,13 +8,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linersh"
-version = "0.5.7"
-description = "Liner — terminal UI and local core for building AI-consumable mixtapes."
+version = "1.0.0"
+description = "Liner — compile curated bundles of sources (YouTube + web) into AI-consumable mixtapes."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [{ name = "cmdux-sh" }]
-keywords = ["youtube", "transcript", "context", "llm", "tui", "cli", "mixtape", "liner"]
+keywords = ["youtube", "transcript", "context", "llm", "cli", "mixtape", "liner"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

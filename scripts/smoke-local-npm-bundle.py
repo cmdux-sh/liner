@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install local npm packages into a temp project and smoke the resolved binary."""
+"""Install local npm packages into a temp project and smoke resolved binaries."""
 
 from __future__ import annotations
 
@@ -43,7 +43,14 @@ def main() -> int:
         )
 
         liner = temp_dir / "node_modules" / ".bin" / ("liner.cmd" if sys.platform == "win32" else "liner")
+        platform_tui = (
+            temp_dir
+            / "node_modules"
+            / args.platform_package.resolve().name
+            / ("liner-tui.exe" if sys.platform == "win32" else "liner-tui")
+        )
         subprocess.run([str(liner), "--version"], cwd=temp_dir, check=True)
+        subprocess.run([str(platform_tui), "--version"], cwd=temp_dir, check=True)
 
         env = {**os.environ, "LINER_BIN": "/bin/echo"}
         if sys.platform == "win32":

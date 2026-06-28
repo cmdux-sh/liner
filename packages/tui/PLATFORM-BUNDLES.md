@@ -1,6 +1,10 @@
 # Platform Binary Packages
 
-The `linersh` npm package resolves the Python core from optional platform packages:
+Platform packages are the native-binary side of the `linersh` npm install.
+They are optional dependencies of the main package, so users still install one
+thing while npm selects the package that matches their OS and CPU.
+
+The `linersh` npm package resolves native binaries from optional platform packages:
 
 - `linersh-darwin-arm64`
 - `linersh-darwin-x64`
@@ -8,13 +12,20 @@ The `linersh` npm package resolves the Python core from optional platform packag
 - `linersh-linux-x64`
 - `linersh-win32-x64`
 
-Each package contains a PyInstaller build of the CLI. The executable must live at the package root as `liner` or `liner.exe`; PyInstaller's `_internal/` directory sits beside it.
+Each package contains:
+
+- a PyInstaller build of the CLI at package root as `liner` or `liner.exe`
+- a Go TUI build at package root as `liner-tui` or `liner-tui.exe`
+- PyInstaller's `_internal/` directory beside the Python CLI executable
 
 ## Version Rule
 
-When Python source changes need to ship through npm, publish all five platform packages at the same version as `packages/tui/package.json`, then publish the main `linersh` package.
+Python or Go TUI changes should ship through all five platform packages at the
+same version as `packages/tui/package.json`, followed by the main `linersh`
+package.
 
-For TUI-only releases, leave the optional dependency pins on the latest platform package version and publish only `linersh`.
+For future TUI-only releases, leave the optional dependency pins on the latest
+platform package version and publish only `linersh`.
 
 ## Build Current Platform
 
@@ -30,10 +41,12 @@ The script:
 
 1. Runs PyInstaller through `uv` with Python 3.11 and the `binary` optional dependency group.
 2. Builds a one-directory CLI bundle that includes the Python `playwright` package.
-3. Writes `packages/platform/linersh-<platform>-<arch>/package.json`.
+3. Builds the Go TUI binary for the current platform.
+4. Writes `packages/platform/linersh-<platform>-<arch>/package.json`.
 4. Runs smoke checks:
    - `liner --version`
    - `liner setup-js --help`
+   - `liner-tui --version`
 
 ## Validate
 
@@ -41,7 +54,9 @@ The script:
 python3 scripts/validate-platform-package.py --pack-dry-run
 ```
 
-The validator checks package metadata, root executable placement, Unix executable bits, `_internal/`, command smoke tests, and optionally `npm pack --dry-run`.
+The validator checks package metadata, root executable placement, Unix
+executable bits, `_internal/`, command smoke tests, and optionally
+`npm pack --dry-run`.
 
 ## Local npm Smoke
 
@@ -51,51 +66,61 @@ After building the current platform package:
 python3 scripts/smoke-local-npm-bundle.py
 ```
 
-This installs the local `packages/tui` package and the generated platform package into a temporary npm project, then verifies:
+This installs the local `packages/tui` package and the generated platform
+package into a temporary npm project, then verifies:
 
 - `liner --version` resolves through the npm shim to the platform binary.
+- `liner` with no args resolves the Go TUI from the platform package.
 - `LINER_BIN=/bin/echo liner setup-js` still honors the debugging override.
 
-## GitHub Actions Artifacts
+## Public GitHub Actions Artifacts
 
-The workflow `.github/workflows/platform-bundles.yml` builds and validates all five platform packages plus the main TUI package.
+The workflow `.github/workflows/platform-bundles.yml` is intended to run from
+the public `cmdux-sh/liner` repository. It builds one selected target at a time
+so the release can stay under GitHub Free artifact storage limits.
 
-On pushes to `master`, `main`, or `codex/**`, it builds and uploads short-lived tarball artifacts.
-
-Manual artifact build:
-
-```sh
-gh workflow run platform-bundles.yml -f publish_to_npm=false -f npm_tag=next
-gh run list --workflow platform-bundles.yml --limit 1
-gh run watch <run-id> --exit-status
-gh run download <run-id> --dir /tmp/liner-release-artifacts-<version>
-```
-
-Manual npm publish from downloaded artifacts:
+Manual trigger examples:
 
 ```sh
-cd /tmp/liner-release-artifacts-<version>
-npm publish ./linersh-darwin-arm64/*.tgz --tag next --access public
-npm publish ./linersh-darwin-x64/*.tgz --tag next --access public
-npm publish ./linersh-linux-arm64/*.tgz --tag next --access public
-npm publish ./linersh-linux-x64/*.tgz --tag next --access public
-npm publish ./linersh-win32-x64/*.tgz --tag next --access public
-npm publish ./linersh-tui/*.tgz --tag next --access public
+gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh-darwin-arm64
+gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh-linux-x64
+gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh
 ```
 
-Use explicit local paths with `./`; otherwise npm can parse a tarball path as a package or GitHub spec.
-
-First-time publishers may need account-level 2FA for publish writes. npm login email OTPs are not the same as publish 2FA; passkey/authenticator verification may be required during `npm publish`.
+Download each artifact immediately, delete it from GitHub Actions, then run the
+next target. Publish manually only after all five platform package tarballs and
+the main `linersh` tarball have been downloaded and inspected.
 
 ## Automated Publish
 
-The same workflow can publish from CI on manual dispatch when `publish_to_npm=true` and an `NPM_TOKEN` repository secret exists. It publishes platform tarballs first, then the main TUI tarball.
+Automated npm publish is not enabled. Publish manually only after the platform
+package artifacts and clean consumer smoke pass.
 
-Use this only after the manual artifact path is trusted for the release. Manual publish is easier to recover from when npm asks for 2FA or rejects a package.
+## Historical 0.5.5 Artifact Handoff
 
-## Runner Labels
+The 0.5.5 release includes Python core changes, so all platform packages were rebuilt.
 
-The workflow uses explicit hosted runner labels for each architecture:
+- GitHub Actions workflow: latest post-release-prep `Platform Bundles` run on `master`
+- Local artifact directory: `/tmp/liner-release-artifacts-0.5.5`
+- Local smoke result: `liner 0.5.5 (tui)  ·  0.5.5 (core)`
+
+Artifacts:
+
+```text
+linersh-darwin-arm64-0.5.5.tgz
+linersh-darwin-x64-0.5.5.tgz
+linersh-linux-arm64-0.5.5.tgz
+linersh-linux-x64-0.5.5.tgz
+linersh-win32-x64-0.5.5.tgz
+linersh-0.5.5.tgz
+```
+
+Publish details are paused in `packages/tui/PUBLISH-CHECKLIST.md`.
+
+## Historical Runner Labels
+
+The old artifact workflow used explicit hosted runner labels for each
+architecture:
 
 - macOS arm64: `macos-15`
 - macOS Intel: `macos-15-intel`

@@ -1,6 +1,6 @@
 """Playwright-backed handler for JavaScript-rendered web pages.
 
-Opt-in via the `linersh[js]` extra. When Playwright is not installed, importing
+Opt in with `liner setup-js`. When Playwright is not installed, importing
 this module still works — the constructor raises a clear `MissingExtraError`
 when actually used.
 """
@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover — exercised only without the extra
 
 
 class MissingExtraError(RuntimeError):
-    """Raised when `render: js` is used without the `linersh[js]` extra installed."""
+    """Raised when `render: js` is used before `liner setup-js` has installed support."""
 
 
 # Time to wait after `domcontentloaded` for the SPA to settle. Tunable later.

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Liner Go TUI Flow</title>
+    <style>
+      :root {
+        --bg: #121212;
+        --panel: #1b1b1d;
+        --line: #30323d;
+        --ink: #f7f7f2;
+        --muted: #8b8c89;
+        --soft: #c3c5cc;
+        --accent: #ff5a1f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        gap: 18px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(18, 18, 18, 0.92);
+        backdrop-filter: blur(14px);
+      }
+
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      nav a:hover {
+        color: var(--accent);
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 48px));
+        margin: 0 auto;
+        padding: 42px 0 80px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 44px;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        margin-top: 56px;
+        color: var(--accent);
+      }
+
+      h3 {
+        color: var(--soft);
+      }
+
+      p {
+        color: var(--muted);
+        max-width: 760px;
+      }
+
+      .accent {
+        color: var(--accent);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: var(--panel);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .step {
+        border-left: 3px solid var(--accent);
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .step strong {
+        display: block;
+        color: var(--ink);
+      }
+
+      .step span {
+        color: var(--muted);
+      }
+
+      .screen {
+        margin-top: 22px;
+      }
+
+      .screen header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 8px;
+      }
+
+      .screen header span {
+        color: var(--muted);
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        padding: 18px;
+        border-radius: 8px;
+        background: #19191b;
+        color: var(--ink);
+      }
+
+      .unboxed pre {
+        padding: 0;
+        background: transparent;
+      }
+
+      .note {
+        color: var(--muted);
+      }
+
+      .rule {
+        color: var(--soft);
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="#north-star">North Star</a>
+      <a href="#flow">Flow</a>
+      <a href="#screens">Screens</a>
+      <a href="#patterns">Patterns</a>
+    </nav>
+
+    <main>
+      <section id="north-star">
+        <p class="accent">o liner v2</p>
+        <h1>The right context<br />for the right job.</h1>
+        <p>
+          This prototype tracks the Go Charm TUI direction. It is intentionally low fidelity:
+          it documents information architecture, screen states, and language before polish.
+        </p>
+      </section>
+
+      <section id="flow">
+        <h2>Primary Flow</h2>
+        <div class="flow">
+          <div class="step"><strong>1. Start</strong><span>Open an existing mixtape or create a new one.</span></div>
+          <div class="step"><strong>2. Setup</strong><span>Title, job to be done, curator, custom-source choice.</span></div>
+          <div class="step"><strong>3A. Sources</strong><span>If yes, paste one item at a time. Enter adds it; f finishes.</span></div>
+          <div class="step"><strong>3B. Clarify</strong><span>If no, go here directly. If yes, go here after sources are saved.</span></div>
+          <div class="step"><strong>5. Research</strong><span>Liner runs the pass and reports what happened.</span></div>
+          <div class="step"><strong>6. Compile</strong><span>Compile, preview, share, or reopen project assets.</span></div>
+        </div>
+      </section>
+
+      <section id="screens">
+        <h2>Screens</h2>
+
+        <article class="screen">
+          <header>
+            <div>
+              <h3>Setup</h3>
+              <p>Use boxes where they separate editable form areas.</p>
+            </div>
+            <span>S1</span>
+          </header>
+          <pre>o liner v2 ////////////////////////////// setup
+
+Setup
+Step 1 of 4 - Set up the mixtape.
+
+[ Step 1 - Setup ]                     [ Custom sources ]
+
+Tell Liner what you want to build.      Would you like to add your own
+Only the fields you control appear.     sources before research starts?
+
+  Name              Mobile Design
+  Job to be done    When I design iOS...
+  Curator           Arturo                Yes   [ No ]
+> Custom sources    No
+
+> Next: Confirm whether you want to add custom sources.
+tab/up/down field  left/right switch  enter continue  esc back  ? help</pre>
+        </article>
+
+        <article class="screen unboxed">
+          <header>
+            <div>
+              <h3>Clarify Job - Loading</h3>
+              <p>No content box. This is a transient state, so the loader carries the structure.</p>
+            </div>
+            <span>S2</span>
+          </header>
+          <pre>o liner v2 ////////////////////////////// clarify
+
+Clarify Job
+Step 2 of 4 - Tune the research angle.
+
+Job to be done
+  When I design iOS apps, I want to use best practices so I can win
+  an Apple Design Award.
+
+AI is working on it.
+  [meter] Finding the signal under the tape hiss.
+
+> Next: AI is working on the clarification questions.
+esc back  ? help</pre>
+        </article>
+
+        <article class="screen unboxed">
+          <header>
+            <div>
+              <h3>Clarify Job - Question</h3>
+              <p>Questions are generated from the JTBD, not hardcoded.</p>
+            </div>
+            <span>S3</span>
+          </header>
+          <pre>o liner v2 ////////////////////////////// clarify
+
+Clarify Job
+Step 2 of 4 - Tune the research angle.
+
+Job to be done
+  When I design iOS apps, I want to use best practices so I can win
+  an Apple Design Award.
+
+Question 1 of 4
+Which iOS surfaces should the research prioritize: onboarding, navigation,
+motion, visual polish, accessibility, or something else?
+
+>
+
+> Next: Answer this question, then continue.
+tab/up/down field  enter continue  esc back  ? help</pre>
+        </article>
+
+        <article class="screen">
+          <header>
+            <div>
+              <h3>Custom Sources</h3>
+              <p>The source input is boxed because it is the active control.</p>
+            </div>
+            <span>S4</span>
+          </header>
+          <pre>o liner v2 ////////////////////////////// sources
+
+Custom Sources
+Local folder: ./mobile-design/local-sources
+Paste one source into the bar. Enter adds it. Press f when done.
+
+[ > https://developer.apple.com/design/human-interface-guidelines ]
+
+Pending: web 1  youtube 0  local 0  articles 0  source docs 0
+
+Added sources
+  active  web      https://developer.apple.com/design/human-interface-guidelines
+
+> Next: Press enter to add this source.
+enter add source  f finish  ctrl+o open folder  esc back  ? help</pre>
+        </article>
+
+        <article class="screen unboxed">
+          <header>
+            <div>
+              <h3>Research Report</h3>
+              <p>Read-only prose does not need a border unless it is competing with other panes.</p>
+            </div>
+            <span>S5</span>
+          </header>
+          <pre>o liner v2 ////////////////////////////// report
+
+Research Report
+
+  Job to be done
+  When I design iOS apps, I want to use best practices so I can win
+  an Apple Design Award.
+
+  Clarifications
+  - Which iOS surfaces should the research prioritize? Answer: motion and polish
+
+  What happened
+  - Setup context was loaded.
+  - Clarifications were used to shape the research plan.
+  - The research report is ready for compile.
+
+> Next: Compile the mixtape.
+enter compile  esc back  ? help</pre>
+        </article>
+      </section>
+
+      <section id="patterns">
+        <h2>Patterns</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Boxes Are Structural</h3>
+            <p class="note">Use borders for active controls, tables, and side-by-side comparison. Avoid boxing read-only prose by default.</p>
+          </div>
+          <div class="card">
+            <h3>Clarification Is AI-Led</h3>
+            <p class="note">The AI reads the JTBD and returns targeted questions. If generation fails, the UI says so and lets the user continue.</p>
+          </div>
+          <div class="card">
+            <h3>Loader Voice</h3>
+            <p class="note">Keep the loader useful first: "AI is working on it." The rotating cassette lines add a small Liner-specific signature.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -14,9 +14,9 @@ describe("modelForPhase", () => {
     expect(modelForPhase("claude", "assembly")).toBeUndefined();
   });
 
-  it("downgrades the codex heavy phases by default", () => {
-    expect(modelForPhase("codex", "candidates")).toBe("gpt-5-mini");
-    expect(modelForPhase("codex", "evaluation")).toBe("gpt-5-mini");
+  it("keeps Codex on the CLI default by default because supported model ids vary by account", () => {
+    expect(modelForPhase("codex", "candidates")).toBeUndefined();
+    expect(modelForPhase("codex", "evaluation")).toBeUndefined();
   });
 
   it("lets a user override win over the default map", () => {
@@ -29,5 +29,9 @@ describe("modelForPhase", () => {
 
   it("an override for one phase doesn't affect another", () => {
     expect(modelForPhase("claude", "evaluation", { candidates: "opus" })).toBe("sonnet");
+  });
+
+  it("still lets users pin a Codex model explicitly", () => {
+    expect(modelForPhase("codex", "candidates", { candidates: "gpt-5" })).toBe("gpt-5");
   });
 });

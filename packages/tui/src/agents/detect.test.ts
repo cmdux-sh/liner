@@ -49,7 +49,7 @@ describe("resolveSkillPathWithDiagnostics", () => {
 
     const resolved = resolveSkillPathWithDiagnostics();
 
-    expect(resolved.path).toEqual(expect.stringContaining("docs/skill"));
+    expect(resolved.path).toEqual(expect.stringMatching(/(?:curation-skill|cli-update-docs)/));
     expect(resolved.searched[0]).toBe(join(tmpdir(), "missing-liner-skill", "SKILL.md"));
   });
 });

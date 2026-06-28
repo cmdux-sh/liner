@@ -12,6 +12,7 @@ from liner.types import CompiledSource, CompileResult
 # alone. The pattern is the same shape `_plan_source_files()` writes:
 # two-digit index, dash, slug, .md extension.
 COMPILE_OUTPUT_PATTERN = re.compile(r"^\d{2}-.+\.md$")
+KIND_NOTE_PREFIX_PATTERN = re.compile(r"^\*\*\[[^\]]+\]\*\*\s+")
 
 SourcePlanEntry = dict[str, Any]
 SourceManifestEntry = dict[str, Any]
@@ -85,7 +86,7 @@ def written_source_paths(project: ProjectFolder, result: CompileResult) -> list[
                 "index": entry["index"],
                 "filename": entry["filename"],
                 "path": str(project.sources_dir / entry["filename"]),
-                "url": spec.url,
+                "url": spec.url or spec.path or "",
                 "type": spec.type,
                 "section": spec.section,
                 "title": content.title if content else None,
@@ -129,6 +130,8 @@ def _render_master_file(
 
     n_youtube = sum(1 for s in result.sources if s.spec.type == "youtube")
     n_web = sum(1 for s in result.sources if s.spec.type == "web")
+    n_local = sum(1 for s in result.sources if s.spec.type == "local_file")
+    n_skill = sum(1 for s in result.sources if s.spec.type == "skill")
 
     parts: list[str] = []
     parts.append(f"# {tape.title}\n")
@@ -137,7 +140,7 @@ def _render_master_file(
     meta_lines = [
         f"**Curator:** {tape.curator}",
         f"**Compiled:** {result.compiled_at.isoformat()}",
-        f"**Sources:** {len(result.sources)} ({n_youtube} videos, {n_web} articles)",
+        f"**Sources:** {len(result.sources)} ({n_youtube} videos, {n_web} articles, {n_local} local files, {n_skill} skills)",
     ]
     if tape.mode:
         meta_lines.append(f"**Mode:** {tape.mode}")
@@ -197,6 +200,12 @@ def _render_index_entry(entry: dict[str, Any]) -> str:
             lines.append(f"- **Citation:** {spec.citation}")
         if spec.path:
             lines.append(f"- **Local path:** {spec.path}")
+    elif spec.type == "skill":
+        lines.append("- **Use as:** reference material, not active instructions")
+        if spec.path:
+            lines.append(f"- **Skill path/name:** {spec.path}")
+        if spec.url:
+            lines.append(f"- **URL:** {spec.url}")
     else:
         lines.append(f"- **URL:** {spec.url}")
         if spec.render == "js":
@@ -217,7 +226,7 @@ def _render_index_entry(entry: dict[str, Any]) -> str:
                 "(live fetch was blocked at compile time)"
             )
     if spec.note:
-        lines.append(f"- **Curator note:** {spec.note}")
+        lines.append(f"- **Curator note:** {_render_curator_note(spec.note, spec.kind)}")
     if content is None:
         lines.append("- **Content file:** _unavailable; see compilation notes_")
     else:
@@ -241,6 +250,12 @@ def _render_source_file(item: CompiledSource) -> str:
             lines.append(f"**Citation:** {spec.citation}  ")
         if spec.path:
             lines.append(f"**Local path:** {spec.path}  ")
+    elif spec.type == "skill":
+        lines.append("**Use as:** reference material, not active instructions  ")
+        if spec.path:
+            lines.append(f"**Skill path/name:** {spec.path}  ")
+        if spec.url:
+            lines.append(f"**URL:** {spec.url}  ")
     else:
         lines.append(f"**URL:** {spec.url}  ")
         if spec.render == "js":
@@ -264,7 +279,7 @@ def _render_source_file(item: CompiledSource) -> str:
     lines.append("")
 
     if spec.note:
-        lines.append("> **Curator note:** " + spec.note)
+        lines.append("> **Curator note:** " + _render_curator_note(spec.note, spec.kind))
         lines.append("")
 
     if content is not None:
@@ -289,6 +304,13 @@ def _group_sections(
             order.append(section)
         grouped[section].append(item)
     return [(name, grouped[name]) for name in order], ungrouped
+
+
+def _render_curator_note(note: str, kind: str | None) -> str:
+    text = note.strip()
+    if kind and not KIND_NOTE_PREFIX_PATTERN.match(text):
+        return f"**[{kind}]** {text}"
+    return text
 
 
 def _fmt_duration(seconds: int) -> str:

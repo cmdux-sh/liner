@@ -1,6 +1,6 @@
 // Shared TS types that mirror the Python core's tape + event shapes.
 
-export type SourceType = "youtube" | "web" | "local_file";
+export type SourceType = "youtube" | "web" | "local_file" | "skill";
 export type Priority = "required" | "optional";
 export type Mode = "quick" | "methodology";
 export type Render = "server" | "js";
@@ -19,14 +19,14 @@ export type SourceKind = "reference" | "principle" | "prescription" | "example";
 
 export type SourceSpec = {
   type: SourceType;
-  /** Empty string for local_file sources; use `path` instead. */
+  /** Empty string for local_file/local skill sources; use `path` instead. */
   url: string;
   note?: string | null;
   section?: string | null;
   priority: Priority;
-  /** web sources only: server (default, omitted) or js (requires linersh[js]). */
+  /** web sources only: server (default, omitted) or js (requires liner setup-js). */
   render?: Render | null;
-  /** local_file sources only: relative path under personal/. */
+  /** local_file sources: relative path under local-sources/ or legacy personal/. skill sources: name/path. */
   path?: string | null;
   /** local_file sources only: human-readable provenance. */
   citation?: string | null;
@@ -35,10 +35,10 @@ export type SourceSpec = {
 };
 
 /**
- * Single Q&A pair from the JTBD elicitation step. The wizard generates 3-4
- * targeted questions after the user types their raw JTBD and stores the
- * answers here so Phase 1 (framing) can weight the knowledge map by the
- * scope splits / quality anchors / audience the user named.
+ * Single Q&A pair from the capability-clarification step. The wizard generates
+ * targeted questions after the user describes what this Liner should help a
+ * future AI agent do, then stores the answers here so Phase 1 can derive the
+ * internal JTBD, research lanes, source requirements, and knowledge map.
  */
 export type JtbdClarification = { question: string; answer: string };
 
@@ -55,7 +55,7 @@ export type Tape = {
   homepage?: string | null;
   mode?: Mode | null;
   jtbd?: string | null;
-  /** Sharpening Q&A captured by the wizard's JTBD-clarify step. */
+  /** Sharpening Q&A captured by the wizard's capability-clarify step. */
   jtbd_clarifications?: JtbdClarification[] | null;
   methodology_version?: string | null;
   /**

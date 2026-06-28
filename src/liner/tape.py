@@ -8,7 +8,7 @@ import yaml
 
 from liner.types import JtbdClarification, SourceSpec, Tape
 
-ALLOWED_SOURCE_TYPES = {"youtube", "web", "local_file"}
+ALLOWED_SOURCE_TYPES = {"youtube", "web", "local_file", "skill"}
 ALLOWED_PRIORITIES = {"required", "optional"}
 ALLOWED_MODES = {"quick", "methodology"}
 ALLOWED_RENDER = {"server", "js"}
@@ -148,15 +148,16 @@ def _validate_source(src: Any, path_prefix: str) -> SourceSpec:
         raise TapeValidationError(f"{path_prefix}.section", "must be a string if present")
 
     kind = src.get("kind")
-    if kind is not None:
-        if not isinstance(kind, str) or kind not in ALLOWED_KINDS:
-            raise TapeValidationError(
-                f"{path_prefix}.kind",
-                f"must be one of {sorted(ALLOWED_KINDS)} if present, got {kind!r}",
-            )
+    if kind is not None and (not isinstance(kind, str) or kind not in ALLOWED_KINDS):
+        raise TapeValidationError(
+            f"{path_prefix}.kind",
+            f"must be one of {sorted(ALLOWED_KINDS)} if present, got {kind!r}",
+        )
 
     if s_type == "local_file":
         return _validate_local_file_source(src, path_prefix, note, section, priority, kind)
+    if s_type == "skill":
+        return _validate_skill_source(src, path_prefix, note, section, priority, kind)
     return _validate_url_source(src, path_prefix, s_type, note, section, priority, kind)
 
 
@@ -251,13 +252,13 @@ def _validate_local_file_source(
     if Path(path_value).is_absolute():
         raise TapeValidationError(
             f"{path_prefix}.path",
-            f"must be a relative path under personal/, got absolute path {path_value!r}",
+            f"must be a relative path under local-sources/ or personal/, got absolute path {path_value!r}",
         )
     parts = path_value.replace("\\", "/").split("/")
-    if parts[0] != "personal":
+    if parts[0] not in {"personal", "local-sources"}:
         raise TapeValidationError(
             f"{path_prefix}.path",
-            f"must start with 'personal/', got {path_value!r}",
+            f"must start with 'personal/' or 'local-sources/', got {path_value!r}",
         )
     if any(part == ".." for part in parts):
         raise TapeValidationError(
@@ -279,6 +280,67 @@ def _validate_local_file_source(
         priority=priority,  # type: ignore[arg-type]
         path=path_value,
         citation=citation.strip(),
+        kind=kind,  # type: ignore[arg-type]
+    )
+
+
+def _validate_skill_source(
+    src: dict[str, Any],
+    path_prefix: str,
+    note: str | None,
+    section: str | None,
+    priority: str,
+    kind: str | None,
+) -> SourceSpec:
+    url = src.get("url")
+    raw_path = src.get("path")
+
+    if url is None and raw_path is None:
+        raise TapeValidationError(
+            f"{path_prefix}.path",
+            "skill sources require either `path` (local/discovered skill) or `url` (remote GitHub skill)",
+        )
+    if url is not None:
+        if not isinstance(url, str) or not url.strip():
+            raise TapeValidationError(f"{path_prefix}.url", "must be a non-empty string")
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise TapeValidationError(f"{path_prefix}.url", f"not a valid URL: {url!r}")
+        if "github.com" not in parsed.netloc.lower() and "raw.githubusercontent.com" not in parsed.netloc.lower():
+            raise TapeValidationError(
+                f"{path_prefix}.url",
+                "remote skill sources currently support GitHub URLs only",
+            )
+
+    path_value: str | None = None
+    if raw_path is not None:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise TapeValidationError(f"{path_prefix}.path", "must be a non-empty string")
+        path_value = raw_path.strip()
+        # Absolute paths and bare discovered names are allowed for skill sources:
+        # they are local reference artifacts, not share-safe library sources.
+        if not Path(path_value).is_absolute():
+            parts = path_value.replace("\\", "/").split("/")
+            if any(part == ".." for part in parts):
+                raise TapeValidationError(
+                    f"{path_prefix}.path",
+                    f"must not contain '..' segments: {path_value!r}",
+                )
+
+    for forbidden in ("citation", "render"):
+        if forbidden in src:
+            raise TapeValidationError(
+                f"{path_prefix}.{forbidden}",
+                "not valid on skill sources",
+            )
+
+    return SourceSpec(
+        type="skill",
+        url=url.strip() if isinstance(url, str) else "",
+        note=note,
+        section=section,
+        priority=priority,  # type: ignore[arg-type]
+        path=path_value,
         kind=kind,  # type: ignore[arg-type]
     )
 

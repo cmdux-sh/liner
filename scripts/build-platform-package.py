@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the current machine's npm platform package for the Liner CLI."""
+"""Build the current machine's npm platform package for Liner native binaries."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TUI_PACKAGE_JSON = ROOT / "packages" / "tui" / "package.json"
 ENTRYPOINT = ROOT / "src" / "liner" / "__main__.py"
+GO_TUI_DIR = ROOT / "packages" / "go-tui"
 DEFAULT_DIST = ROOT / "build" / "platform-dist"
 DEFAULT_WORK = ROOT / "build" / "platform-work"
 DEFAULT_SPEC = ROOT / "build" / "platform-spec"
@@ -23,7 +24,7 @@ DEFAULT_OUT = ROOT / "packages" / "platform"
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Build a PyInstaller CLI binary and wrap it as an npm optionalDependency package.",
+        description="Build native CLI/TUI binaries and wrap them as an npm optionalDependency package.",
     )
     parser.add_argument(
         "--out-dir",
@@ -57,7 +58,7 @@ def main() -> int:
         safe_rmtree(DEFAULT_DIST)
         safe_rmtree(DEFAULT_WORK)
         safe_rmtree(DEFAULT_SPEC)
-        safe_rmtree(package_dir)
+        safe_rmtree(package_dir, extra_allowed=[args.out_dir.resolve()])
 
     if not args.skip_build:
         run_pyinstaller()
@@ -68,12 +69,16 @@ def main() -> int:
 
     package_dir.mkdir(parents=True, exist_ok=True)
     copy_tree_contents(built_dir, package_dir)
+    build_go_tui(package_dir / tui_name(target["node_platform"]))
     write_package_json(package_dir, package_name, args.version, target)
     write_readme(package_dir, package_name, target)
 
     binary = package_dir / exe_name(target["node_platform"])
     if target["node_platform"] != "win32":
         binary.chmod(binary.stat().st_mode | 0o755)
+        (package_dir / tui_name(target["node_platform"])).chmod(
+            (package_dir / tui_name(target["node_platform"])).stat().st_mode | 0o755
+        )
 
     smoke(binary)
     print(f"Built {package_name}@{args.version} in {package_dir}")
@@ -119,6 +124,17 @@ def run_pyinstaller() -> None:
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
+def build_go_tui(out: Path) -> None:
+    go = shutil.which("go")
+    if go is None:
+        raise SystemExit("go is required to build the platform TUI binary. Install Go and retry.")
+    subprocess.run(
+        [go, "build", "-o", str(out), "./cmd/liner-tui"],
+        cwd=GO_TUI_DIR,
+        check=True,
+    )
+
+
 def current_target() -> dict[str, str]:
     sys_platform = sys.platform
     machine = platform.machine().lower()
@@ -162,9 +178,22 @@ def write_package_json(
         "version": version,
         "description": "Platform-specific Liner CLI binary used by the linersh TUI package.",
         "license": "MIT",
+        "homepage": "https://liner.sh",
+        "repository": {
+            "type": "git",
+            "url": "git+https://github.com/cmdux-sh/liner.git",
+        },
+        "bugs": {
+            "url": "https://github.com/cmdux-sh/liner/issues",
+        },
         "os": [target["node_platform"]],
         "cpu": [target["node_arch"]],
-        "files": [exe_name(target["node_platform"]), "_internal/", "README.md"],
+        "files": [
+            exe_name(target["node_platform"]),
+            tui_name(target["node_platform"]),
+            "_internal/",
+            "README.md",
+        ],
     }
     (package_dir / "package.json").write_text(
         json.dumps(package_json, indent=2, sort_keys=False) + "\n",
@@ -179,6 +208,7 @@ def write_readme(package_dir: Path, package_name: str, target: dict[str, str]) -
         "This package is installed as an optional dependency. It is not meant to be used directly.\n\n"
         f"- platform: `{target['node_platform']}`\n"
         f"- arch: `{target['node_arch']}`\n"
+        f"- binaries: `{exe_name(target['node_platform'])}`, `{tui_name(target['node_platform'])}`\n"
     )
     (package_dir / "README.md").write_text(text, encoding="utf-8")
 
@@ -197,12 +227,14 @@ def smoke(binary: Path) -> None:
     subprocess.run([str(binary), "setup-js", "--help"], cwd=ROOT, check=True)
 
 
-def safe_rmtree(path: Path) -> None:
+def safe_rmtree(path: Path, *, extra_allowed: list[Path] | None = None) -> None:
     path = path.resolve()
     allowed_roots = [
         (ROOT / "build").resolve(),
         (ROOT / "packages" / "platform").resolve(),
     ]
+    if extra_allowed:
+        allowed_roots.extend(root.resolve() for root in extra_allowed)
     if not any(path == root or root in path.parents for root in allowed_roots):
         raise SystemExit(f"Refusing to remove unexpected path: {path}")
     if path.exists():
@@ -211,6 +243,10 @@ def safe_rmtree(path: Path) -> None:
 
 def exe_name(node_platform: str) -> str:
     return "liner.exe" if node_platform == "win32" else "liner"
+
+
+def tui_name(node_platform: str) -> str:
+    return "liner-tui.exe" if node_platform == "win32" else "liner-tui"
 
 
 if __name__ == "__main__":

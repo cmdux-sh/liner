@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Copy the agent skill bundle (docs/skill/) from the repo root into
-// the TUI package so it ships inside the published npm tarball.
+// Copy the curation skill bundle from docs/curation-skill/ into the TUI package
+// so it ships inside the published npm tarball.
 //
 // npm forbids `..` paths in `files`, so the bundle has to physically live
 // inside the package directory at publish time. This script is invoked by
-// `prepack`. The copied directory is gitignored — only the source at the
-// repo root is tracked.
+// `prepack`. The copied directory is gitignored; docs/curation-skill/ is the
+// tracked source.
 
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packageDir = resolve(here, "..");
 const repoRoot = resolve(packageDir, "..", "..");
 
-const src = join(repoRoot, "docs", "skill");
+const src = join(repoRoot, "docs", "curation-skill");
 const dest = join(packageDir, "cli-update-docs");
 
 if (!existsSync(src)) {

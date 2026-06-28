@@ -86,7 +86,8 @@ export type SkillPathResolution = {
  *      `linersh/cli-update-docs/`, and `import.meta.url` resolves the
  *      symlinks npx puts in front of the package).
  *   3. Walk up from cwd (covers the dev-from-repo case where the user
- *      is somewhere inside the liner working tree).
+ *      is somewhere inside the liner working tree, where the tracked source
+ *      bundle lives at `docs/curation-skill/`).
  *   4. Walk up from `process.argv[1]` (legacy global-install case).
  */
 export function resolveSkillPath(): string | null {
@@ -100,7 +101,7 @@ export function resolveSkillPathWithDiagnostics(): SkillPathResolution {
     return { path: envPath, envPath, searched: [join(envPath, "SKILL.md")] };
   }
 
-  const candidates = ["cli-update-docs", "docs/skill", "skills/curating-mixtapes"];
+  const candidates = ["cli-update-docs", "docs/curation-skill", "skills/curating-mixtapes"];
 
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const packageRoot = nearestPackageRoot(moduleDir);

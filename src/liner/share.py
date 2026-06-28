@@ -92,7 +92,7 @@ def _iter_entries(
     root_name = root.name
 
     if options.minimal:
-        yield project.tape_path, f"{root_name}/tape.yaml"
+        yield project.tape_path, f"{root_name}/{project.tape_path.relative_to(root).as_posix()}"
         return
 
     for path in sorted(root.rglob("*")):
@@ -100,11 +100,29 @@ def _iter_entries(
             continue
         rel = path.relative_to(root)
         first = rel.parts[0]
-        if first == "sources" and not options.include_source_content:
+        if _is_sources_entry(rel) and not options.include_source_content:
             continue
-        if first == "working" and not options.include_working_notes:
+        if _is_working_entry(rel) and not options.include_working_notes:
             continue
-        if first == "personal" and not options.include_personal:
+        if _is_personal_entry(rel) and not options.include_personal:
             continue
         arcname = f"{root_name}/{rel.as_posix()}"
         yield path, arcname
+
+
+def _is_sources_entry(rel: Path) -> bool:
+    parts = rel.parts
+    return parts[:1] == ("sources",) or parts[:2] == ("mixtape", "sources")
+
+
+def _is_working_entry(rel: Path) -> bool:
+    parts = rel.parts
+    return parts[:1] == ("working",) or parts[:2] == ("mixtape", "working")
+
+
+def _is_personal_entry(rel: Path) -> bool:
+    parts = rel.parts
+    return (
+        parts[:1] in {("personal",), ("local-sources",)}
+        or parts[:2] in {("mixtape", "personal"), ("mixtape", "local-sources")}
+    )

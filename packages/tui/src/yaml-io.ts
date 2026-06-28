@@ -22,6 +22,7 @@ const ALLOWED_TYPES: ReadonlySet<string> = new Set<SourceType>([
   "youtube",
   "web",
   "local_file",
+  "skill",
 ]);
 const ALLOWED_PRIORITIES: ReadonlySet<string> = new Set<Priority>(["required", "optional"]);
 const ALLOWED_MODES: ReadonlySet<string> = new Set<Mode>(["quick", "methodology"]);
@@ -41,6 +42,7 @@ const ALLOWED_LOCAL_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 export type ProjectFolder = {
+  rootPath: string;
   path: string;
   tapePath: string;
   synthesisPath: string;
@@ -50,13 +52,24 @@ export type ProjectFolder = {
 };
 
 export function projectFolder(path: string): ProjectFolder {
+  const canonical = join(path, "mixtape");
+  const projectMarker = join(path, "liner.yaml");
+  const legacyTape = join(path, "tape.yaml");
+  const canonicalTape = join(canonical, "tape.yaml");
+  const corpusPath =
+    existsSync(projectMarker) || existsSync(canonicalTape)
+      ? canonical
+      : existsSync(legacyTape)
+        ? path
+        : canonical;
   return {
-    path,
-    tapePath: join(path, "tape.yaml"),
-    synthesisPath: join(path, "synthesis.md"),
-    mixtapePath: join(path, "MIXTAPE.md"),
-    sourcesDir: join(path, "sources"),
-    workingDir: join(path, "working"),
+    rootPath: path,
+    path: corpusPath,
+    tapePath: join(corpusPath, "tape.yaml"),
+    synthesisPath: join(corpusPath, "synthesis.md"),
+    mixtapePath: join(corpusPath, "MIXTAPE.md"),
+    sourcesDir: join(corpusPath, "sources"),
+    workingDir: join(corpusPath, "working"),
   };
 }
 
@@ -104,7 +117,7 @@ export function writeTape(path: string, tape: Tape, doc?: YAML.Document): void {
 
 export function emptyTape(curator = ""): Tape {
   return {
-    title: "New mixtape",
+    title: "New Liner",
     description: "",
     version: 1,
     curator,
@@ -130,7 +143,7 @@ export function validateTape(tape: Tape): ValidationError[] {
   tape.sources?.forEach((src, i) => {
     const prefix = `sources[${i}]`;
     if (!ALLOWED_TYPES.has(src.type)) {
-      errs.push({ field: `${prefix}.type`, message: "must be youtube, web, or local_file" });
+      errs.push({ field: `${prefix}.type`, message: "must be youtube, web, local_file, or skill" });
     }
     if (!ALLOWED_PRIORITIES.has(src.priority)) {
       errs.push({
@@ -145,8 +158,8 @@ export function validateTape(tape: Tape): ValidationError[] {
         const path = src.path.trim();
         if (path.startsWith("/")) {
           errs.push({ field: `${prefix}.path`, message: "must be relative, not absolute" });
-        } else if (!path.startsWith("personal/")) {
-          errs.push({ field: `${prefix}.path`, message: "must start with personal/" });
+        } else if (!path.startsWith("personal/") && !path.startsWith("local-sources/")) {
+          errs.push({ field: `${prefix}.path`, message: "must start with local-sources/ or personal/" });
         } else if (path.split("/").includes("..")) {
           errs.push({ field: `${prefix}.path`, message: "must not contain .. segments" });
         } else {
@@ -161,6 +174,13 @@ export function validateTape(tape: Tape): ValidationError[] {
       }
       if (!src.citation?.trim()) {
         errs.push({ field: `${prefix}.citation`, message: "required for local_file" });
+      }
+    } else if (src.type === "skill") {
+      if (!src.path?.trim() && !src.url?.trim()) {
+        errs.push({ field: `${prefix}.path`, message: "skill requires a name/path or GitHub URL" });
+      }
+      if (src.url?.trim() && !isLikelyUrl(src.url)) {
+        errs.push({ field: `${prefix}.url`, message: "not a valid URL" });
       }
     } else {
       // youtube / web
@@ -207,6 +227,13 @@ export function detectSourceType(input: string): SourceType {
   ) {
     return "youtube";
   }
+  if (
+    lower.includes("/skills/") ||
+    lower.endsWith("/skill.md") ||
+    lower.includes("github.com/") && lower.includes("skill")
+  ) {
+    return "skill";
+  }
   return "web";
 }
 
@@ -226,7 +253,8 @@ export function slugify(text: string, maxLength = 60): string {
 
 export function isProjectFolder(path: string): boolean {
   try {
-    return statSync(path).isDirectory() && existsSync(join(path, "tape.yaml"));
+    const folder = projectFolder(path);
+    return statSync(path).isDirectory() && existsSync(folder.tapePath);
   } catch {
     return false;
   }
@@ -331,6 +359,9 @@ function applyTapeToDocument(doc: YAML.Document, tape: Tape): void {
       if (s.type === "local_file") {
         if (s.path) obj["path"] = s.path;
         if (s.citation) obj["citation"] = s.citation;
+      } else if (s.type === "skill") {
+        if (s.path) obj["path"] = s.path;
+        if (s.url) obj["url"] = s.url;
       } else {
         if (s.url) obj["url"] = s.url;
         // Explicit `render` field is preserved (server or js). Absence is

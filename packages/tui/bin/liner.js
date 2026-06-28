@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Entry shim for `npx linersh` / `liner`.
 //
-// No args: launch the Ink TUI from dist/.
+// No args: launch the selected TUI.
+//   unset         -> launch the Charm Go TUI
+//   LINER_TUI=go  -> launch the Charm Go TUI explicitly
 // CLI args: forward to the bundled Python core (or LINER_BIN/dev fallback).
 //
 // This lets the npm package expose one binary name while still supporting
@@ -41,6 +43,7 @@ const CLI_COMMANDS = new Set([
   "clone",
   "setup-js",
   "list",
+  "skills",
   "cache",
   "manifest",
   "status",
@@ -66,44 +69,67 @@ if (wantsCli(argv)) {
     process.exit(code ?? 1);
   });
 } else {
-  // Enter the terminal's alternate screen buffer before launching Ink.
-  //
-  // Every Ink screen that changes total render height between frames (each
-  // wizard step, each PhaseRunner stream event, each gate transition) was
-  // committing older frames to the user's scrollback — producing stacked
-  // duplicated headers above the visible content. The alternate buffer has
-  // no scrollback by definition, so the bug class is eliminated.
-  //
-  // Trade-off: on exit, the TUI vanishes and the terminal returns to its
-  // pre-launch state. Post-exit context lives in `.liner-runs/` and
-  // `MIXTAPE.md`, which are the intended sources of truth anyway.
-  //
-  // Only enter alt-screen on a real TTY; piped/redirected stdout shouldn't
-  // receive raw escape sequences.
-  const useAltScreen = process.stdout.isTTY === true;
-
-  if (useAltScreen) {
-    process.stdout.write("\x1b[?1049h");
-    const restoreScreen = () => {
-      process.stdout.write("\x1b[?1049l");
-    };
-    process.on("exit", restoreScreen);
-    process.on("SIGINT", () => {
-      restoreScreen();
-      process.exit(130);
-    });
-    process.on("SIGTERM", () => {
-      restoreScreen();
-      process.exit(143);
-    });
-    process.on("uncaughtException", (err) => {
-      restoreScreen();
-      console.error(err);
-      process.exit(1);
-    });
+  const tui = (process.env.LINER_TUI || "go").toLowerCase();
+  if (tui !== "go") {
+    console.error(
+      [
+        `Unsupported LINER_TUI value: ${process.env.LINER_TUI}`,
+        "",
+        "The Ink TUI has been decommissioned and moved to the repo's ink/ archive.",
+        "Run `liner` with no LINER_TUI override, or set LINER_TUI=go.",
+      ].join("\n"),
+    );
+    process.exit(1);
   }
 
-  await import(join(packageRoot, "dist", "index.js"));
+  const resolved = resolveGoTuiBinary();
+  const child = spawn(resolved.command, resolved.args, {
+    stdio: "inherit",
+    cwd: resolved.cwd || process.cwd(),
+    env: {
+      ...process.env,
+      LINER_BIN: process.env.LINER_BIN || tryResolveCliCommand() || "",
+    },
+  });
+  child.on("exit", (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+    process.exit(code ?? 1);
+  });
+}
+
+function resolveGoTuiBinary() {
+  const envBin = process.env.LINER_GO_TUI_BIN;
+  if (envBin && existsSync(envBin)) return { command: envBin, args: [] };
+
+  const packaged = join(packageRoot, "bin", process.platform === "win32" ? "liner-tui.exe" : "liner-tui");
+  if (existsSync(packaged)) return { command: packaged, args: [] };
+
+  const bundled = findBundledGoTuiBinary();
+  if (bundled) return { command: bundled, args: [] };
+
+  const sourceDir = join(packageRoot, "..", "go-tui");
+  if (existsSync(join(sourceDir, "go.mod"))) {
+    const go = spawnSync("go", ["version"], { encoding: "utf8" });
+    if (go.status === 0) {
+      return { command: "go", args: ["run", "./cmd/liner-tui"], cwd: sourceDir };
+    }
+  }
+
+  console.error(
+    [
+      "Could not find the Go Liner TUI.",
+      "",
+      "Expected one of:",
+      "  - LINER_GO_TUI_BIN=/path/to/liner-tui",
+      "  - packages/tui/bin/liner-tui built by npm run build:go",
+      "  - bundled platform package (linersh-<platform>-<arch>)",
+      "  - repo source at packages/go-tui with go installed",
+    ].join("\n"),
+  );
+  process.exit(1);
 }
 
 function resolveCliBinary() {
@@ -112,11 +138,11 @@ function resolveCliBinary() {
     return { command: envBin, args: [] };
   }
 
-  const bundled = findBundledBinary();
-  if (bundled) return { command: bundled, args: [] };
-
   const repoVenv = findRepoVenvBinary();
   if (repoVenv) return { command: repoVenv, args: [] };
+
+  const bundled = findBundledBinary();
+  if (bundled) return { command: bundled, args: [] };
 
   const pathHit = findPathBinary();
   if (pathHit) return { command: pathHit, args: [] };
@@ -254,13 +280,25 @@ function playwrightCachePath(home) {
 }
 
 function findBundledBinary() {
+  const baseDir = findBundledPackageDir();
+  if (!baseDir) return null;
+  const candidate = join(baseDir, exeName());
+  return existsSync(candidate) ? candidate : null;
+}
+
+function findBundledGoTuiBinary() {
+  const baseDir = findBundledPackageDir();
+  if (!baseDir) return null;
+  const candidate = join(baseDir, process.platform === "win32" ? "liner-tui.exe" : "liner-tui");
+  return existsSync(candidate) ? candidate : null;
+}
+
+function findBundledPackageDir() {
   const require = createRequire(import.meta.url);
   const target = `linersh-${process.platform}-${process.arch}`;
   try {
     const pkgJson = require.resolve(`${target}/package.json`);
-    const baseDir = pkgJson.replace(/[\\/]package\.json$/, "");
-    const candidate = join(baseDir, exeName());
-    return existsSync(candidate) ? candidate : null;
+    return pkgJson.replace(/[\\/]package\.json$/, "");
   } catch {
     return null;
   }
@@ -311,7 +349,7 @@ function readTuiVersion() {
 function tryResolveCliCommand() {
   const envBin = process.env.LINER_BIN;
   if (envBin && existsSync(envBin)) return envBin;
-  return findBundledBinary() || findRepoVenvBinary() || findPathBinary() || null;
+  return findRepoVenvBinary() || findBundledBinary() || findPathBinary() || null;
 }
 
 function printVersion() {

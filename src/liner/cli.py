@@ -24,18 +24,21 @@ from liner.json_events import (
 )
 from liner.manifest import build_manifest, read_manifest, write_manifest
 from liner.playwright_env import configure_frozen_playwright_cache
-from liner.project import ProjectFolder, init_project
+from liner.project import ProjectFolder, init_project, refresh_status_snapshot
 from liner.share import ShareOptions, pack, unpack
+from liner.status import build_status_payload
 from liner.tape import TapeValidationError, load_tape
 from liner.types import CompileResult, Tape
 
 app = typer.Typer(
-    help="Liner — build mixtape project folders from curated source recipes.",
+    help="Liner — build Liner project folders from curated source recipes.",
     no_args_is_help=True,
     add_completion=False,
 )
 cache_app = typer.Typer(help="Cache management commands.", no_args_is_help=True)
 app.add_typer(cache_app, name="cache")
+skills_app = typer.Typer(help="Find installed skills that can be used as sources.", no_args_is_help=True)
+app.add_typer(skills_app, name="skills")
 
 err_console = Console(stderr=True)
 
@@ -59,25 +62,118 @@ def _root(
             pass
 
 
-@app.command(help="Scaffold a new mixtape project folder.")
+@app.command(help="Scaffold a new Liner project folder.")
 def init(
     path: Path = typer.Argument(
         ...,
         help="Folder to create (or populate). Pass a slug to create ./<slug>/.",
     ),
     force: bool = typer.Option(False, "--force", help="Overwrite existing files in the folder."),
+    mode: str | None = typer.Option(
+        None,
+        "--mode",
+        help="Set the project mode: quick or methodology.",
+    ),
+    jtbd: str | None = typer.Option(None, "--jtbd", help="Set the job-to-be-done."),
+    title: str | None = typer.Option(None, "--title", help="Set the mixtape title."),
+    description: str | None = typer.Option(None, "--description", help="Set the mixtape description."),
+    curator: str | None = typer.Option(None, "--curator", help="Set the curator name."),
 ) -> None:
+    try:
+        mode_value = _normalize_init_mode(mode)
+        metadata = _init_metadata_overrides(
+            mode=mode_value,
+            jtbd=jtbd,
+            title=title,
+            description=description,
+            curator=curator,
+        )
+    except ValueError as e:
+        err_console.print(f"[red]{e}[/]")
+        raise typer.Exit(code=1) from e
+
     try:
         project = init_project(path, force=force)
     except FileExistsError as e:
         err_console.print(f"[red]{e}[/]")
         raise typer.Exit(code=1) from e
 
-    err_console.print(f"[green]Created project folder[/] {project.path}")
+    if metadata:
+        _apply_init_metadata(project, metadata)
+    if jtbd is not None and jtbd.strip():
+        _prefill_jtbd(project, jtbd.strip())
+
+    err_console.print(f"[green]Created Liner project[/] {project.path}")
     err_console.print("Next steps:")
     err_console.print(f"  1. Edit [bold]{project.tape_path}[/] with your sources")
     err_console.print(f"  2. Write your synthesis in [bold]{project.synthesis_path}[/]")
     err_console.print(f"  3. Run [bold]liner compile {project.path}[/]")
+
+
+def _normalize_init_mode(mode: str | None) -> str | None:
+    if mode is None:
+        return None
+    value = mode.strip().lower()
+    if value not in {"quick", "methodology"}:
+        raise ValueError("--mode must be quick or methodology")
+    return value
+
+
+def _init_metadata_overrides(
+    *,
+    mode: str | None,
+    jtbd: str | None,
+    title: str | None,
+    description: str | None,
+    curator: str | None,
+) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    if mode is not None:
+        metadata["mode"] = mode
+    for key, value in {
+        "jtbd": jtbd,
+        "title": title,
+        "description": description,
+        "curator": curator,
+    }.items():
+        if value is None:
+            continue
+        if key != "description" and not value.strip():
+            raise ValueError(f"--{key} cannot be empty")
+        metadata[key] = value.strip() if key != "description" else value
+    return metadata
+
+
+def _apply_init_metadata(project: ProjectFolder, metadata: dict[str, str]) -> None:
+    import yaml
+
+    raw = yaml.safe_load(project.tape_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raw = {}
+    raw.update(metadata)
+    project.tape_path.write_text(
+        yaml.safe_dump(raw, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
+def _prefill_jtbd(project: ProjectFolder, jtbd: str) -> None:
+    path = project.working_dir / "01-jtbd-and-knowledge-map.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    heading = "## Job-to-be-done"
+    next_heading = "\n## Knowledge map"
+    if heading not in text or next_heading not in text:
+        return
+    heading_end = text.index(heading) + len(heading)
+    suffix_start = text.index(next_heading)
+    replacement = (
+        f"\n\n{jtbd}\n\n"
+        "_Set via `liner init --jtbd`. Revise here if your understanding sharpens during research._\n"
+    )
+    path.write_text(text[:heading_end] + replacement + text[suffix_start:], encoding="utf-8")
 
 
 @app.command(
@@ -113,12 +209,14 @@ def replay(
     project folder so the curator can run the same input through a fresh
     pipeline. Working artifacts, synthesis, and sources are NOT copied —
     they regenerate from scratch. The new tape records `parent: <source>`
-    so the two compiled outputs can be compared later.
+    so Phase 8 (empirical) can run a v1-vs-v2 comparison test instead of
+    the default with-vs-without test.
     """
     from liner.tape import load_tape
 
     try:
-        src_tape = load_tape(source / "tape.yaml")
+        src_project = ProjectFolder(source)
+        src_tape = load_tape(src_project.tape_path)
     except Exception as e:  # noqa: BLE001 - rich passthrough
         err_console.print(f"[red]Could not load source tape:[/] {e}")
         raise typer.Exit(code=1) from e
@@ -149,11 +247,11 @@ def replay(
     _replay_tape(project, src_tape, source.resolve())
 
     err_console.print(f"[green]Replay folder ready:[/] {project.path}")
-    err_console.print(f"  parent: [dim]{source.resolve()}[/]")
+    err_console.print(f"  parent: [dim]{source.resolve()}[/] (Phase 8 will compare against this)")
     err_console.print("Next steps:")
     err_console.print(f"  1. Open [bold]{project.path}[/] in the TUI (or run phases manually)")
     err_console.print("  2. Run all phases; the cloned JTBD + clarifications are pre-filled")
-    err_console.print(f"  3. After compile, compare the result against {source.name}")
+    err_console.print(f"  3. After compile, run Phase 8 to compare against {source.name}")
 
 
 def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> None:
@@ -190,7 +288,7 @@ def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> N
     tape_path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-@app.command(help="Compile a project folder: fetch sources, write MIXTAPE.md and sources/.")
+@app.command(help="Compile a Liner project: fetch sources, write mixtape/MIXTAPE.md and mixtape/sources/.")
 def compile(  # noqa: A001 - command name matches the v1 surface
     folder: Path = typer.Argument(
         ...,
@@ -198,7 +296,7 @@ def compile(  # noqa: A001 - command name matches the v1 surface
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Path to the mixtape project folder.",
+        help="Path to the Liner project folder.",
     ),
     skip_optional: bool = typer.Option(
         False, "--skip-optional", help="Exclude sources marked priority: optional."
@@ -233,7 +331,7 @@ def compile(  # noqa: A001 - command name matches the v1 surface
     project = ProjectFolder(folder)
 
     if not project.tape_path.exists():
-        err_console.print(f"[red]No tape.yaml in {folder}.[/] Run `liner init {folder}` first.")
+        err_console.print(f"[red]No tape.yaml in {project.corpus_path}.[/] Run `liner init {folder}` first.")
         raise typer.Exit(code=1)
 
     try:
@@ -310,7 +408,7 @@ def _source_output_summary(result: CompileResult) -> str:
     return f"({succeeded}/{total} usable sources, {unavailable} unavailable placeholders)"
 
 
-@app.command(help="Pack a mixtape project folder into a .mixtape zip for sharing.")
+@app.command(help="Pack a Liner project folder into a .mixtape zip for sharing.")
 def share(
     folder: Path = typer.Argument(
         ...,
@@ -318,7 +416,7 @@ def share(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Path to the mixtape project folder.",
+        help="Path to the Liner project folder.",
     ),
     out: Path | None = typer.Option(
         None, "--out", help="Output archive path. Default: <folder>.mixtape next to the folder."
@@ -332,7 +430,7 @@ def share(
     no_personal: bool = typer.Option(
         False,
         "--no-personal",
-        help="Exclude personal/ from the archive before sharing private local files.",
+        help="Exclude local-sources/ and personal/ from the archive. Required for library submissions.",
     ),
     minimal: bool = typer.Option(
         False, "--minimal", help="Archive only tape.yaml. Recipient compiles from scratch."
@@ -346,7 +444,7 @@ def share(
         minimal=minimal,
     )
 
-    # Public-sharing soft warning.
+    # Library-eligibility soft warning.
     local_file_count = 0
     if project.tape_path.exists():
         try:
@@ -366,8 +464,8 @@ def share(
     if local_file_count > 0:
         err_console.print(
             f"[yellow]Note:[/] this mixtape contains {local_file_count} "
-            f"local_file source{'s' if local_file_count != 1 else ''}. Use "
-            "[bold]--no-personal[/] before sharing publicly if those files are private."
+            f"local_file source{'s' if local_file_count != 1 else ''} and is not "
+            "library-eligible. Library submissions must use only public, fetchable sources."
         )
 
 
@@ -648,7 +746,7 @@ def _is_frozen_binary() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
-@app.command(name="list", help="List mixtape project folders in the current directory.")
+@app.command(name="list", help="List Liner project folders in the current directory.")
 def list_projects(
     directory: Path = typer.Option(Path("."), "--dir", help="Directory to search."),
     json_output: bool = typer.Option(False, "--json", help="Emit JSON for programmatic use."),
@@ -661,17 +759,18 @@ def list_projects(
 
     candidates: list[Path] = []
     for child in sorted(p for p in directory.iterdir() if p.is_dir()):
-        if (child / "tape.yaml").exists():
+        if _is_liner_project_dir(child):
             candidates.append(child)
         elif recursive:
             for grand in sorted(p for p in child.iterdir() if p.is_dir()):
-                if (grand / "tape.yaml").exists():
+                if _is_liner_project_dir(grand):
                     candidates.append(grand)
 
     records: list[dict[str, object]] = []
     for project_path in candidates:
+        project = ProjectFolder(project_path)
         try:
-            tape = load_tape(project_path / "tape.yaml")
+            tape = load_tape(project.tape_path)
         except (TapeValidationError, Exception):
             continue
         records.append(
@@ -685,7 +784,9 @@ def list_projects(
                 "jtbd": tape.jtbd,
                 "tags": list(tape.tags),
                 "source_count": len(tape.sources),
-                "modified_iso": _dt.fromtimestamp(project_path.stat().st_mtime).isoformat(),
+                "modified_iso": _dt.fromtimestamp(
+                    max(project_path.stat().st_mtime, project.corpus_path.stat().st_mtime)
+                ).isoformat(),
             }
         )
 
@@ -694,7 +795,7 @@ def list_projects(
         return
 
     if not records:
-        err_console.print("[yellow]No mixtape project folders found.[/]")
+        err_console.print("[yellow]No Liner project folders found.[/]")
         return
     for rec in records:
         modified = _dt.fromisoformat(str(rec["modified_iso"])).strftime("%Y-%m-%d %H:%M")
@@ -703,6 +804,34 @@ def list_projects(
             f"{rec['name']}\t{rec['title']} "
             f"({rec['source_count']} sources, mode={mode}, modified {modified})"
         )
+
+
+def _is_liner_project_dir(path: Path) -> bool:
+    project = ProjectFolder(path)
+    return project.tape_path.exists()
+
+
+@skills_app.command("list", help="List locally installed skills Liner can import as sources.")
+def skills_list(
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON for programmatic use."),
+) -> None:
+    import json as _json
+
+    from liner.handlers.skill import discover_skills
+
+    records = [
+        {"name": s.name, "path": str(s.path), "description": s.description}
+        for s in discover_skills()
+    ]
+    if json_output:
+        typer.echo(_json.dumps(records, ensure_ascii=False))
+        return
+    if not records:
+        err_console.print("[yellow]No installed skills found.[/]")
+        return
+    for rec in records:
+        desc = f"\t{rec['description']}" if rec["description"] else ""
+        typer.echo(f"{rec['name']}\t{rec['path']}{desc}")
 
 
 @cache_app.command("info", help="Show cache size and entry count.")
@@ -780,7 +909,7 @@ def cache_purge(url: str) -> None:
     help="Aggregate .liner-runs/* into process.json (tokens, tool calls, fetches, cost).",
 )
 def manifest_cmd(
-    folder: Path = typer.Argument(..., help="Mixtape project folder."),
+    folder: Path = typer.Argument(..., help="Liner project folder."),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -802,10 +931,11 @@ def manifest_cmd(
     if not folder.is_dir():
         err_console.print(f"[red]Not a directory:[/] {folder}")
         raise typer.Exit(code=1)
-    manifest = build_manifest(folder)
+    project = ProjectFolder(folder)
+    manifest = build_manifest(project.corpus_path)
     payload = manifest.to_dict()
     if not no_write:
-        target = write_manifest(folder, manifest)
+        target = write_manifest(project.corpus_path, manifest)
         err_console.print(f"[green]Wrote[/] {target}")
     if json_output:
         typer.echo(_json.dumps(payload, ensure_ascii=False, indent=2))
@@ -813,14 +943,19 @@ def manifest_cmd(
 
 @app.command(
     name="status",
-    help="Show a per-mixtape summary: tokens, tool calls, fetches, cost, runs.",
+    help="Show a per-project summary: tokens, tool calls, fetches, cost, runs.",
 )
 def status_cmd(
-    folder: Path = typer.Argument(..., help="Mixtape project folder."),
+    folder: Path = typer.Argument(..., help="Liner project folder."),
     refresh: bool = typer.Option(
         True,
         "--refresh/--no-refresh",
         help="Rebuild process.json from .liner-runs/ before rendering.",
+    ),
+    no_write: bool = typer.Option(
+        False,
+        "--no-write",
+        help="When refreshing, skip writing process.json; useful with --json for TUI/status consumers.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of a table."),
 ) -> None:
@@ -831,18 +966,27 @@ def status_cmd(
         err_console.print(f"[red]Not a directory:[/] {folder}")
         raise typer.Exit(code=1)
 
+    project = ProjectFolder(folder)
+    corpus = project.corpus_path
+
     if refresh:
-        manifest = build_manifest(folder)
-        write_manifest(folder, manifest)
+        manifest = build_manifest(corpus)
+        if not no_write:
+            write_manifest(corpus, manifest)
         payload = manifest.to_dict()
     else:
-        payload = read_manifest(folder)
+        payload = read_manifest(corpus)
         if payload is None:
             err_console.print(
-                f"[yellow]No process.json in[/] {folder} — run `liner manifest {folder}` first, "
+                f"[yellow]No process.json in[/] {corpus} — run `liner manifest {folder}` first, "
                 "or rerun this command without --no-refresh."
             )
             raise typer.Exit(code=1)
+
+    status_payload = build_status_payload(project, payload)
+    if not no_write:
+        status_payload["status_snapshot"] = refresh_status_snapshot(project)
+    payload.update(status_payload)
 
     if json_output:
         typer.echo(_json.dumps(payload, ensure_ascii=False, indent=2))

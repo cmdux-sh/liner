@@ -1,6 +1,7 @@
 """Local-file source handler.
 
-Resolves `local_file` source paths against the project's `personal/` directory
+Resolves `local_file` source paths against the project's `personal/` or
+`local-sources/` directory
 and extracts text by extension: `.md`/`.txt` as-is, `.html`/`.htm` via the
 shared trafilatura pipeline, `.pdf` via pdfplumber.
 """
@@ -19,14 +20,14 @@ from liner.handlers.pdf_extraction import extract_pdf_text
 from liner.project import ProjectFolder
 from liner.types import SourceContent, SourceSpec
 
-# 10MB cap; keep docs/mixtape-format.md in sync.
+# 10MB cap — matches MIXTAPE-FORMAT.md.
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}
 
 
 class LocalFileHandler:
-    """Reads a local file from `<project>/personal/<path>` and extracts text."""
+    """Reads a local file from the project source inbox and extracts text."""
 
     def __init__(self, project: ProjectFolder) -> None:
         self._project = project
@@ -85,19 +86,24 @@ class LocalFileHandler:
     # --- Internals ---------------------------------------------------------
 
     def _resolve_path(self, path_value: str) -> Path:
-        # Validation already enforced that path starts with personal/ and has
-        # no `..` segments. Double-check the resolved path stays inside
-        # personal_dir as defense in depth.
-        candidate = (self._project.path / path_value).resolve()
-        personal_root = self._project.personal_dir.resolve()
-        try:
-            candidate.relative_to(personal_root)
-        except ValueError as e:
-            raise HandlerHardFailure(
-                f"local_file path {path_value!r} resolves outside personal/: {candidate}",
-                f"file://{candidate}",
-            ) from e
-        return candidate
+        # Validation already enforced that path starts with personal/ or
+        # local-sources/ and has no `..` segments. Double-check the resolved
+        # path stays inside an approved inbox as defense in depth.
+        candidate = (self._project.corpus_path / path_value).resolve()
+        allowed_roots = [
+            self._project.personal_dir.resolve(),
+            self._project.local_sources_dir.resolve(),
+        ]
+        for root in allowed_roots:
+            try:
+                candidate.relative_to(root)
+                return candidate
+            except ValueError:
+                continue
+        raise HandlerHardFailure(
+            f"local_file path {path_value!r} resolves outside local-sources/ and personal/: {candidate}",
+            f"file://{candidate}",
+        )
 
     def _extract(self, path: Path, ext: str, file_url: str) -> str:
         if ext in (".md", ".txt"):

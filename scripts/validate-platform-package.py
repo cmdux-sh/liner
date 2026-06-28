@@ -60,12 +60,19 @@ def validate_package(package_dir: Path, *, pack_dry_run: bool) -> None:
     if os_values[0] != "win32" and not os.access(exe, os.X_OK):
         raise SystemExit(f"{package_dir}: {exe.name} is not executable")
 
+    tui = package_dir / ("liner-tui.exe" if os_values[0] == "win32" else "liner-tui")
+    if not tui.is_file():
+        raise SystemExit(f"{package_dir}: missing root TUI executable {tui.name}")
+    if os_values[0] != "win32" and not os.access(tui, os.X_OK):
+        raise SystemExit(f"{package_dir}: {tui.name} is not executable")
+
     internal = package_dir / "_internal"
     if not internal.is_dir():
         raise SystemExit(f"{package_dir}: missing PyInstaller _internal directory")
 
     subprocess.run([str(exe), "--version"], cwd=package_dir, check=True)
     subprocess.run([str(exe), "setup-js", "--help"], cwd=package_dir, check=True)
+    subprocess.run([str(tui), "--version"], cwd=package_dir, check=True)
 
     if pack_dry_run:
         npm = shutil.which("npm")

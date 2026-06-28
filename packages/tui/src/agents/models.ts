@@ -1,10 +1,10 @@
 // Per-phase model selection.
 //
 // Candidate discovery + evaluation are ~65% of a cycle's token cost, and their
-// work is fetch/triage-heavy rather than taste-heavy — so by default we run
-// those two phases on a cheaper model (Sonnet for Claude, gpt-5-mini for
-// Codex) and leave framing/quality/synthesis/assembly on the agent's own
-// default, where curator judgment matters most. On a subscription the win is
+// work is fetch/triage-heavy rather than taste-heavy. Claude has a stable
+// `sonnet` alias we can safely use for those two phases. Codex's concrete
+// model IDs vary by account type, so Codex stays on its own default unless the
+// user explicitly configures an override. On a subscription the win is
 // rate-limit quota, not dollars.
 //
 // A phase absent from the map runs on the agent's default model (no --model
@@ -17,11 +17,10 @@ import type { PhaseId } from "../phases.js";
 export type PhaseModelMap = Partial<Record<PhaseId, string>>;
 
 // Default downgrades, applied unless the user overrides them in config. The
-// values are the agent CLIs' own model identifiers/aliases: Claude accepts the
-// `sonnet` alias; Codex takes a model id via -m/--model.
+// values are the agent CLIs' own model identifiers/aliases.
 const DEFAULT_MODELS: Record<AgentId, PhaseModelMap> = {
   claude: { candidates: "sonnet", evaluation: "sonnet" },
-  codex: { candidates: "gpt-5-mini", evaluation: "gpt-5-mini" },
+  codex: {},
 };
 
 export function defaultModelMap(agent: AgentId): PhaseModelMap {

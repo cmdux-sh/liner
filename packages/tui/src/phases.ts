@@ -40,13 +40,14 @@ export type PhaseStatus =
  * One actionable piece of work inside a phase, with a visible done/not-done
  * marker. Mostly a no-op (single artifact = single sub-step that doesn't need
  * its own row), but valuable for phases like Framing where the curator
- * supplies the JTBD via the wizard and the agent supplies the knowledge map
- * later — two distinct units, only one of which is done at this point.
+ * supplies the capability goal via the wizard and the agent supplies the
+ * capability brief + knowledge map later — distinct units, only one of which
+ * is done at this point.
  */
 export type SubStep = {
   /** True when this piece is finished. Drives the ✓ vs ○ glyph + color. */
   done: boolean;
-  /** Imperative, terse — "JTBD set", "Knowledge map drafted". */
+  /** Imperative, terse — "Goal set", "Capability brief drafted". */
   text: string;
   /** Optional secondary detail rendered dim after `text`. */
   hint?: string;
@@ -63,8 +64,8 @@ export type PhaseRecord = {
   /**
    * Optional checklist of finer-grained work inside this phase. When present,
    * the focus card renders it below the summary so the curator sees what's
-   * already done (the JTBD they typed in the wizard) and what's still
-   * pending (the knowledge map). Omit when the phase has only one unit of
+   * already done (the goal they typed in the wizard) and what's still
+   * pending (the capability brief / knowledge map). Omit when the phase has only one unit of
    * work; the existing `detail` line covers that case fine.
    */
   subSteps?: SubStep[];
@@ -124,7 +125,7 @@ const PHASE_TEMPLATES: Record<PhaseId, Omit<PhaseRecord, "status" | "detail">> =
     id: "framing",
     number: "1",
     label: "Framing",
-    summary: "Define the JTBD and sketch a knowledge map.",
+    summary: "Define the capability brief and sketch a knowledge map.",
     artifact: "working/01-jtbd-and-knowledge-map.md",
   },
   gate0: {
@@ -215,9 +216,9 @@ export function computePhases(
 /**
  * Build the optional sub-step checklist for a phase. Returns undefined for
  * phases that have one unit of work (most of them). Currently only Framing
- * uses this — the wizard supplies the JTBD up front, but the knowledge map
- * is the agent's job, so we want both shown so the curator knows the JTBD
- * has registered even though the phase isn't done yet.
+ * uses this — the wizard supplies the capability goal up front, but the
+ * capability brief and knowledge map are the agent's job, so we want both shown
+ * even though the phase isn't done yet.
  */
 function subStepsFor(
   phaseId: PhaseId,
@@ -238,7 +239,7 @@ function subStepsFor(
   const steps: SubStep[] = [];
   steps.push({
     done: jtbdSet,
-    text: "JTBD set",
+    text: "Goal set",
     hint: jtbdSet ? undefined : "wizard or hand-edit working/01",
   });
   if (clarsCount > 0) {
@@ -250,7 +251,7 @@ function subStepsFor(
   }
   steps.push({
     done: mapDrafted,
-    text: "Knowledge map drafted",
+    text: "Capability brief drafted",
     hint: mapDrafted
       ? `${chars.toLocaleString()} chars`
       : status === "in_progress"
@@ -277,12 +278,12 @@ function detailFor(
       const jtbdSet = Boolean(tape.jtbd?.trim());
       const chars = readChars(join(folder.path, "working/01-jtbd-and-knowledge-map.md"));
       if (status === "complete") {
-        return `JTBD set · knowledge map drafted (${chars.toLocaleString()} chars)`;
+        return `goal set · capability brief drafted (${chars.toLocaleString()} chars)`;
       }
       if (status === "in_progress") {
         return jtbdSet
-          ? `JTBD set — press enter to draft the knowledge map`
-          : `no JTBD yet — press enter to set one`;
+          ? `goal set — press enter to draft the capability brief`
+          : `no AI-agent goal yet — press enter to set one`;
       }
       return "not yet";
     }
@@ -344,7 +345,7 @@ function detailFor(
     case "compile": {
       if (status === "complete") return "MIXTAPE.md on disk";
       if (status === "in_progress")
-        return "press enter — export the finished mix into MIXTAPE.md and sources/";
+        return "press enter — write MIXTAPE.md and sources/";
       return "not yet";
     }
   }
@@ -409,9 +410,9 @@ export function statusLabel(status: PhaseStatus): string {
 }
 
 /**
- * True when every phase is complete. Compile is the last phase, so this means
- * the mixtape is compiled and ready to use — there's no longer an optional
- * trailing phase, so "complete" and "compiled & usable" are the same thing.
+ * True when every corpus-build phase is complete. Compile is the last Ink
+ * fallback phase, so this means MIXTAPE.md is ready; the Go TUI owns the
+ * Operating Layer and Project Complete flow.
  */
 export function everythingComplete(progress: Progress): boolean {
   return progress.step >= TOTAL_STEPS;

@@ -32,6 +32,11 @@ describe("detectSourceType", () => {
   it("treats personal/ paths as local_file", () => {
     expect(detectSourceType("personal/foo.pdf")).toBe("local_file");
     expect(detectSourceType("personal/sub/dir/x.md")).toBe("local_file");
+    expect(detectSourceType("local-sources/foo.pdf")).toBe("local_file");
+  });
+  it("recognizes likely skill URLs", () => {
+    expect(detectSourceType("https://github.com/user/repo/tree/main/skills/writing")).toBe("skill");
+    expect(detectSourceType("https://github.com/user/repo/blob/main/SKILL.md")).toBe("skill");
   });
 });
 
@@ -56,6 +61,24 @@ describe("local_file validation", () => {
         type: "local_file",
         url: "",
         path: "personal/foo.pdf",
+        citation: "Author, 2024",
+        note: null,
+        section: null,
+        priority: "required",
+      },
+    ];
+    expect(validateTape(tape)).toEqual([]);
+  });
+
+  it("accepts local-sources/ paths", () => {
+    const tape = emptyTape("tester");
+    tape.title = "T";
+    tape.description = "d";
+    tape.sources = [
+      {
+        type: "local_file",
+        url: "",
+        path: "local-sources/foo.pdf",
         citation: "Author, 2024",
         note: null,
         section: null,
@@ -103,7 +126,7 @@ describe("local_file validation", () => {
     expect(errs.find((e) => e.field === "sources[0].citation")).toBeTruthy();
   });
 
-  it("rejects paths outside personal/", () => {
+  it("rejects paths outside local source folders", () => {
     const tape = emptyTape("tester");
     tape.title = "T";
     tape.description = "d";
@@ -358,11 +381,13 @@ sources:
 describe("projectFolder helpers", () => {
   it("exposes canonical paths", () => {
     const p = projectFolder("/tmp/demo");
-    expect(p.tapePath).toBe("/tmp/demo/tape.yaml");
-    expect(p.synthesisPath).toBe("/tmp/demo/synthesis.md");
-    expect(p.mixtapePath).toBe("/tmp/demo/MIXTAPE.md");
-    expect(p.sourcesDir).toBe("/tmp/demo/sources");
-    expect(p.workingDir).toBe("/tmp/demo/working");
+    expect(p.rootPath).toBe("/tmp/demo");
+    expect(p.path).toBe("/tmp/demo/mixtape");
+    expect(p.tapePath).toBe("/tmp/demo/mixtape/tape.yaml");
+    expect(p.synthesisPath).toBe("/tmp/demo/mixtape/synthesis.md");
+    expect(p.mixtapePath).toBe("/tmp/demo/mixtape/MIXTAPE.md");
+    expect(p.sourcesDir).toBe("/tmp/demo/mixtape/sources");
+    expect(p.workingDir).toBe("/tmp/demo/mixtape/working");
   });
 
   it("isProjectFolder reflects presence of tape.yaml", () => {
@@ -372,6 +397,26 @@ describe("projectFolder helpers", () => {
 
     writeFileSync(join(empty, "tape.yaml"), "title: x\n", "utf8");
     expect(isProjectFolder(empty)).toBe(true);
+  });
+
+  it("keeps legacy root tape folders readable", () => {
+    const legacy = join(TMP, "legacy-root");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "tape.yaml"), "title: x\n", "utf8");
+    const p = projectFolder(legacy);
+    expect(p.path).toBe(legacy);
+    expect(p.tapePath).toBe(join(legacy, "tape.yaml"));
+  });
+
+  it("lets the v2 project marker win over a legacy root tape", () => {
+    const root = join(TMP, "v2-marker-with-legacy-root");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "liner.yaml"), "version: 2\nartifact: liner\nmixtape: mixtape\n", "utf8");
+    writeFileSync(join(root, "tape.yaml"), "title: x\n", "utf8");
+
+    const p = projectFolder(root);
+    expect(p.path).toBe(join(root, "mixtape"));
+    expect(p.tapePath).toBe(join(root, "mixtape", "tape.yaml"));
   });
 });
 
@@ -386,9 +431,9 @@ describe("readSynthesisStatus", () => {
 
   it("detects placeholder text", () => {
     const dir = join(TMP, "placeholder-syn");
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(join(dir, "mixtape"), { recursive: true });
     writeFileSync(
-      join(dir, "synthesis.md"),
+      join(dir, "mixtape", "synthesis.md"),
       "# Synthesis\n\nReplace this placeholder with the curator's distilled view.\n",
       "utf8",
     );
@@ -400,9 +445,9 @@ describe("readSynthesisStatus", () => {
 
   it("recognizes a real synthesis", () => {
     const dir = join(TMP, "real-syn");
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(join(dir, "mixtape"), { recursive: true });
     writeFileSync(
-      join(dir, "synthesis.md"),
+      join(dir, "mixtape", "synthesis.md"),
       "This is a real synthesis with substantive content from the curator.",
       "utf8",
     );

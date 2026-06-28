@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-SourceType = Literal["youtube", "web", "local_file"]
+SourceType = Literal["youtube", "web", "local_file", "skill"]
 Priority = Literal["required", "optional"]
 Mode = Literal["quick", "methodology"]
 Render = Literal["server", "js"]
@@ -19,13 +19,14 @@ SourceKind = Literal["reference", "principle", "prescription", "example"]
 class SourceSpec:
     type: SourceType
     # For youtube/web: the source URL. For local_file: empty string (use `path` instead).
+    # For skill: optional remote skill URL; local skills use `path`.
     url: str = ""
     note: str | None = None
     section: str | None = None
     priority: Priority = "required"
     # For web sources only: server (default) or js. None means "use default".
     render: Render | None = None
-    # For local_file sources only:
+    # For local_file sources and local skill sources:
     path: str | None = None
     citation: str | None = None
     # Role this source plays in the corpus. Optional — None means "unspecified"
@@ -77,8 +78,9 @@ class Tape:
     jtbd_clarifications: tuple[JtbdClarification, ...] = ()
     methodology_version: str | None = None
     # When this tape was created by `liner replay <other>`, the absolute path
-    # of the source folder it was cloned from. This lets later comparison
-    # tooling or manual review relate a replayed run to its parent.
+    # of the source folder it was cloned from. Phase 8 (empirical) uses this
+    # to run a v1-vs-v2 comparison test instead of the default with-vs-without
+    # test.
     parent: str | None = None
 
 

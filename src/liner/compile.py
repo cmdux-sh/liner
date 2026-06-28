@@ -21,7 +21,7 @@ from liner.handlers.html_extraction import (
     looks_like_cookie_notice_only,
 )
 from liner.output.mixtape import write_mixtape, written_source_paths
-from liner.project import ProjectFolder
+from liner.project import ProjectFolder, mark_corpus_ready
 from liner.tape import load_tape
 from liner.types import (
     CompiledSource,
@@ -117,9 +117,9 @@ def compile_tape(
     for spec in selected:
         reporter.on_source_start(spec)
         handler_key = _handler_key(spec)
-        # local_file sources are local-by-definition and the file content may
+        # local_file and skill sources are local/snapshot-by-definition and the file content may
         # change underneath us; bypass cache lookup and persist entirely.
-        cacheable = spec.type != "local_file"
+        cacheable = spec.type not in {"local_file", "skill"}
         identifier = _source_identifier(spec)
 
         cached_content: SourceContent | None = None
@@ -183,7 +183,11 @@ def compile_tape(
             warnings.append(
                 CompileWarning(
                     url=identifier,
-                    message=f"server-rendered fetch hit a JS stub; auto-fell back to render: js for {identifier}",
+                    message=(
+                        "Recovered this source with JS rendering after the first fetch "
+                        "returned a JavaScript-only stub. The rendered content was included "
+                        "in MIXTAPE.md."
+                    ),
                 )
             )
             try:
@@ -281,6 +285,11 @@ def compile_project(
 
         effective_handlers["local_file"] = LocalFileHandler(project)
 
+    if any(s.type == "skill" for s in tape.sources) and "skill" not in effective_handlers:
+        from liner.handlers.skill import SkillHandler
+
+        effective_handlers["skill"] = SkillHandler(project)
+
     # Inject the JS-rendering web handler when either:
     #   (a) a source explicitly asks for it (render: js), or
     #   (b) Playwright is importable, in which case we register it lazily so
@@ -329,6 +338,7 @@ def compile_project(
                     close()
 
     write_mixtape(project, result)
+    mark_corpus_ready(project)
     return result
 
 
@@ -357,6 +367,10 @@ def _source_identifier(spec: SourceSpec) -> str:
     """A best-effort string identifier for warnings/events."""
     if spec.type == "local_file":
         return f"file://{spec.path}" if spec.path else "<local_file with no path>"
+    if spec.type == "skill":
+        if spec.url:
+            return spec.url
+        return f"skill://{spec.path}" if spec.path else "<skill with no path>"
     return spec.url
 
 

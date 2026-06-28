@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from urllib.parse import unquote, urlparse
 
@@ -20,6 +21,7 @@ from liner.types import SourceContent, SourceSpec
 
 # Backward-compat re-export — older imports may still reference this helper.
 _looks_like_js_stub = looks_like_js_stub
+FAILURE_BODY_PREVIEW_BYTES = 500
 
 
 class WebHandler:
@@ -36,7 +38,7 @@ class WebHandler:
         try:
             response = self._client.get(url)
         except httpx.HTTPError as e:
-            raise HandlerHardFailure(f"Failed to fetch {url} — network error: {e}", url) from e
+            raise HandlerHardFailure(_network_failure_message(url, e), url) from e
 
         if response.status_code >= 400:
             # Bot-detection vendors (Cloudflare, Akamai, Imperva, PerimeterX)
@@ -47,13 +49,16 @@ class WebHandler:
             # case the JS handler can sometimes solve.
             if looks_like_bot_challenge(response.text):
                 raise JsRenderingRequired(
-                    f"{url} returned HTTP {response.status_code} with a bot-detection "
-                    "interstitial — retrying via render: js.",
+                    _response_failure_message(
+                        url,
+                        response,
+                        category="js_required",
+                        lead="bot-detection interstitial; retrying via render: js",
+                    ),
                     url,
                 )
             raise HandlerHardFailure(
-                f"Failed to fetch {url} — got HTTP {response.status_code}. "
-                "The site may be blocking automated requests.",
+                _response_failure_message(url, response),
                 url,
             )
 
@@ -174,6 +179,99 @@ def _pdf_title(url: str) -> str:
     path = unquote(urlparse(url).path.rstrip("/"))
     name = path.rsplit("/", 1)[-1]
     return name or url
+
+
+def _network_failure_message(url: str, error: httpx.HTTPError) -> str:
+    category = "tls" if _looks_like_tls_error(error) else "network"
+    return (
+        f"Failed to fetch {url} — category: {category}; "
+        f"error: {type(error).__name__}: {error}"
+    )
+
+
+def _response_failure_message(
+    url: str,
+    response: httpx.Response,
+    *,
+    category: str | None = None,
+    lead: str | None = None,
+) -> str:
+    category = category or _response_failure_category(response)
+    content_type = _response_content_type(response)
+    preview = _response_body_preview(response)
+    parts = [
+        f"Failed to fetch {url}",
+        f"category: {category}",
+        f"status: HTTP {response.status_code}",
+        f"content-type: {content_type}",
+    ]
+    if lead:
+        parts.append(lead)
+    if preview:
+        parts.append(f"body preview: {preview}")
+    return " — ".join([parts[0], "; ".join(parts[1:])])
+
+
+def _response_failure_category(response: httpx.Response) -> str:
+    text = _safe_response_text(response).lower()
+    if looks_like_js_stub(text) or looks_like_cookie_notice_only(text):
+        return "js_required"
+    if _looks_like_paywall(text):
+        return "paywall"
+    if response.status_code == 404:
+        return "not_found"
+    if response.status_code in {401, 403}:
+        return "forbidden"
+    return "unknown"
+
+
+def _response_content_type(response: httpx.Response) -> str:
+    content_type = response.headers.get("content-type", "").strip()
+    if not content_type:
+        return "unknown"
+    return content_type.split(";", 1)[0].strip().lower() or "unknown"
+
+
+def _response_body_preview(response: httpx.Response) -> str:
+    raw = response.content or b""
+    if not raw:
+        return ""
+    truncated = len(raw) > FAILURE_BODY_PREVIEW_BYTES
+    head = raw[:FAILURE_BODY_PREVIEW_BYTES]
+    preview = head.decode(response.encoding or "utf-8", errors="replace")
+    preview = re.sub(r"\s+", " ", preview).strip()
+    if truncated:
+        preview += " ... [truncated]"
+    return preview
+
+
+def _safe_response_text(response: httpx.Response) -> str:
+    try:
+        return response.text
+    except UnicodeDecodeError:
+        return response.content.decode("utf-8", errors="replace")
+
+
+def _looks_like_paywall(text: str) -> bool:
+    return any(
+        phrase in text
+        for phrase in (
+            "subscribe to continue",
+            "subscribe to read",
+            "subscribers only",
+            "subscriber-only",
+            "members only",
+            "member-only",
+            "sign in to continue",
+            "sign in to read",
+            "paywall",
+        )
+    )
+
+
+def _looks_like_tls_error(error: httpx.HTTPError) -> bool:
+    message = str(error).lower()
+    return any(term in message for term in ("tls", "ssl", "certificate", "cert verify"))
 
 
 __all__ = ["WebHandler"]
