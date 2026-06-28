@@ -29,7 +29,8 @@ The durable artifact set is:
 - `MIXTAPE.md` and `sources/` - compiled consumable context
 - `LINER.md` and root `SKILL.md` - operating layer files that tell future agents how to discover and use the project
 
-For the current design rationale, read `docs/tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md`. The final section, "Always Last: Arturo As A Designer," should stay at the bottom when updating that document.
+For the current product and Go TUI model, read `docs/project/PRODUCT.md`,
+`docs/project/DESIGN.md`, and `packages/go-tui/README.md`.
 
 ## Current Methodology Shape
 
@@ -57,14 +58,14 @@ Phase 2 searches against both the knowledge map and required source roles. Phase
 Read these first for product and methodology work:
 
 1. `README.md`
-2. `docs/tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md`
-3. `docs/curation-skill/CURATION.md`
-4. `docs/curation-skill/SKILL.md`
-5. `docs/curation-skill/source-finding-tactics.md`
-6. `docs/curation-skill/quality-check-tests.md`
-7. `packages/tui/README.md` if changing user-facing TUI keybindings or flows
-
-Marketing-site work has separate docs in `marketing/site/`.
+2. `docs/project/PRODUCT.md`
+3. `docs/project/DESIGN.md`
+4. `packages/go-tui/README.md`
+5. `docs/curation-skill/CURATION.md`
+6. `docs/curation-skill/SKILL.md`
+7. `docs/curation-skill/source-finding-tactics.md`
+8. `docs/curation-skill/quality-check-tests.md`
+9. `packages/tui/README.md` if changing npm packaging or installed-user flows
 
 ## Verification Commands
 
@@ -87,7 +88,7 @@ Docs hygiene:
 
 ```sh
 git diff --check
-rg -n "four tests|five tests|two gates|two human-in-the-loop|current release v0\\.5\\.[56]|EAI-HANDOFF" README.md docs packages/tui/README.md --glob "*.md" --glob "!docs/curation-skill/TUI-BACKLOG.md" --glob "!docs/curation-skill/AI-HANDOFF.md"
+rg -n "current release v0\\.5|docs/tui/|docs/README|marketing/site|ink/|go-refactor|personal/ only" README.md docs packages/tui packages/go-tui --glob "*.md" --glob "!docs/curation-skill/AI-HANDOFF.md" --glob "!docs/project/CHANGELOG.md"
 ```
 
 ## Gotchas

@@ -7,7 +7,7 @@
 // `prepack`. The copied directory is gitignored; docs/curation-skill/ is the
 // tracked source.
 
-import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,19 +25,24 @@ if (!existsSync(src)) {
 
 if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
 
-function copyRecursive(from, to) {
-  mkdirSync(to, { recursive: true });
-  for (const entry of readdirSync(from)) {
-    const fromPath = join(from, entry);
-    const toPath = join(to, entry);
-    const s = statSync(fromPath);
-    if (s.isDirectory()) {
-      copyRecursive(fromPath, toPath);
-    } else if (s.isFile()) {
-      copyFileSync(fromPath, toPath);
-    }
+const shippedFiles = [
+  "README.md",
+  "SKILL.md",
+  "source-finding-tactics.md",
+  "source-quality-hierarchy.md",
+  "curator-notes.md",
+  "quality-check-tests.md",
+  "synthesis-guidance.md",
+];
+
+mkdirSync(dest, { recursive: true });
+for (const file of shippedFiles) {
+  const fromPath = join(src, file);
+  if (!existsSync(fromPath)) {
+    console.error(`copy-skill-bundle: missing required bundle file ${fromPath}`);
+    process.exit(1);
   }
+  copyFileSync(fromPath, join(dest, file));
 }
 
-copyRecursive(src, dest);
-console.log(`copy-skill-bundle: copied ${src} → ${dest}`);
+console.error(`copy-skill-bundle: copied ${shippedFiles.length} files from ${src} → ${dest}`);

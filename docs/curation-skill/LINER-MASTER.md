@@ -248,7 +248,7 @@ The TUI treats compilation as the completion milestone. A partial compile is sti
 
 Ask the same AI question with and without the mixtape. If the answer with the mixtape is not meaningfully better, the mixtape is not earning its place.
 
-This is a methodology practice, not a driven step in the TUI. As of v0.5.2 the TUI treats compilation as the completion milestone (*compiled = complete*) and no longer parks you on a trailing empirical-test phase — but the with-vs-without check remains the honest way to know whether a mixtape earns its place.
+This is a methodology practice, not a driven step in the TUI. The TUI treats compilation as the corpus-ready milestone and no longer parks you on a trailing empirical-test phase — but the with-vs-without check remains the honest way to know whether a mixtape earns its place.
 
 ## How Compilation Works
 
@@ -334,7 +334,7 @@ pipx install linersh
 The active TUI is a Charm-based Go application in `packages/go-tui`.
 `packages/tui` is still the npm package/shim plus the TypeScript headless
 methodology runner; it is no longer the React/Ink TUI implementation. The old
-React/Ink UI is archived for reference under `ink/`.
+React/Ink UI is decommissioned.
 
 Important areas:
 
@@ -540,7 +540,7 @@ Liner's methodology exists to catch these before compile.
 As of v1.0.0:
 
 - The Python CLI is functional.
-- The active Go TUI is functional. The old React/Ink TUI is decommissioned and archived under `ink/`. The empirical-test phase has been removed from the driven flow — compilation is now the completion milestone (*compiled = complete*). The hub is a single summary view (status box + always-visible phase checklist), import uses a file picker for `.mixtape` archives, and completed/partial compiles open the existing compile result instead of rerunning by default.
+- The active Go TUI is functional. The old React/Ink TUI is decommissioned. The empirical-test phase has been removed from the driven flow — compilation is now the corpus-ready milestone and Create Operating Layer is the project-complete milestone. The hub is a single summary view (status box + always-visible phase checklist), import uses a file picker for `.mixtape` archives, and completed/partial compiles open the existing compile result instead of rerunning by default.
 - Phase 1 framing now validates the evidence plan before source discovery. The TUI requires a capability brief and required source roles with why/evidence/minimum coverage before advancing.
 - The npm distribution uses a main `linersh` package plus five optional platform packages (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`).
 - The release is installable via `npx linersh` on Mac, Linux, and Windows x64. `liner --version` reports the TUI version (and the bundled core version alongside it).

@@ -45,6 +45,9 @@ machine. Each platform package contains both native binaries:
 6. Publish the main `linersh` package after the platform packages exist.
 7. Smoke a clean consumer install with `npx linersh --version` and `npx linersh`
    on at least macOS arm64, Linux x64, and Windows x64.
+8. Run clean-user smoke tests with temporary `HOME`, `npm_config_cache`, and
+   `LINER_DIR` values. Remove the temp directory when done so the verification
+   leaves no npm cache, Liner config, Playwright cache, or test project behind.
 
 Minimum checks before publishing:
 
@@ -54,6 +57,25 @@ Minimum checks before publishing:
 - `npm run acceptance:go -- release-smoke` from `packages/tui`.
 - Explicit validation that `liner` opens the Go TUI by default.
 - `npm audit --omit=dev` and full `npm audit` for `packages/tui`.
+
+Clean-user smoke pattern:
+
+```sh
+tmp=$(mktemp -d)
+home="$tmp/home"
+cache="$tmp/npm-cache"
+projects="$tmp/projects"
+mkdir -p "$home" "$cache" "$projects"
+
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest --version
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest
+
+rm -rf "$tmp"
+```
+
+For non-isolated one-shot installs, use `npx --yes linersh@latest uninstall --yes`
+to remove Liner's local cache, Playwright's Chromium cache, and npm's `_npx`
+execution cache. For global installs, also run `npm uninstall -g linersh`.
 
 Historical release artifacts from the cleanup are outside the repo at:
 

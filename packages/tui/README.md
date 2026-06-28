@@ -27,7 +27,32 @@ liner
 
 With no arguments, `liner` launches the Go TUI. CLI subcommands such as
 `liner compile`, `liner share`, `liner import`, `liner status`, and
-`liner setup-js` pass through to the Python core.
+`liner setup-js` pass through to the Python core. If you are using one-shot
+`npx` instead of a global install, pass subcommands through the package:
+`npx --yes linersh@latest setup-js` or
+`npx --yes linersh@latest uninstall --yes`.
+
+## Try It Cleanly
+
+For a regular-user smoke test without touching your real Liner workspace:
+
+```sh
+tmp=$(mktemp -d)
+home="$tmp/home"
+cache="$tmp/npm-cache"
+projects="$tmp/projects"
+mkdir -p "$home" "$cache" "$projects"
+
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest --version
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest
+
+rm -rf "$tmp"
+```
+
+The second command opens the Go TUI. Create a test Liner Project, build the
+corpus with your configured local Claude or Codex runner, then run Create
+Operating Layer. Because `HOME`, the npm cache, and `LINER_DIR` all point inside
+`$tmp`, cleanup is just `rm -rf "$tmp"`.
 
 ## Run Locally
 
