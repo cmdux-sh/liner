@@ -13,8 +13,8 @@ Active responsibilities:
 - optional per-platform packages that contain the native CLI and Go TUI
   binaries for installed users
 
-The old React/Ink TUI has been decommissioned and moved to the repo-root
-`ink/` archive. `LINER_TUI=ink` intentionally fails with a decommissioning
+The old React/Ink TUI has been decommissioned and is no longer part of the
+active package shape. `LINER_TUI=ink` intentionally fails with a decommissioning
 message.
 
 ## Install

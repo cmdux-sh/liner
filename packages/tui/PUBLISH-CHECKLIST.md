@@ -25,7 +25,7 @@ machine. Each platform package contains both native binaries:
   both native binaries.
 - `docs/curation-skill` is copied into `packages/tui/cli-update-docs` during
   packaging so the headless runner can find the bundled methodology files.
-- `ink/` is historical reference only.
+- The old React/Ink package shape is historical and should not be published.
 
 ## Release Order
 

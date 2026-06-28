@@ -1,13 +1,12 @@
 # Liner Go TUI
 
-Charm-based terminal interface for Liner. This is the active default TUI on
-`master`. The previous React/Ink UI is decommissioned and archived at the
-repo-root `ink/` folder; `LINER_TUI=ink` is intentionally unsupported.
+Charm-based terminal interface for Liner. This is the active default TUI. The
+previous React/Ink UI is decommissioned; `LINER_TUI=ink` is intentionally
+unsupported.
 
 For the current v1 product and Go TUI model, start with
-[../../docs/README.md](../../docs/README.md).
-For reusable screen shapes, read
-[../../docs/tui/GO_TUI_SCREEN_PATTERNS.md](../../docs/tui/GO_TUI_SCREEN_PATTERNS.md).
+[../../docs/project/PRODUCT.md](../../docs/project/PRODUCT.md) and
+[../../docs/project/DESIGN.md](../../docs/project/DESIGN.md).
 
 ## Run
 

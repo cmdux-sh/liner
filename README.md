@@ -19,21 +19,19 @@ sources, and produce a resource a future agent can actually use. Internally,
 Liner still stores an inferred `jtbd` for compatibility, but the user does not
 need to write a formal Job Story.
 
-This repo contains the **CLI**, the **TUI**, the **marketing site**, and the
-project docs. The methodology lives in
+This repo contains the **CLI**, the **Go TUI**, the **npm package shell**, and
+the project docs. The methodology lives in
 [docs/curation-skill/CURATION.md](docs/curation-skill/CURATION.md), the
 platform doc in
 [docs/curation-skill/PLATFORM.md](docs/curation-skill/PLATFORM.md), the format
 spec in
 [docs/curation-skill/MIXTAPE-FORMAT.md](docs/curation-skill/MIXTAPE-FORMAT.md),
 the curation skill in [docs/curation-skill/SKILL.md](docs/curation-skill/SKILL.md),
-and the current TUI design framework in
-[docs/tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md](docs/tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md).
+the Go TUI implementation in [packages/go-tui](packages/go-tui), and the npm
+shim/package notes in [packages/tui](packages/tui).
 
 For the full conceptual and technical overview, see
 [docs/curation-skill/LINER-MASTER.md](docs/curation-skill/LINER-MASTER.md).
-
-The marketing site lives in [marketing/site](marketing/site). Next-agent notes for continuing the site are in [marketing/site/AI-HANDOFF.md](marketing/site/AI-HANDOFF.md).
 
 ## About this project
 
@@ -49,9 +47,10 @@ npm install -g linersh      # persistent install (binary: `liner`)
 The npm package ships the Go TUI plus a per-platform bundled CLI binary. No Python install needed. Running `liner` with no arguments opens the Go TUI; subcommands like `liner compile`, `liner share`, `liner status`, and `liner setup-js` forward to the bundled core.
 
 The active TUI is the Charm-based Go app under `packages/go-tui/`. The previous
-React/Ink implementation is decommissioned and archived under [ink/](ink/);
-`LINER_TUI=ink` is no longer supported. Current Go terminal design notes live in
-[docs/README.md](docs/README.md).
+React/Ink implementation is decommissioned and no longer part of the active
+package shape; `LINER_TUI=ink` is no longer supported. Go TUI developer notes
+live in [packages/go-tui/README.md](packages/go-tui/README.md), and npm package
+notes live in [packages/tui/README.md](packages/tui/README.md).
 
 To enable `render: js` for JavaScript-rendered pages (Apple HIG, Notion docs, etc.):
 
@@ -168,9 +167,6 @@ sources:
 
 `skill` sources are read as reference artifacts. Liner never installs or executes them. A skill source can point to an installed skill name discovered by `liner skills list`, a local folder containing `SKILL.md`, a project-relative snapshot under `local-sources/skills/`, or a GitHub `tree`/`blob` URL. Compiled skill sources are labeled as reference material so downstream AI treats them as evidence and examples, not active system instructions.
 
-A complete example project folder lives at
-[docs/examples/mobile-design-foundations/](docs/examples/mobile-design-foundations/).
-
 The full spec is in
 [docs/curation-skill/MIXTAPE-FORMAT.md](docs/curation-skill/MIXTAPE-FORMAT.md).
 
@@ -204,7 +200,15 @@ URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 da
 
 ## Status
 
-Active solo project. The current release is **v1.0.0** on npm (`latest`) — install via `npx linersh` (Mac, Linux, and Windows x64). The CLI and Go TUI are functional. The TUI now creates and manages local Liner Projects, builds the corpus through the configured local AI runner, treats partial compiles as usable when `MIXTAPE.md` is written, opens existing compile results instead of re-running by default, and creates an Operating Layer with `LINER.md`, root `SKILL.md`, and `liner.yaml`. A public mixtape library is planned. The curation skill and a future MCP server are also planned; their place in the stack is described in [docs/curation-skill/LINER-MASTER.md](docs/curation-skill/LINER-MASTER.md).
+Active solo project. The current source targets **v1.0.0** for the Go TUI npm
+release. The CLI and Go TUI are functional. The TUI creates and manages local
+Liner Projects, builds the corpus through the configured local AI runner,
+treats partial compiles as usable when `MIXTAPE.md` is written, opens existing
+compile results instead of re-running by default, and creates an Operating Layer
+with `LINER.md`, root `SKILL.md`, and `liner.yaml`. A public mixtape library is
+planned. The curation skill and a future MCP server are also planned; their
+place in the stack is described in
+[docs/curation-skill/LINER-MASTER.md](docs/curation-skill/LINER-MASTER.md).
 
 ## Uninstalling
 

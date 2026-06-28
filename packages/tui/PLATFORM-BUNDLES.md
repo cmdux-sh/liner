@@ -43,7 +43,7 @@ The script:
 2. Builds a one-directory CLI bundle that includes the Python `playwright` package.
 3. Builds the Go TUI binary for the current platform.
 4. Writes `packages/platform/linersh-<platform>-<arch>/package.json`.
-4. Runs smoke checks:
+5. Runs smoke checks:
    - `liner --version`
    - `liner setup-js --help`
    - `liner-tui --version`
@@ -96,26 +96,11 @@ the main `linersh` tarball have been downloaded and inspected.
 Automated npm publish is not enabled. Publish manually only after the platform
 package artifacts and clean consumer smoke pass.
 
-## Historical 0.5.5 Artifact Handoff
+## Historical 0.5.x Note
 
-The 0.5.5 release includes Python core changes, so all platform packages were rebuilt.
-
-- GitHub Actions workflow: latest post-release-prep `Platform Bundles` run on `master`
-- Local artifact directory: `/tmp/liner-release-artifacts-0.5.5`
-- Local smoke result: `liner 0.5.5 (tui)  ·  0.5.5 (core)`
-
-Artifacts:
-
-```text
-linersh-darwin-arm64-0.5.5.tgz
-linersh-darwin-x64-0.5.5.tgz
-linersh-linux-arm64-0.5.5.tgz
-linersh-linux-x64-0.5.5.tgz
-linersh-win32-x64-0.5.5.tgz
-linersh-0.5.5.tgz
-```
-
-Publish details are paused in `packages/tui/PUBLISH-CHECKLIST.md`.
+Older 0.5.x releases used the same platform package names but a different
+handoff. Do not use those artifacts or run notes for v1; use the public
+one-target workflow above and the release checklist instead.
 
 ## Historical Runner Labels
 
