@@ -83,12 +83,14 @@ if (wantsCli(argv)) {
   }
 
   const resolved = resolveGoTuiBinary();
+  const headlessRunner = tryResolveHeadlessRunnerScript();
   const child = spawn(resolved.command, resolved.args, {
     stdio: "inherit",
     cwd: resolved.cwd || process.cwd(),
     env: {
       ...process.env,
       LINER_BIN: process.env.LINER_BIN || tryResolveCliCommand() || "",
+      LINER_HEADLESS_RUNNER: process.env.LINER_HEADLESS_RUNNER || headlessRunner || "",
     },
   });
   child.on("exit", (code, signal) => {
@@ -350,6 +352,11 @@ function tryResolveCliCommand() {
   const envBin = process.env.LINER_BIN;
   if (envBin && existsSync(envBin)) return envBin;
   return findRepoVenvBinary() || findBundledBinary() || findPathBinary() || null;
+}
+
+function tryResolveHeadlessRunnerScript() {
+  const candidate = join(packageRoot, "dist", "agents", "headless-runner.js");
+  return existsSync(candidate) ? candidate : null;
 }
 
 function printVersion() {
