@@ -2035,6 +2035,62 @@ func TestProjectLocalSourcesRowWaitsUntilFolderExists(t *testing.T) {
 	}
 }
 
+func TestProjectViewSurfacesDroppedYouTubeEvaluationIssues(t *testing.T) {
+	project := t.TempDir()
+	working := filepath.Join(project, "working")
+	if err := os.MkdirAll(working, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := `candidates:
+  - url: https://www.youtube.com/watch?v=one11111111
+    title: YouTube source one
+    decision: dropped
+    section: Foundations
+    rationale: YouTube returned no readable transcript body, and yt-dlp returned 429.
+  - url: https://www.youtube.com/live/two22222222
+    title: YouTube live source two
+    decision: dropped
+    section: Foundations
+    rationale: The direct YouTube fetch produced no readable transcript and recovery failed.
+  - url: https://example.com/kept
+    decision: kept
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The source includes a concrete example.
+      - The source names a practical limitation.
+`
+	if err := os.WriteFile(filepath.Join(working, "03-evaluation.yaml"), []byte(evaluation), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:      screenProject,
+		width:       150,
+		currentPath: project,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "web", URL: "https://example.com/kept", Priority: "required"},
+			},
+		},
+	}
+
+	view := m.viewProject()
+	for _, expected := range []string{"Evaluation issues", "2 YouTube", "transcript/access", "working/03-evaluation.yaml"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("project health should surface dropped YouTube issue %q:\n%s", expected, view)
+		}
+	}
+
+	m.projectPane = 2
+	view = m.viewProject()
+	for _, expected := range []string{"Sources", "Dropped candidates", "2 YouTube", "transcript/access"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("project sources should surface dropped YouTube issue %q:\n%s", expected, view)
+		}
+	}
+}
+
 func TestProjectViewWithoutJTBDStillRequestsSources(t *testing.T) {
 	m := Model{
 		screen:      screenProject,

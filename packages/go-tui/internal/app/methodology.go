@@ -466,7 +466,10 @@ type methodologyEvaluationArtifact struct {
 
 type methodologyEvaluationCandidate struct {
 	URL            string   `yaml:"url"`
+	Title          string   `yaml:"title"`
 	Decision       string   `yaml:"decision"`
+	Section        string   `yaml:"section"`
+	Rationale      string   `yaml:"rationale"`
 	FetchStatus    string   `yaml:"fetch_status"`
 	ContentQuality string   `yaml:"content_quality"`
 	Evidence       []string `yaml:"evidence"`
