@@ -2091,6 +2091,96 @@ func TestProjectViewSurfacesDroppedYouTubeEvaluationIssues(t *testing.T) {
 	}
 }
 
+func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
+	project := t.TempDir()
+	working := filepath.Join(project, "working")
+	if err := os.MkdirAll(working, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := `candidates:
+  - url: https://www.youtube.com/watch?v=one11111111
+    title: Custom YouTube source one
+    decision: dropped
+    rationale: YouTube returned no readable transcript body, and yt-dlp returned 429.
+  - url: https://www.youtube.com/live/two22222222?si=abc123
+    title: Custom YouTube live source two
+    decision: dropped
+    rationale: The direct YouTube fetch produced no readable transcript and recovery failed.
+  - url: https://example.com/kept
+    decision: kept
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The source includes a concrete example.
+      - The source names a practical limitation.
+`
+	if err := os.WriteFile(filepath.Join(working, "03-evaluation.yaml"), []byte(evaluation), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	custom := source.Stage([]tape.Source{
+		{Type: "youtube", URL: "https://www.youtube.com/watch?v=one11111111", Priority: "required"},
+		{Type: "youtube", URL: "https://www.youtube.com/live/two22222222?si=abc123", Priority: "required"},
+	}, true)
+	if err := source.WriteManifests(project, custom); err != nil {
+		t.Fatal(err)
+	}
+
+	m := Model{
+		screen:      screenProject,
+		width:       150,
+		currentPath: project,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "web", URL: "https://example.com/kept", Priority: "required"},
+			},
+		},
+	}
+
+	summary, ok := readEvaluationIssueSummary(project, m.currentTape)
+	if !ok {
+		t.Fatal("expected custom source issue summary")
+	}
+	display := summary.Display(project)
+	for _, expected := range []string{"2 custom YouTube sources dropped", "transcript/access", "working/03-evaluation.yaml"} {
+		if !strings.Contains(display, expected) {
+			t.Fatalf("custom source summary should include %q, got %q", expected, display)
+		}
+	}
+	view := m.viewProject()
+	for _, expected := range []string{"Evaluation issues", "transcript/access", "working/03-evaluation.yaml"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("project health should surface dropped custom source issue %q:\n%s", expected, view)
+		}
+	}
+	if !hasCommandTitle(m.commandItems(), "Retry source evaluation") {
+		t.Fatal("source issues should expose Retry source evaluation command")
+	}
+}
+
+func TestProjectViewSurfacesAcceptedYouTubeSourcesThatNeedReview(t *testing.T) {
+	project := t.TempDir()
+	note := "Metadata-only during evaluation: transcript unavailable."
+	m := Model{
+		screen:      screenProject,
+		width:       150,
+		currentPath: project,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "youtube", URL: "https://www.youtube.com/watch?v=okokokokok0", Priority: "required", Note: &note},
+			},
+		},
+	}
+
+	view := m.viewProject()
+	for _, expected := range []string{"Evaluation issues", "1 accepted YouTube source needs review", "tape.yaml"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("project health should surface accepted YouTube review issue %q:\n%s", expected, view)
+		}
+	}
+}
+
 func TestProjectViewWithoutJTBDStillRequestsSources(t *testing.T) {
 	m := Model{
 		screen:      screenProject,
@@ -9581,6 +9671,49 @@ process.stdout.write(JSON.stringify({
 	}
 	if !strings.Contains(strings.Join(got.researchLines, "\n"), "Resuming Candidate discovery") {
 		t.Fatalf("expected resume copy in log, got %#v", got.researchLines)
+	}
+}
+
+func TestRetrySourceEvaluationStartsCandidateDiscoveryFresh(t *testing.T) {
+	project := t.TempDir()
+	if err := linerprogress.Write(project, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCompile)}); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(t.TempDir(), "runner.cjs")
+	if err := os.WriteFile(script, []byte(`const has = (flag) => process.argv.includes(flag);
+const value = (flag) => process.argv[process.argv.indexOf(flag) + 1] || "";
+process.stdout.write(JSON.stringify({
+  kind: "runner_start",
+  phaseId: value("--phase"),
+  agent: "codex",
+  resume: has("--resume")
+}) + "\n");
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LINER_HEADLESS_RUNNER", script)
+	m := Model{currentPath: project, currentTape: tape.Tape{Title: "Launch"}}
+
+	got, cmd := m.retrySourceEvaluation()
+	if cmd == nil {
+		t.Fatal("expected methodology runner command")
+	}
+	if got.screen != screenResearch {
+		t.Fatalf("expected retry to switch to research screen, got %v", got.screen)
+	}
+	if step := linerprogress.Read(project).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseCandidates) {
+		t.Fatalf("expected progress reset to candidates, got %d", step)
+	}
+	msg := cmd()
+	eventMsg, ok := msg.(methodologyEventMsg)
+	if !ok {
+		t.Fatalf("expected methodology event, got %#v", msg)
+	}
+	if eventMsg.event.PhaseID != "candidates" || eventMsg.event.Resume {
+		t.Fatalf("expected fresh candidates run, got %#v", eventMsg.event)
+	}
+	if !strings.Contains(strings.Join(got.researchLines, "\n"), "Starting Candidate discovery") {
+		t.Fatalf("expected fresh-start copy in log, got %#v", got.researchLines)
 	}
 }
 

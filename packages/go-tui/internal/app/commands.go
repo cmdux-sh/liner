@@ -92,6 +92,11 @@ func (m Model) commandItems() []list.Item {
 	if hasProject {
 		items = append(items, commandItem{"Compile MIXTAPE.md", "Build MIXTAPE.md from saved sources", func(m Model) (Model, tea.Cmd) { return m.startCompile() }})
 	}
+	if hasProject && m.hasRetryableSourceIssues() {
+		items = append(items, commandItem{"Retry source evaluation", "Retry custom sources and rebuild the corpus draft", func(m Model) (Model, tea.Cmd) {
+			return m.retrySourceEvaluation()
+		}})
+	}
 	if m.hasCompiledMixtape() {
 		items = append(items, commandItem{"Preview MIXTAPE.md", "Render the compiled mixtape", func(m Model) (Model, tea.Cmd) { return m.openPreview("MIXTAPE.md") }})
 	}
@@ -120,6 +125,11 @@ func (m Model) commandItems() []list.Item {
 		}})
 	}
 	return items
+}
+
+func (m Model) hasRetryableSourceIssues() bool {
+	summary, ok := readEvaluationIssueSummary(m.currentPath, m.currentTape)
+	return ok && summary.HasIssues()
 }
 
 func (m Model) footerHelp() string {

@@ -252,6 +252,42 @@ func (m Model) retryMethodologyPhase() (Model, tea.Cmd) {
 	return m.startMethodologyPhase(index, true)
 }
 
+func (m Model) retrySourceEvaluation() (Model, tea.Cmd) {
+	if strings.TrimSpace(m.currentPath) == "" {
+		m.err = "No project is open."
+		return m, nil
+	}
+	m.stopMethodology("")
+	corpusPath := projectCorpusPath(m.currentPath)
+	index, ok := methodologyIndexForProgressPhase(linerprogress.PhaseCandidates)
+	if !ok {
+		m.err = "Candidate discovery phase is not available."
+		return m, nil
+	}
+	if err := linerprogress.Write(corpusPath, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCandidates)}); err != nil {
+		m.err = "Could not reset source evaluation progress: " + err.Error()
+		return m, nil
+	}
+	m.err = ""
+	m.note = "Retrying source evaluation."
+	m.screen = screenResearch
+	m.researchDone = false
+	m.methodologyFailed = false
+	m.methodologyLastErr = ""
+	m.methodologyPhaseID = ""
+	m.methodologyEventCount = 0
+	m.methodologyLastEventFrame = m.fxFrame
+	m.researchStep = index
+	m.methodologyPhaseIndex = index
+	m.researchLines = []string{
+		"Retrying source evaluation.",
+		"Queued Candidate discovery through Assembly.",
+	}
+	m.ensureBoardItems()
+	m.syncMethodologyLog(true)
+	return m.startMethodologyPhase(index, false)
+}
+
 func (m Model) shouldResumeMethodologyPhase(index int) bool {
 	if index < 0 || index >= len(methodologyPhaseOrder) || strings.TrimSpace(m.currentPath) == "" {
 		return false

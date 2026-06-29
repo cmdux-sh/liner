@@ -507,7 +507,7 @@ func (m Model) projectHealthDetail(width int) string {
 		{Field: "Missing next", Value: next},
 		{Field: "Status source", Value: m.projectStatusSourceLabel()},
 	}
-	if summary, ok := readEvaluationIssueSummary(m.currentPath); ok {
+	if summary, ok := readEvaluationIssueSummary(m.currentPath, m.currentTape); ok {
 		rows = append(rows, metadataTableRow{Field: "Evaluation issues", Value: summary.Display(m.currentPath)})
 	}
 	if m.shouldShowProviderReadiness() {
@@ -621,7 +621,7 @@ func (m Model) projectSourcesDetail(width int) string {
 		{Field: "Synthesis", Value: optionalArtifactNote(m.currentPath, "synthesis.md")},
 		{Field: "Quality checks", Value: optionalArtifactNote(m.currentPath, filepath.Join("working", "04-quality-checks.md"))},
 	}
-	if summary, ok := readEvaluationIssueSummary(m.currentPath); ok {
+	if summary, ok := readEvaluationIssueSummary(m.currentPath, m.currentTape); ok {
 		rows = append(rows, metadataTableRow{Field: "Dropped candidates", Value: summary.Display(m.currentPath)})
 	}
 	return projectSectionDetail(
