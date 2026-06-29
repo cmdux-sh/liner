@@ -48,6 +48,12 @@ type excludedLocalSourceIssue struct {
 	OpenTarget string
 }
 
+type droppedCustomSource struct {
+	Item   sourcepkg.StagedSource
+	Issue  candidateIssue
+	Reason string
+}
+
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 func readEvaluationIssueSummary(project string, current tape.Tape) (evaluationIssueSummary, bool) {
@@ -234,6 +240,44 @@ func readExcludedLocalSourceIssues(project string, current tape.Tape) []excluded
 			Source:     localSourceIssueLabel(item),
 			Reason:     reason,
 			OpenTarget: localSourceOpenTarget(item),
+		})
+	}
+	return out
+}
+
+func readDroppedCustomURLSources(project string, current tape.Tape) []droppedCustomSource {
+	if strings.TrimSpace(project) == "" {
+		return nil
+	}
+	accepted := current.Sources
+	if len(accepted) == 0 {
+		if fromDisk, err := tape.ReadProject(project); err == nil {
+			accepted = fromDisk.Sources
+		}
+	}
+	acceptedKeys := sourceKeySet(accepted)
+	candidateIssues := readCandidateIssues(project, &evaluationIssueSummary{})
+	var out []droppedCustomSource
+	for _, item := range readLocalSourceManifest(project) {
+		if !item.Active || strings.TrimSpace(item.Source.URL) == "" {
+			continue
+		}
+		sourceType := strings.ToLower(strings.TrimSpace(item.Source.Type))
+		if sourceType != "web" && sourceType != "youtube" {
+			continue
+		}
+		keys := issueKeysForSource(item.Source)
+		if keySetContainsAny(acceptedKeys, keys) {
+			continue
+		}
+		issue, ok := candidateIssueForKeys(candidateIssues, keys)
+		if !ok || !issue.Dropped {
+			continue
+		}
+		out = append(out, droppedCustomSource{
+			Item:   item,
+			Issue:  issue,
+			Reason: excludedSourceReason(issue.Message),
 		})
 	}
 	return out

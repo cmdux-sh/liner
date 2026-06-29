@@ -618,9 +618,14 @@ func (m Model) compileHasRetryableSourceEvaluationIssues() bool {
 	return ok && (summary.DroppedCustom > 0 || summary.MissingCustom > 0 || summary.AcceptedIssues > 0)
 }
 
+func (m Model) compileHasDroppedCustomSourceIssues() bool {
+	summary, ok := m.compileSourceEvaluationSummary()
+	return ok && summary.DroppedCustom > 0
+}
+
 func (m Model) retryCompileOrSourceEvaluation() (Model, tea.Cmd) {
-	if m.compileHasRetryableSourceEvaluationIssues() {
-		return m.retrySourceEvaluation()
+	if m.compileHasDroppedCustomSourceIssues() {
+		return m.retryDroppedCustomSources()
 	}
 	return m.startCompile()
 }
@@ -750,7 +755,7 @@ func synthesisAttention(project string) string {
 func (m Model) viewCompile() string {
 	width := styles.ClampWidth(m.width - 4)
 	sections := []string{
-		m.renderLoadingTitle("Compile Console", m.compiling || m.jsSetupRunning),
+		m.renderLoadingTitle("Compile Console", m.compiling || m.jsSetupRunning || m.sourceRecoveryRunning),
 		styles.Subtitle.Render("Fetch sources, assemble MIXTAPE.md, and report anything that needs attention."),
 		"",
 		m.viewCompileStatus(width),
@@ -845,6 +850,9 @@ func (m Model) viewCompileStatus(width int) string {
 	case m.compiling:
 		status = "Working"
 		detail = compileLoaderMessage(m.fxFrame)
+	case m.sourceRecoveryRunning:
+		status = "Working"
+		detail = "Retrying dropped custom sources without rebuilding the corpus."
 	case m.compileErr != "":
 		status = "Needs attention"
 		detail = m.compileErr
@@ -1084,6 +1092,9 @@ func (m Model) viewCompileResult(width int) string {
 	if summary, ok := m.compileSourceEvaluationSummary(); ok {
 		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render("Source evaluation: "+summary.Display(m.currentPath)))
 	}
+	if recovery := m.viewSourceRecoveryResult(width); recovery != "" {
+		lines = append(lines, "", recovery)
+	}
 	if excluded := readExcludedLocalSourceIssues(m.currentPath, m.currentTape); len(excluded) > 0 {
 		lines = append(lines, "", renderExcludedLocalSources(width, excluded))
 	}
@@ -1104,6 +1115,27 @@ func (m Model) viewCompileResult(width int) string {
 		}
 	}
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) viewSourceRecoveryResult(width int) string {
+	if m.sourceRecovery == nil {
+		return ""
+	}
+	result := *m.sourceRecovery
+	lines := []string{
+		styles.ReportSection.Render("Source recovery"),
+		styles.NextActionText.Render(fmt.Sprintf("%d checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
+	}
+	if result.Succeeded > 0 {
+		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Run Build Corpus so the AI can reconsider it."))
+	}
+	for _, source := range result.Sources {
+		if source.SavedTo == "" {
+			continue
+		}
+		lines = append(lines, styles.Subtitle.Render("saved "+truncateMiddle(source.SavedTo, max(20, width-8))))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) string {
@@ -1331,8 +1363,11 @@ func (m Model) selectedBlockingCompileWarning() (core.CompileWarningPayload, boo
 }
 
 func (m Model) compileAttentionNextAction() string {
-	if m.compileHasRetryableSourceEvaluationIssues() {
-		return "Retry source evaluation with r, then compile again."
+	if m.compileHasDroppedCustomSourceIssues() {
+		return "Retry dropped custom sources with r, or add replacement source content with a."
+	}
+	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.MissingCustom > 0 {
+		return "Run Build Corpus so the AI can reconsider the source list, or add replacement content with a."
 	}
 	if warning, ok := m.selectedBlockingCompileWarning(); ok {
 		return compileWarningNextAction(warning)

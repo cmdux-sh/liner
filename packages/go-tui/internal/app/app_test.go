@@ -2160,8 +2160,11 @@ func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
 			t.Fatalf("project sources should list excluded local source %q:\n%s", expected, view)
 		}
 	}
-	if !hasCommandTitle(m.commandItems(), "Retry source evaluation") {
-		t.Fatal("source issues should expose Retry source evaluation command")
+	if !hasCommandTitle(m.commandItems(), "Retry dropped sources") {
+		t.Fatal("source issues should expose Retry dropped sources command")
+	}
+	if !hasCommandTitle(m.commandItems(), "Build Corpus") {
+		t.Fatal("project command palette should expose Build Corpus")
 	}
 }
 
@@ -10303,7 +10306,7 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 	}
 }
 
-func TestCompileResultSurfacesSourceEvaluationIssuesAndRetry(t *testing.T) {
+func TestCompileResultSurfacesSourceEvaluationIssuesAndRetriesDroppedSources(t *testing.T) {
 	project := t.TempDir()
 	working := filepath.Join(project, "working")
 	if err := os.MkdirAll(working, 0o755); err != nil {
@@ -10328,21 +10331,36 @@ func TestCompileResultSurfacesSourceEvaluationIssuesAndRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(t.TempDir(), "runner.cjs")
-	if err := os.WriteFile(script, []byte(`const has = (flag) => process.argv.includes(flag);
-const value = (flag) => process.argv[process.argv.indexOf(flag) + 1] || "";
-process.stdout.write(JSON.stringify({
-  kind: "runner_start",
-  phaseId: value("--phase"),
-  agent: "codex",
-  resume: has("--resume")
-}) + "\n");
+	if err := os.WriteFile(script, []byte(`#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const compileIndex = process.argv.indexOf("compile");
+const project = process.argv[compileIndex + 1];
+const url = "https://www.youtube.com/watch?v=one11111111";
+const sourcePath = path.join(project, "sources", "01-recovered-video.md");
+fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+fs.writeFileSync(sourcePath, "# Recovered Video\n\nFetched transcript body.\n", "utf8");
+const emit = (event) => process.stdout.write(JSON.stringify(event) + "\n");
+emit({ type: "start", total: 1 });
+emit({ type: "source_start", spec: { type: "youtube", url, priority: "required" } });
+emit({ type: "source_done", url, title: "Recovered Video", body_chars: 24 });
+emit({ type: "finish" });
+emit({
+  type: "result",
+  payload: {
+    mixtape_path: path.join(project, "MIXTAPE.md"),
+    sources: [{ index: 1, filename: "01-recovered-video.md", path: sourcePath, url, type: "youtube", title: "Recovered Video", succeeded: true }],
+    warnings: [],
+    summary: { total: 1, succeeded: 1, failed: 0 }
+  }
+});
 `), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("LINER_HEADLESS_RUNNER", script)
 	m := Model{
 		screen:      screenCompile,
 		width:       120,
+		runner:      core.Runner{Command: script},
 		currentPath: project,
 		currentTape: tape.Tape{
 			Title: "Launch",
@@ -10362,8 +10380,8 @@ process.stdout.write(JSON.stringify({
 			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
 		}
 	}
-	if got := m.compileAttentionNextAction(); got != "Retry source evaluation with r, then compile again." {
-		t.Fatalf("expected source evaluation retry next action, got %q", got)
+	if got := m.compileAttentionNextAction(); got != "Retry dropped custom sources with r, or add replacement source content with a." {
+		t.Fatalf("expected dropped source retry next action, got %q", got)
 	}
 
 	sourcePane, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
@@ -10379,21 +10397,54 @@ process.stdout.write(JSON.stringify({
 	if !hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
 		t.Fatal("compile help should expose tab view switcher")
 	}
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry sources") {
+		t.Fatalf("compile help should label r as source retry, got %#v", sourcePane.helpForScreen().ShortHelp())
+	}
 
 	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'r', Text: "r"}))
 	if cmd == nil {
-		t.Fatal("expected source evaluation retry command")
+		t.Fatal("expected dropped source recovery command")
 	}
-	if got.screen != screenResearch {
-		t.Fatalf("expected r to start research retry, got %v", got.screen)
+	if got.screen == screenResearch {
+		t.Fatal("dropped source retry should not start Build Corpus")
+	}
+	if !got.sourceRecoveryRunning {
+		t.Fatal("expected source recovery running state")
 	}
 	msg := cmd()
-	eventMsg, ok := msg.(methodologyEventMsg)
+	recoveryMsg, ok := msg.(sourceRecoveryDoneMsg)
 	if !ok {
-		t.Fatalf("expected methodology event, got %#v", msg)
+		t.Fatalf("expected source recovery done message, got %#v", msg)
 	}
-	if eventMsg.event.PhaseID != "candidates" || eventMsg.event.Resume {
-		t.Fatalf("expected fresh candidates run, got %#v", eventMsg.event)
+	if recoveryMsg.err != nil {
+		t.Fatal(recoveryMsg.err)
+	}
+	if recoveryMsg.result.Succeeded != 1 || recoveryMsg.result.Failed != 0 {
+		t.Fatalf("expected one recovered source, got %#v", recoveryMsg.result)
+	}
+	nextModel, _ := got.Update(recoveryMsg)
+	updated := nextModel.(Model)
+	if !strings.Contains(updated.note, "Run Build Corpus") {
+		t.Fatalf("recovery success should prompt Build Corpus, got note %q", updated.note)
+	}
+	items := readLocalSourceManifest(project)
+	var inactiveOriginal, recoveredLocal bool
+	for _, item := range items {
+		if item.Source.URL == "https://www.youtube.com/watch?v=one11111111" && !item.Active && item.Status == "recovered" {
+			inactiveOriginal = true
+		}
+		if item.Active && item.Source.Type == "local_file" && item.Source.Path != nil && strings.HasPrefix(*item.Source.Path, "local-sources/recovered/") {
+			recoveredLocal = true
+			if _, err := os.Stat(projectAbsPath(project, *item.Source.Path)); err != nil {
+				t.Fatalf("recovered local source should be written to disk: %v", err)
+			}
+		}
+	}
+	if !inactiveOriginal || !recoveredLocal {
+		t.Fatalf("expected original remote inactive and recovered local source active, got %#v", items)
+	}
+	if _, err := os.Stat(filepath.Join(project, "working", "source-recovery.yaml")); err != nil {
+		t.Fatalf("expected source recovery report: %v", err)
 	}
 }
 

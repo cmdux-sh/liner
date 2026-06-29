@@ -1232,42 +1232,46 @@ func (m Model) baseHelpForScreen() screenHelp {
 		if m.compilePane == compilePaneSources {
 			warningScroll.SetHelp("↑/↓", "source")
 		}
+		retry := bindings.Retry
+		if m.compileHasDroppedCustomSourceIssues() {
+			retry.SetHelp("r", "retry sources")
+		}
 		previewKey := bindings.Preview
-		short := []key.Binding{switchView, bindings.Retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
-		full := [][]key.Binding{{switchView, bindings.Retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+		short := []key.Binding{switchView, retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
+		full := [][]key.Binding{{switchView, retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 		if m.compileHasUsableResult() {
-			short = []key.Binding{switchView, next, previewKey, bindings.Retry, bindings.Copy, addSources, bindings.Back, helpKey}
-			full = [][]key.Binding{{switchView, next, previewKey, bindings.Retry, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+			short = []key.Binding{switchView, next, previewKey, retry, bindings.Copy, addSources, bindings.Back, helpKey}
+			full = [][]key.Binding{{switchView, next, previewKey, retry, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 		}
 		if len(m.compileLines) > 0 {
-			short = []key.Binding{switchView, bindings.Retry, bindings.Preview, logs, bindings.Copy, bindings.Back, helpKey}
-			full = [][]key.Binding{{switchView, bindings.Retry, bindings.Preview, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+			short = []key.Binding{switchView, retry, bindings.Preview, logs, bindings.Copy, bindings.Back, helpKey}
+			full = [][]key.Binding{{switchView, retry, bindings.Preview, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 			if m.compileHasUsableResult() {
-				short = []key.Binding{switchView, next, previewKey, bindings.Retry, logs, bindings.Copy, bindings.Back, helpKey}
-				full = [][]key.Binding{{switchView, next, previewKey, bindings.Retry, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+				short = []key.Binding{switchView, next, previewKey, retry, logs, bindings.Copy, bindings.Back, helpKey}
+				full = [][]key.Binding{{switchView, next, previewKey, retry, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 			}
 		}
 		if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
 			warningsBlockNext := !m.compileHasUsableResult() || m.compileHasBlockingWarnings()
-			warningFirstRow := []key.Binding{switchView, next, warningScroll, openSource, previewKey, bindings.Retry}
-			short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, bindings.Retry, bindings.Back, helpKey}
+			warningFirstRow := []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry}
+			short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry, bindings.Back, helpKey}
 			if warningsBlockNext {
-				short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, bindings.Retry, bindings.Back, helpKey}
-				warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, bindings.Retry}
+				short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
+				warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry}
 				if m.compileNeedsJSSetup() && !m.jsSetupRunning {
-					short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, bindings.Retry, bindings.Back, helpKey}
-					warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, bindings.Retry}
+					short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
+					warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry}
 				}
 			}
 			if len(m.compileLines) > 0 {
-				short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, bindings.Retry, logs, bindings.Back, helpKey}
+				short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry, logs, bindings.Back, helpKey}
 				warningFirstRow = append(warningFirstRow, logs)
 				if warningsBlockNext {
-					short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, bindings.Retry, logs, bindings.Back, helpKey}
-					warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, bindings.Retry, logs}
+					short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
+					warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, logs}
 					if m.compileNeedsJSSetup() && !m.jsSetupRunning {
-						short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, bindings.Retry, logs, bindings.Back, helpKey}
-						warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, bindings.Retry, logs}
+						short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
+						warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs}
 					}
 				}
 			}

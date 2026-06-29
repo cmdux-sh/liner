@@ -140,22 +140,24 @@ type Model struct {
 	boardIndex                int
 	clarifySpin               spinner.Model
 
-	compileEvents       <-chan core.CompileEvent
-	compileDone         <-chan error
-	compileLines        []string
-	compileSpin         spinner.Model
-	compileBar          progress.Model
-	compiling           bool
-	compileTotal        int
-	compileDoneN        int
-	compileFailed       int
-	compileResult       *core.CompileResultPayload
-	compileWarningIndex int
-	compilePane         int
-	compileSourceIndex  int
-	compileErr          string
-	compileRows         []compileSourceRow
-	improvementCursor   int
+	compileEvents         <-chan core.CompileEvent
+	compileDone           <-chan error
+	compileLines          []string
+	compileSpin           spinner.Model
+	compileBar            progress.Model
+	compiling             bool
+	compileTotal          int
+	compileDoneN          int
+	compileFailed         int
+	compileResult         *core.CompileResultPayload
+	compileWarningIndex   int
+	compilePane           int
+	compileSourceIndex    int
+	compileErr            string
+	compileRows           []compileSourceRow
+	sourceRecovery        *sourceRecoveryResult
+	sourceRecoveryRunning bool
+	improvementCursor     int
 
 	operatingLayerRunning   bool
 	operatingLayerComplete  bool

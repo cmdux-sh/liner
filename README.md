@@ -187,6 +187,8 @@ liner compile mobile-design-foundations --cookies ~/cookies.txt
 
 or set `cookies_file = "/path/to/cookies.txt"` under `[fetch]` in `~/.liner/config.toml`.
 
+When Build Corpus drops custom YouTube or web sources because a transcript/body was unavailable, the TUI surfaces them in Compile Console. Press `r` there to retry only the dropped custom sources. Recovered content is saved under `local-sources/recovered/` as a `local_file` source, and Liner prompts you to run Build Corpus again so the AI can reconsider the new local material.
+
 ## Cache
 
 URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 days for web. Override in `config.toml` or skip with `--no-cache`. Inspect with `liner cache list` and `liner cache show <url>`.

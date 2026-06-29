@@ -246,6 +246,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if strings.TrimSpace(m.currentPath) != "" {
 			cmds = append(cmds, loadProjectStatus(m.runner, m.currentPath))
 		}
+	case sourceRecoveryDoneMsg:
+		m.sourceRecoveryRunning = false
+		m.sourceRecovery = &msg.result
+		if msg.err != nil {
+			m.err = "Source recovery failed: " + msg.err.Error()
+			m.note = ""
+			m.compileLines = append(m.compileLines, "× Source recovery failed: "+msg.err.Error())
+			break
+		}
+		summary := fmt.Sprintf("Source recovery checked %d dropped custom source(s): %d recovered, %d still unavailable.", msg.result.Attempted, msg.result.Succeeded, msg.result.Failed)
+		m.compileLines = append(m.compileLines, summary)
+		if msg.result.Succeeded > 0 {
+			m.note = "Recovered source content saved. Run Build Corpus so the AI can reconsider the new local source(s)."
+			m.compileLines = append(m.compileLines, "Saved recovered source copies under local-sources/recovered/. Run Build Corpus when ready.")
+		} else {
+			m.note = "Dropped custom sources are still unavailable. Add replacement source content, or retry later."
+		}
+		if strings.TrimSpace(m.currentPath) != "" {
+			cmds = append(cmds, loadProjectStatus(m.runner, m.currentPath))
+		}
 	case jsSetupFinishedMsg:
 		m.jsSetupRunning = false
 		if msg.err != nil {
