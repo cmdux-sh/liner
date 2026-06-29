@@ -187,6 +187,9 @@ func (m Model) nextAction() string {
 		if m.compiling {
 			return "Wait for compile to finish."
 		}
+		if m.sourceRecoveryRunning {
+			return "Wait for source recovery to finish. Liner is retrying dropped custom sources."
+		}
 		if m.jsSetupRunning {
 			return "Wait for JS rendering setup to finish."
 		}

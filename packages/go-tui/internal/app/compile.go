@@ -759,8 +759,12 @@ func (m Model) viewCompile() string {
 		styles.Subtitle.Render("Fetch sources, assemble MIXTAPE.md, and report anything that needs attention."),
 		"",
 		m.viewCompileStatus(width),
-		m.viewCompilePaneTabs(width),
 	}
+	if m.sourceRecoveryRunning {
+		sections = append(sections, "", m.viewSourceRecoveryWorking(width))
+		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	}
+	sections = append(sections, m.viewCompilePaneTabs(width))
 	if m.compilePane == compilePaneSources {
 		if rows := m.viewCompileAllSources(width); rows != "" {
 			sections = append(sections, "", rows)
@@ -827,6 +831,10 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 	case m.jsSetupRunning:
 		m.err = "Wait for JS rendering setup to finish before creating the Operating Layer."
 		return m, nil
+	case m.sourceRecoveryRunning:
+		m.note = "Source recovery is still running. Wait for the retry result."
+		m.err = ""
+		return m, nil
 	case m.compileNeedsJSSetup():
 		m.err = "Install JS rendering, then retry compile before creating the Operating Layer."
 		return m, nil
@@ -864,11 +872,18 @@ func (m Model) viewCompileStatus(width int) string {
 		detail = "MIXTAPE.md is ready to preview."
 	}
 	percent := m.compilePercent()
-	if m.compileResult != nil || (!m.compiling && m.compileTotal == 0 && len(m.compileLines) > 0) {
+	counts := fmt.Sprintf("%d/%d sources", min(m.compileDoneN, max(m.compileTotal, m.compileDoneN)), m.compileTotal)
+	if m.sourceRecoveryRunning {
+		recoveryCount := len(readDroppedCustomURLSources(m.currentPath, m.currentTape))
+		if recoveryCount == 0 {
+			recoveryCount = 1
+		}
+		percent = 0.35
+		counts = intLabel(recoveryCount, "recovery source")
+	} else if m.compileResult != nil || (!m.compiling && m.compileTotal == 0 && len(m.compileLines) > 0) {
 		percent = 1
 	}
-	counts := fmt.Sprintf("%d/%d sources", min(m.compileDoneN, max(m.compileTotal, m.compileDoneN)), m.compileTotal)
-	if m.compileTotal == 0 {
+	if !m.sourceRecoveryRunning && m.compileTotal == 0 {
 		counts = "0 sources"
 	}
 	return renderProgressStatusBlock(width, m.compileBar, percent, status, detail, counts)
@@ -1136,6 +1151,47 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 		lines = append(lines, styles.Subtitle.Render("saved "+truncateMiddle(source.SavedTo, max(20, width-8))))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) viewSourceRecoveryWorking(width int) string {
+	sources := readDroppedCustomURLSources(m.currentPath, m.currentTape)
+	lines := []string{
+		styles.ReportSection.Render("Source recovery"),
+	}
+	for _, line := range wrapWords("Liner is retrying only the dropped custom sources. Build Corpus and compile are not running.", width) {
+		lines = append(lines, styles.NextActionText.Render(line))
+	}
+	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to run Build Corpus.", width) {
+		lines = append(lines, styles.Subtitle.Render(line))
+	}
+	if len(sources) == 0 {
+		lines = append(lines, "", styles.Subtitle.Render("Waiting for the recovery result."))
+		return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+	}
+	sourceWidth := max(28, width-42)
+	rows := make([]table.Row, 0, len(sources))
+	for _, source := range sources {
+		rows = append(rows, table.Row{
+			"fetching",
+			visibleSourceType(source.Item.Source.Type),
+			truncateMiddle(localSourceIssueLabel(source.Item), sourceWidth),
+			truncateMiddle(source.Reason, 18),
+		})
+	}
+	sourceTable := newDataTable(
+		[]table.Column{
+			{Title: "Status", Width: 10},
+			{Title: "Type", Width: 9},
+			{Title: "Source", Width: sourceWidth},
+			{Title: "Prior issue", Width: 18},
+		},
+		rows,
+		width,
+		min(len(rows)+1, 8),
+		false,
+	)
+	lines = append(lines, "", sourceTable.View())
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 }
 
 func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) string {

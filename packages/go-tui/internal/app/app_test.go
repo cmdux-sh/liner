@@ -10448,6 +10448,70 @@ emit({
 	}
 }
 
+func TestCompileSourceRecoveryRunningUsesFocusedView(t *testing.T) {
+	project := t.TempDir()
+	working := filepath.Join(project, "working")
+	if err := os.MkdirAll(working, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := `candidates:
+  - url: https://www.youtube.com/watch?v=one11111111
+    title: Custom YouTube source one
+    decision: dropped
+    rationale: YouTube returned no readable transcript body.
+`
+	if err := os.WriteFile(filepath.Join(working, "03-evaluation.yaml"), []byte(evaluation), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	custom := source.Stage([]tape.Source{
+		{Type: "youtube", URL: "https://www.youtube.com/watch?v=one11111111", Priority: "required"},
+	}, true)
+	if err := source.WriteManifests(project, custom); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:                screenCompile,
+		width:                 110,
+		height:                32,
+		currentPath:           project,
+		currentTape:           tape.Tape{Title: "Launch"},
+		compileBar:            newCompileProgress(48),
+		compileTotal:          43,
+		compileDoneN:          43,
+		sourceRecoveryRunning: true,
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: filepath.Join(project, "MIXTAPE.md"),
+			Summary:     core.CompileSummary{Total: 43, Succeeded: 41, Failed: 2},
+			Warnings: []core.CompileWarningPayload{
+				{URL: "https://example.com/stale", Severity: "error", Message: "stale warning"},
+			},
+		},
+	}
+
+	view := stripANSICodesForTest(m.viewCompile())
+	for _, expected := range []string{"Source recovery", "Build Corpus and compile are not running", "1 recovery source", "fetching", "one11111111"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("running recovery view should show %q:\n%s", expected, view)
+		}
+	}
+	for _, unexpected := range []string{"Excluded local sources", "source issues", "stale warning", "View: Issues"} {
+		if strings.Contains(view, unexpected) {
+			t.Fatalf("running recovery view should hide stale compile UI %q:\n%s", unexpected, view)
+		}
+	}
+	help := m.helpForScreen().ShortHelp()
+	if !hasHelp(help, "wait") || !hasHelpDesc(help, "source recovery") || hasHelpDesc(help, "retry sources") {
+		t.Fatalf("running recovery help should only expose wait state, got %#v", help)
+	}
+	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if cmd != nil {
+		t.Fatal("enter during source recovery should not start another action")
+	}
+	if got.err != "" || !strings.Contains(got.note, "Source recovery is still running") {
+		t.Fatalf("enter during recovery should produce wait note without error, err=%q note=%q", got.err, got.note)
+	}
+}
+
 func TestFooterHelpWrapsLongCompileHelp(t *testing.T) {
 	m := Model{
 		screen: screenCompile,

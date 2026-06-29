@@ -101,6 +101,14 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.help.ShowAll = !m.help.ShowAll
 		return m, nil
 	}
+	if m.screen == screenCompile && m.sourceRecoveryRunning {
+		if key.Matches(keyMsg, bindings.Quit) {
+			return m, tea.Quit
+		}
+		m.note = "Source recovery is still running. Wait for the retry result."
+		m.err = ""
+		return m, nil
+	}
 	if m.screen == screenLinerReview && m.operatingLayerRunning {
 		return m.handleLinerReviewKey(keyMsg)
 	}
@@ -1219,6 +1227,13 @@ func (m Model) baseHelpForScreen() screenHelp {
 			full:  [][]key.Binding{{field, next, bindings.Back, bindings.Quit, helpKey}},
 		}
 	case screenCompile:
+		if m.sourceRecoveryRunning {
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("wait", "source recovery"))
+			return screenHelp{
+				short: []key.Binding{wait, helpKey},
+				full:  [][]key.Binding{{wait, bindings.Quit, helpKey}},
+			}
+		}
 		next := bindings.Next
 		next.SetHelp("enter", "operating layer")
 		addSources := bindings.AddSources
