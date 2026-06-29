@@ -8436,7 +8436,7 @@ func TestCompileHTTP404WarningDoesNotSuggestJSSetup(t *testing.T) {
 	if got := compileWarningRecommendation(warning); strings.Contains(got, "Install JS rendering") {
 		t.Fatalf("404 recommendation should not suggest JS setup: %q", got)
 	}
-	if got := m.nextAction(); got != "Open the source with o, drop it with d, or add a replacement with a." {
+	if got := m.nextAction(); got != "Resolve source issues before creating the Operating Layer." {
 		t.Fatalf("404 next action should explain repair controls, got %q", got)
 	}
 	fullView := stripANSICodesForTest(m.View().Content)
@@ -10330,6 +10330,9 @@ func TestCompileResultSurfacesSourceEvaluationIssuesAndRetriesDroppedSources(t *
 	if err := linerprogress.Write(project, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCompile)}); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(project, "synthesis.md"), []byte("# Synthesis\n\nUseful synthesis body.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	script := filepath.Join(t.TempDir(), "runner.cjs")
 	if err := os.WriteFile(script, []byte(`#!/usr/bin/env node
 const fs = require("fs");
@@ -10375,13 +10378,16 @@ emit({
 	}
 
 	view := m.viewCompileResult(styles.ClampWidth(m.width - 4))
-	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml", "Excluded local sources", "one11111111", "no transcript/readable body"} {
+	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml", "Excluded local sources", "Retry unavailable excluded local sources with e", "1 retryable", "one11111111", "no transcript/readable body"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
 		}
 	}
-	if got := m.compileAttentionNextAction(); got != "Retry excluded local sources with e, or add replacement source content with a." {
-		t.Fatalf("expected dropped source retry next action, got %q", got)
+	if got := m.compileAttentionNextAction(); got != "" {
+		t.Fatalf("excluded local source retry should not replace the forward next action, got %q", got)
+	}
+	if got := m.nextAction(); got != "Corpus Ready. Create the Operating Layer, or press p to preview MIXTAPE.md." {
+		t.Fatalf("excluded local sources should leave the normal forward next action, got %q", got)
 	}
 
 	sourcePane, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
@@ -10434,7 +10440,7 @@ emit({
 		t.Fatalf("recovery success should prompt the user to continue, got note %q", updated.note)
 	}
 	review := stripANSICodesForTest(updated.viewCompile())
-	for _, expected := range []string{"Excluded local source retry", "1 checked, 1 recovered, 0 still unavailable", "Press enter to return to Compile Console"} {
+	for _, expected := range []string{"Excluded local source retry", "1 retryable checked, 1 recovered, 0 still unavailable", "Press enter to return to Compile Console"} {
 		if !strings.Contains(review, expected) {
 			t.Fatalf("recovery review should show %q:\n%s", expected, review)
 		}
@@ -10505,8 +10511,14 @@ func TestCompileHelpSeparatesExcludedLocalSourcesFromSourceIssues(t *testing.T) 
 		},
 	}
 
-	if got := m.compileAttentionNextAction(); got != "Retry excluded local sources with e, or retry source issues with r." {
+	if got := m.compileAttentionNextAction(); got != "Resolve source issues before creating the Operating Layer." {
 		t.Fatalf("expected separated retry next action, got %q", got)
+	}
+	view := stripANSICodesForTest(m.viewCompileResult(styles.ClampWidth(m.width - 4)))
+	for _, expected := range []string{"Retry unavailable excluded local sources with e", "Retry source issues with r"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("compile result should show contextual retry action %q:\n%s", expected, view)
+		}
 	}
 	help := m.helpForScreen().ShortHelp()
 	if !hasHelpDesc(help, "retry excluded") {

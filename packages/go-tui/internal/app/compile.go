@@ -845,7 +845,7 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 		m.err = "Install JS rendering, then retry compile before creating the Operating Layer."
 		return m, nil
 	case m.compileAttentionNextAction() != "":
-		m.err = "Resolve the compile notes, then retry compile before creating the Operating Layer."
+		m.err = m.compileAttentionNextAction()
 		return m, nil
 	case !m.compileHasUsableResult():
 		m.err = "Compile MIXTAPE.md before creating the Operating Layer."
@@ -891,7 +891,7 @@ func (m Model) viewCompileStatus(width int) string {
 		counts = intLabel(recoveryCount, "excluded local source")
 	} else if m.sourceRecoveryReview && m.sourceRecovery != nil {
 		percent = 1
-		counts = fmt.Sprintf("%d checked", m.sourceRecovery.Attempted)
+		counts = fmt.Sprintf("%d retryable checked", m.sourceRecovery.Attempted)
 	} else if m.compileResult != nil || (!m.compiling && m.compileTotal == 0 && len(m.compileLines) > 0) {
 		percent = 1
 	}
@@ -1136,6 +1136,7 @@ func (m Model) viewCompileResult(width int) string {
 	}
 	if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
 		lines = append(lines, styles.NextActionTitle.Render(intLabel(m.actionableCompileWarningCount(), "source issue")))
+		lines = append(lines, styles.Subtitle.Render("Retry source issues with r. Open or drop the selected source with o/d, or add replacements with a."))
 		lines = append(lines, m.compileWarningsTable(width).View())
 		if detail := m.compileWarningDetail(width); detail != "" {
 			lines = append(lines, "", detail)
@@ -1151,7 +1152,7 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 	result := *m.sourceRecovery
 	lines := []string{
 		styles.ReportSection.Render("Excluded local source retry"),
-		styles.NextActionText.Render(fmt.Sprintf("%d checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
+		styles.NextActionText.Render(fmt.Sprintf("%d retryable checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if result.Succeeded > 0 {
 		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Run Build Corpus so the AI can reconsider it."))
@@ -1172,7 +1173,7 @@ func (m Model) viewSourceRecoveryReview(width int) string {
 	}
 	lines := []string{
 		styles.ReportSection.Render("Excluded local source retry"),
-		styles.NextActionText.Render(fmt.Sprintf("%d checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
+		styles.NextActionText.Render(fmt.Sprintf("%d retryable checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if strings.TrimSpace(m.sourceRecoveryError) != "" {
 		lines = append(lines, styles.ErrorText.Render("Retry error: "+m.sourceRecoveryError))
@@ -1181,7 +1182,7 @@ func (m Model) viewSourceRecoveryReview(width int) string {
 			lines = append(lines, styles.SuccessText.Render("● ")+styles.NextActionText.Render(line))
 		}
 	} else {
-		for _, line := range wrapWords("No excluded local sources were recovered. Try again after changing network/cookies, or add replacement source content manually.", width) {
+		for _, line := range wrapWords("No retryable excluded local sources were recovered. Try again after changing network/cookies, or add replacement source content manually.", width) {
 			lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render(line))
 		}
 	}
@@ -1197,7 +1198,7 @@ func (m Model) viewSourceRecoveryWorking(width int) string {
 	lines := []string{
 		styles.ReportSection.Render("Retry excluded local sources"),
 	}
-	for _, line := range wrapWords("Liner is retrying excluded local sources only. Build Corpus and compile are not running.", width) {
+	for _, line := range wrapWords("Liner is retrying retryable excluded local sources only. Build Corpus and compile are not running.", width) {
 		lines = append(lines, styles.NextActionText.Render(line))
 	}
 	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to run Build Corpus.", width) {
@@ -1293,7 +1294,20 @@ func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) st
 		min(len(rows)+1, 10),
 		false,
 	)
-	return styles.ReportSection.Render("Excluded local sources") + "\n" + sourceTable.View()
+	return styles.ReportSection.Render("Excluded local sources") + "\n" + renderExcludedLocalSourceHint(issues) + "\n" + sourceTable.View()
+}
+
+func renderExcludedLocalSourceHint(issues []excludedLocalSourceIssue) string {
+	retryable := 0
+	for _, issue := range issues {
+		if strings.EqualFold(strings.TrimSpace(issue.Status), "dropped") {
+			retryable++
+		}
+	}
+	if retryable > 0 {
+		return styles.Subtitle.Render(fmt.Sprintf("Retry unavailable excluded local sources with e. %d retryable; %d already left out of tape.yaml.", retryable, max(0, len(issues)-retryable)))
+	}
+	return styles.Subtitle.Render("No retryable excluded local sources. Add replacement content with a, or run Build Corpus if these sources should be reconsidered.")
 }
 
 func (m Model) viewCompileJSSetup(width int) string {
@@ -1491,17 +1505,8 @@ func (m Model) selectedBlockingCompileWarning() (core.CompileWarningPayload, boo
 }
 
 func (m Model) compileAttentionNextAction() string {
-	if m.compileHasDroppedCustomSourceIssues() {
-		if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
-			return "Retry excluded local sources with e, or retry source issues with r."
-		}
-		return "Retry excluded local sources with e, or add replacement source content with a."
-	}
-	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.MissingCustom > 0 {
-		return "Run Build Corpus so the AI can reconsider the source list, or add replacement content with a."
-	}
-	if warning, ok := m.selectedBlockingCompileWarning(); ok {
-		return compileWarningNextAction(warning)
+	if _, ok := m.selectedBlockingCompileWarning(); ok {
+		return "Resolve source issues before creating the Operating Layer."
 	}
 	if len(m.compileAttentionItems()) > 0 {
 		if m.compileResult != nil && m.compileResult.Summary.Total == 0 {

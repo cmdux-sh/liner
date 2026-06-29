@@ -258,7 +258,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		m.sourceRecoveryError = ""
-		summary := fmt.Sprintf("Excluded local source retry checked %d excluded local source(s): %d recovered, %d still unavailable.", msg.result.Attempted, msg.result.Succeeded, msg.result.Failed)
+		summary := fmt.Sprintf("Excluded local source retry checked %d retryable excluded local source(s): %d recovered, %d still unavailable.", msg.result.Attempted, msg.result.Succeeded, msg.result.Failed)
 		m.compileLines = append(m.compileLines, summary)
 		if msg.result.Succeeded > 0 {
 			m.note = "Recovered source content saved. Continue when ready."
