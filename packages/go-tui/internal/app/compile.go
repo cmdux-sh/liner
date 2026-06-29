@@ -61,7 +61,7 @@ func (m Model) startCompileReviewFromArtifacts() (Model, tea.Cmd) {
 	}
 	m.compileLines = []string{
 		fmt.Sprintf("Previous compile needs attention: %d/%d usable sources.", health.Summary.Succeeded, health.Summary.Total),
-		"Review the warnings, then install JS rendering, replace sources, drop sources, or retry compile.",
+		"Review the source issues, then install JS rendering, replace sources, drop sources, or retry compile.",
 	}
 	m.compileBar = newCompileProgress(compileProgressWidth(m.width))
 	return m, m.compileBar.SetPercent(1)
@@ -374,7 +374,7 @@ func compileArtifactWarningForIndex(warnings []core.CompileWarningPayload, sourc
 			return warning.Message
 		}
 	}
-	return "Compiled source unavailable. Review compile warnings, then retry."
+	return "Compiled source unavailable. Review compile issues, then retry."
 }
 
 func (m *Model) clampCompileWarningIndex() {
@@ -435,22 +435,22 @@ func (m Model) moveCompileWarningSelection(delta int) Model {
 func (m Model) openSelectedCompileWarningSource() (Model, tea.Cmd) {
 	warning, ok := m.selectedCompileWarning()
 	if !ok || strings.TrimSpace(warning.URL) == "" {
-		m.err = "No warning source is selected."
+		m.err = "No source issue is selected."
 		return m, nil
 	}
-	m.note = "Opening warning source."
+	m.note = "Opening source issue."
 	return m, openPath(strings.TrimSpace(warning.URL))
 }
 
 func (m Model) dropSelectedCompileWarningSource() (Model, tea.Cmd) {
 	warning, ok := m.selectedCompileWarning()
 	if !ok {
-		m.err = "No warning source is selected."
+		m.err = "No source issue is selected."
 		return m, nil
 	}
 	sourceID := strings.TrimSpace(warning.URL)
 	if sourceID == "" {
-		m.err = "The selected warning does not identify a source."
+		m.err = "The selected source issue does not identify a source."
 		return m, nil
 	}
 	updated, removed := dropTapeSourceByID(m.currentTape, sourceID)
@@ -555,9 +555,9 @@ func (m Model) friendlyCompileError(err error) string {
 		switch exitErr.Code {
 		case 2:
 			if m.compileResult != nil {
-				return fmt.Sprintf("Partial compile: %d/%d sources were usable. Review warnings before relying on MIXTAPE.md.", m.compileResult.Summary.Succeeded, m.compileResult.Summary.Total)
+				return fmt.Sprintf("Partial compile: %d/%d sources were usable. Review source issues before relying on MIXTAPE.md.", m.compileResult.Summary.Succeeded, m.compileResult.Summary.Total)
 			}
-			return "Partial compile. Review warnings before relying on MIXTAPE.md."
+			return "Partial compile. Review source issues before relying on MIXTAPE.md."
 		case 3:
 			if m.compileResult != nil {
 				return "No usable sources were compiled. Add sources, check source access, or run setup for pages that need JavaScript."
@@ -861,7 +861,7 @@ func (m Model) viewCompileResult(width int) string {
 		lines = append(lines, styles.SuccessText.Render(fmt.Sprintf("● recovered %d source(s) with browser rendering", recovered))+"  "+styles.NextActionText.Render("included in MIXTAPE.md"))
 	}
 	if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
-		lines = append(lines, styles.NextActionTitle.Render(fmt.Sprintf("%d warning(s)", m.actionableCompileWarningCount())))
+		lines = append(lines, styles.NextActionTitle.Render(intLabel(m.actionableCompileWarningCount(), "source issue")))
 		lines = append(lines, m.compileWarningsTable(width).View())
 		if detail := m.compileWarningDetail(width); detail != "" {
 			lines = append(lines, "", detail)
@@ -947,7 +947,7 @@ func (m Model) compileWarningDetail(width int) string {
 		{Label: "Message", Value: compileWarningSummary(warning)},
 		{Label: "Recommendation", Value: compileWarningRecommendation(warning)},
 	}
-	return styles.ReportSection.Render("Warning detail") + "\n" + renderLabelValueBlock(width, rows, 0, 0)
+	return styles.ReportSection.Render("Issue detail") + "\n" + renderLabelValueBlock(width, rows, 0, 0)
 }
 
 func compileWarningRecommendation(warning core.CompileWarningPayload) string {
@@ -1103,13 +1103,13 @@ func compileWarningNextAction(warning core.CompileWarningPayload) string {
 	case strings.Contains(message, "transcript"):
 		return "Add a transcript or stronger written source with a, then retry compile."
 	default:
-		return "Review the selected warning, then open, drop, replace, or retry."
+		return "Review the selected source issue, then open, drop, replace, or retry."
 	}
 }
 
 func (m Model) startJSSetupForCompile() (Model, tea.Cmd) {
 	if !m.compileNeedsJSSetup() {
-		m.err = "The selected compile warnings do not need JS rendering setup."
+		m.err = "The selected compile issues do not need JS rendering setup."
 		return m, nil
 	}
 	if m.jsSetupRunning {

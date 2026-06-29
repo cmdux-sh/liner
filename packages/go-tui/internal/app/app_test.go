@@ -6631,10 +6631,10 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 	if got := m.projectMilestone(); got != "compile_attention" {
 		t.Fatalf("project milestone should not trust stale corpus_ready status, got %q", got)
 	}
-	if got := m.projectPrimaryLabel(); got != "Review compile warnings" {
+	if got := m.projectPrimaryLabel(); got != "Review compile issues" {
 		t.Fatalf("primary label should route to compile repair, got %q", got)
 	}
-	if got := m.projectMilestoneNextAction(); got != "Review compile warnings and retry compile." {
+	if got := m.projectMilestoneNextAction(); got != "Review compile issues and retry compile." {
 		t.Fatalf("next action should route to compile repair, got %q", got)
 	}
 	if m.canCreateOperatingLayer() {
@@ -6646,7 +6646,7 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 	if !hasHelpDesc(m.helpForScreen().ShortHelp(), "review compile") {
 		t.Fatalf("project help should route enter to compile repair: %#v", m.helpForScreen().ShortHelp())
 	}
-	if view := stripANSICodesForTest(m.viewProject()); !strings.Contains(view, "Compile Needs Attention") || !strings.Contains(view, "Review compile warnings") {
+	if view := stripANSICodesForTest(m.viewProject()); !strings.Contains(view, "Compile Needs Attention") || !strings.Contains(view, "Review compile issues") {
 		t.Fatalf("project view should explain compile repair state:\n%s", view)
 	}
 	rows := projectPipelineRows(project, current, m.currentProjectStatus())
@@ -6664,7 +6664,7 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 	}
 
 	blocked, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'l', Text: "l"}))
-	if !strings.Contains(blocked.err, "Review compile warnings") {
+	if !strings.Contains(blocked.err, "Review compile issues") {
 		t.Fatalf("l should explain why Operating Layer is blocked, got %q", blocked.err)
 	}
 
@@ -6676,7 +6676,7 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 		t.Fatalf("compile repair screen should reconstruct warning state: %#v", got.compileResult)
 	}
 	if !got.compileNeedsJSSetup() {
-		t.Fatal("reconstructed compile warnings should offer JS setup")
+		t.Fatal("reconstructed compile issues should offer JS setup")
 	}
 	if action := got.nextAction(); !strings.Contains(action, "install JS rendering") {
 		t.Fatalf("compile repair next action should offer JS setup, got %q", action)
@@ -6730,7 +6730,7 @@ func TestProjectReopenRecoveredJSCompileDoesNotBlockOperatingLayer(t *testing.T)
 	if got := m.projectPrimaryLabel(); got != "Create Operating Layer" {
 		t.Fatalf("primary label should continue to Operating Layer, got %q", got)
 	}
-	if hasCommandTitle(m.commandItems(), "Review compile warnings") {
+	if hasCommandTitle(m.commandItems(), "Review compile issues") {
 		t.Fatal("recovered JS compile note should not show compile repair command")
 	}
 }
@@ -8198,7 +8198,7 @@ func TestCompileViewKeepsFooterVisibleWithTallWarnings(t *testing.T) {
 	for _, expected := range []string{
 		"Press i to install JS rendering",
 		"i install JS",
-		"↑/↓ warning",
+		"↑/↓ issue",
 		"This page needs browser",
 	} {
 		if !strings.Contains(view, expected) {
@@ -8289,7 +8289,7 @@ func TestCompileHTTP404WarningDoesNotSuggestJSSetup(t *testing.T) {
 	}
 	for _, unexpected := range []string{
 		"Fix the compile notes",
-		"Preview MIXTAPE.md, or review the warning before trusting that source.",
+		"Preview MIXTAPE.md, or review the issue before trusting that source.",
 	} {
 		if strings.Contains(fullView, unexpected) {
 			t.Fatalf("compile warning view should not show stale cue %q:\n%s", unexpected, fullView)
@@ -10050,8 +10050,8 @@ func TestCompileResultWarningsRespectNarrowWidth(t *testing.T) {
 	view := m.viewCompileResult(styles.ClampWidth(width - 4))
 	assertNoBoxCorners(t, view)
 	for _, expected := range []string{
-		"1 warning(s)",
-		"Warning detail",
+		"1 source issue",
+		"Issue detail",
 		"Message",
 		"Recommendation",
 		"Drop",
@@ -10092,7 +10092,7 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 		t.Fatalf("expected selected warning index 1, got %d", got.compileWarningIndex)
 	}
 	view := got.viewCompileResult(styles.ClampWidth(got.width - 4))
-	for _, expected := range []string{"https://example.com/second", "second failed", "Warning detail", "Recommendation"} {
+	for _, expected := range []string{"https://example.com/second", "second failed", "Issue detail", "Recommendation"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile warning selection view missing %q:\n%s", expected, view)
 		}
@@ -10182,7 +10182,7 @@ func TestCompileRecoveredJSFallbackWarningStillContinues(t *testing.T) {
 	if !strings.Contains(view, "recovered 1 source(s) with browser rendering") || !strings.Contains(view, "included in MIXTAPE.md") {
 		t.Fatalf("recovered source should render as a success note, got:\n%s", view)
 	}
-	if strings.Contains(view, "warning(s)") || strings.Contains(view, "Warning detail") {
+	if strings.Contains(view, "source issue") || strings.Contains(view, "Issue detail") {
 		t.Fatalf("recovered source should not render warning table/details, got:\n%s", view)
 	}
 	if got := m.nextAction(); !strings.Contains(got, "Corpus Ready. Create the Operating Layer") {

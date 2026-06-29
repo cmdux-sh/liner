@@ -578,7 +578,7 @@ func (m Model) projectFlowRows() []projectPipelineRow {
 	corpusEvidence := "Build Corpus"
 	if m.projectCompileNeedsAttention() {
 		corpusState = "current"
-		corpusEvidence = "review compile warnings"
+		corpusEvidence = "review compile issues"
 	} else if m.hasCorpusReady() {
 		corpusState = "done"
 		corpusEvidence = displayProjectPath(m.currentPath, "MIXTAPE.md")
@@ -765,7 +765,7 @@ func (m Model) projectPrimaryLabel() string {
 	case m.hasPendingAssemblyDraft():
 		return "Review draft sources"
 	case m.projectCompileNeedsAttention():
-		return "Review compile warnings"
+		return "Review compile issues"
 	case m.isProjectComplete():
 		return "Project complete"
 	case m.hasCorpusReady():
@@ -789,7 +789,7 @@ func (m Model) projectMilestoneNextAction() string {
 	case "corpus_ready":
 		return "Create Operating Layer."
 	case "compile_attention":
-		return "Review compile warnings and retry compile."
+		return "Review compile issues and retry compile."
 	default:
 		if m.needsClarificationBeforeMethodology() {
 			return "Answer the clarification questions before building the corpus."
@@ -964,7 +964,7 @@ func (m Model) linerReadinessRow(summary capabilitySummary) capabilityReadinessR
 		return capabilityReadinessRow{Area: "LINER.md", Status: "ready", Next: "Preview or regenerate"}
 	}
 	if m.projectCompileNeedsAttention() {
-		return capabilityReadinessRow{Area: "LINER.md", Status: "blocked", Next: "Review compile warnings"}
+		return capabilityReadinessRow{Area: "LINER.md", Status: "blocked", Next: "Review compile issues"}
 	}
 	if m.hasCorpusReady() {
 		return capabilityReadinessRow{Area: "LINER.md", Status: "missing", Next: "Create Operating Layer"}
@@ -982,7 +982,7 @@ func (m Model) projectSkillReadinessRow() capabilityReadinessRow {
 		return capabilityReadinessRow{Area: "Project Skill", Status: name, Next: "Represented in LINER.md"}
 	}
 	if m.projectCompileNeedsAttention() {
-		return capabilityReadinessRow{Area: "Project Skill", Status: "blocked", Next: "Review compile warnings"}
+		return capabilityReadinessRow{Area: "Project Skill", Status: "blocked", Next: "Review compile issues"}
 	}
 	if m.hasCorpusReady() {
 		return capabilityReadinessRow{Area: "Project Skill", Status: "missing", Next: "Create Operating Layer"}

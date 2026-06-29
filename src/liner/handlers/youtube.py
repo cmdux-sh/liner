@@ -89,18 +89,22 @@ class YouTubeHandler:
             return _normalize_transcript(text), meta
         except _TranscriptUnavailable as e:
             primary_msg = str(e)
-        except _RateLimitedError as e:
-            raise HandlerHardFailure(
-                f"YouTube is rate-limiting your IP ({e}). Wait and retry, "
-                "use a different network, or provide --cookies.",
-                url,
-            ) from e
+        except _RateLimitedError:
+            primary_msg = (
+                "youtube-transcript-api was rate-limited; wait, use a different "
+                "network, or provide --cookies"
+            )
 
         try:
             text, meta = _fetch_via_yt_dlp_subs(video_id, self._config.cookies_file)
             meta.setdefault("transcript_fallback_reason", primary_msg)
             return _normalize_transcript(text), meta
         except _TranscriptUnavailable as e:
+            raise HandlerHardFailure(
+                f"Could not get transcript for {url}: {primary_msg}; yt-dlp fallback: {e}",
+                url,
+            ) from e
+        except HandlerHardFailure as e:
             raise HandlerHardFailure(
                 f"Could not get transcript for {url}: {primary_msg}; yt-dlp fallback: {e}",
                 url,
@@ -121,7 +125,7 @@ def _extract_video_id(url: str) -> str | None:
             vals = parse_qs(parsed.query).get("v")
             if vals and VIDEO_ID_RE.match(vals[0]):
                 return vals[0]
-        for prefix in ("/embed/", "/shorts/", "/v/"):
+        for prefix in ("/embed/", "/shorts/", "/v/", "/live/"):
             if path.startswith(prefix):
                 candidate = path[len(prefix):].split("/", 1)[0]
                 return candidate if VIDEO_ID_RE.match(candidate) else None

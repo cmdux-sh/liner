@@ -45,6 +45,7 @@ class TestExtractVideoId:
             ("https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
             ("https://www.youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
             ("https://www.youtube.com/v/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+            ("https://www.youtube.com/live/dQw4w9WgXcQ?si=abc123", "dQw4w9WgXcQ"),
             ("dQw4w9WgXcQ", "dQw4w9WgXcQ"),  # raw ID
             ("https://m.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),  # mobile
         ],
@@ -287,6 +288,33 @@ def _patch_transcript_api(
     monkeypatch.setattr(youtube_transcript_api, "YouTubeTranscriptApi", FakeApi)
 
 
+def _patch_yt_dlp_subtitle_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    *,
+    text: str = "fallback transcript line",
+) -> None:
+    from pathlib import Path
+
+    class SubsYoutubeDL(_FakeYoutubeDL):
+        def __init__(self, opts: dict[str, Any] | None = None) -> None:
+            super().__init__(opts)
+            self._opts = opts or {}
+
+        def download(self, _urls: list[str]) -> None:  # noqa: ARG002
+            outtmpl = self._opts.get("outtmpl", "")
+            tmpdir = Path(outtmpl).parent if outtmpl else tmp_path
+            vtt = tmpdir / "dQw4w9WgXcQ.en.vtt"
+            vtt.write_text(
+                "WEBVTT\n\n"
+                "00:00:00.000 --> 00:00:02.000\n"
+                f"{text}\n",
+                encoding="utf-8",
+            )
+
+    _patch_yt_dlp(monkeypatch, youtube_dl_cls=SubsYoutubeDL)
+
+
 class TestFetchHappyPath:
     def test_returns_metadata_and_transcript(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _patch_yt_dlp(monkeypatch)
@@ -341,6 +369,7 @@ class TestFetchErrors:
         with pytest.raises(HandlerHardFailure) as exc:
             _make_handler().fetch(_spec())
         assert "rate-limit" in str(exc.value).lower()
+        assert "yt-dlp" in str(exc.value).lower()
 
     def test_age_restricted_falls_back_then_hard_fails(
         self, monkeypatch: pytest.MonkeyPatch
@@ -397,6 +426,27 @@ class TestFetchErrors:
 
 
 class TestFetchFallback:
+    def test_rate_limit_falls_back_to_yt_dlp_subs(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        from youtube_transcript_api._errors import IpBlocked
+
+        _patch_transcript_api(
+            monkeypatch,
+            list_raises=IpBlocked,
+            list_raise_args=("blocked by youtube",),
+        )
+        _patch_yt_dlp_subtitle_success(
+            monkeypatch,
+            tmp_path,
+            text="rate limited fallback transcript",
+        )
+
+        content = _make_handler().fetch(_spec())
+        assert "rate limited fallback transcript" in content.body
+        assert content.metadata["transcript_source"] == "yt-dlp"
+        assert "rate-limited" in content.metadata["transcript_fallback_reason"]
+
     def test_falls_back_to_yt_dlp_subs_when_api_disabled(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
@@ -409,30 +459,7 @@ class TestFetchFallback:
             list_raises=TranscriptsDisabled,
             list_raise_args=("video_id",),
         )
-
-        # yt-dlp's download writes a .vtt file matching the video_id pattern
-        # into the tempdir its caller supplied. We can't see that tempdir from
-        # here, but we can intercept the write via a fake YoutubeDL that
-        # creates the file inside the outtmpl directory.
-        from pathlib import Path
-
-        class SubsYoutubeDL(_FakeYoutubeDL):
-            def __init__(self, opts: dict[str, Any] | None = None) -> None:
-                super().__init__(opts)
-                self._opts = opts or {}
-
-            def download(self, _urls: list[str]) -> None:  # noqa: ARG002
-                outtmpl = self._opts.get("outtmpl", "")
-                tmpdir = Path(outtmpl).parent if outtmpl else tmp_path
-                vtt = tmpdir / "dQw4w9WgXcQ.en.vtt"
-                vtt.write_text(
-                    "WEBVTT\n\n"
-                    "00:00:00.000 --> 00:00:02.000\n"
-                    "fallback transcript line\n",
-                    encoding="utf-8",
-                )
-
-        _patch_yt_dlp(monkeypatch, youtube_dl_cls=SubsYoutubeDL)
+        _patch_yt_dlp_subtitle_success(monkeypatch, tmp_path)
 
         content = _make_handler().fetch(_spec())
         assert "fallback transcript line" in content.body

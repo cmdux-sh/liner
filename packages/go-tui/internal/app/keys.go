@@ -351,7 +351,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				return m.openPreview("LINER.md")
 			}
 			if m.projectCompileNeedsAttention() {
-				m.err = "Review compile warnings and retry compile before creating the Operating Layer."
+				m.err = "Review compile issues and retry compile before creating the Operating Layer."
 				return m, nil
 			}
 			if m.canCreateOperatingLayer() {
@@ -1216,7 +1216,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 		openSource := key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open source"))
 		dropSource := key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "drop source"))
 		installJS := key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "install JS"))
-		warningScroll := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "warning"))
+		warningScroll := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "issue"))
 		previewKey := bindings.Preview
 		short := []key.Binding{bindings.Retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
 		full := [][]key.Binding{{bindings.Retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
