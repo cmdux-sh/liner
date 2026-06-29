@@ -3,9 +3,11 @@ package app
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/cmdux/liner/packages/go-tui/internal/styles"
 )
@@ -141,8 +143,58 @@ func (m Model) footerHelp() string {
 		helpKey := bindings.Help
 		helpKey.SetHelp("?", "less help")
 		helpMap = withHelpBinding(helpMap, helpKey)
+		return m.help.View(helpMap)
 	}
-	return m.help.View(helpMap)
+	width := m.help.Width()
+	if width <= 0 {
+		width = styles.ClampWidth(m.width - 4)
+	}
+	return wrappedShortHelp(m.help, helpMap.ShortHelp(), width)
+}
+
+func wrappedShortHelp(helpModel help.Model, bindings []key.Binding, width int) string {
+	if len(bindings) == 0 {
+		return ""
+	}
+	if width <= 0 {
+		width = 60
+	}
+	separator := helpModel.Styles.ShortSeparator.Inline(true).Render(helpModel.ShortSeparator)
+	var lines []string
+	current := ""
+	for _, binding := range bindings {
+		if !binding.Enabled() {
+			continue
+		}
+		helpText := binding.Help()
+		if strings.TrimSpace(helpText.Key) == "" || strings.TrimSpace(helpText.Desc) == "" {
+			continue
+		}
+		item := helpModel.Styles.ShortKey.Inline(true).Render(helpText.Key) + " " +
+			helpModel.Styles.ShortDesc.Inline(true).Render(helpText.Desc)
+		if current == "" {
+			current = wrapHelpItem(item, helpText.Key+" "+helpText.Desc, width)
+			continue
+		}
+		next := current + separator + item
+		if lipgloss.Width(next) <= width {
+			current = next
+			continue
+		}
+		lines = append(lines, current)
+		current = wrapHelpItem(item, helpText.Key+" "+helpText.Desc, width)
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func wrapHelpItem(styled string, plain string, width int) string {
+	if lipgloss.Width(styled) <= width {
+		return styled
+	}
+	return truncateMiddle(plain, width)
 }
 
 func withoutQuitKeyBinding(helpMap screenHelp) screenHelp {

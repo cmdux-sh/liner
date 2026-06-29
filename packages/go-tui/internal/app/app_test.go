@@ -8352,7 +8352,7 @@ func TestCompileViewKeepsFooterVisibleWithTallWarnings(t *testing.T) {
 		"Press i to install JS rendering",
 		"i install JS",
 		"↑/↓ issue",
-		"This page needs browser",
+		"… more content hidden",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing %q:\n%s", expected, view)
@@ -10394,6 +10394,34 @@ process.stdout.write(JSON.stringify({
 	}
 	if eventMsg.event.PhaseID != "candidates" || eventMsg.event.Resume {
 		t.Fatalf("expected fresh candidates run, got %#v", eventMsg.event)
+	}
+}
+
+func TestFooterHelpWrapsLongCompileHelp(t *testing.T) {
+	m := Model{
+		screen: screenCompile,
+		width:  64,
+		help:   help.New(),
+		compileResult: &core.CompileResultPayload{
+			Summary: core.CompileSummary{Total: 2, Succeeded: 1, Failed: 1},
+			Warnings: []core.CompileWarningPayload{
+				{URL: "https://example.com/source", Severity: "error", Message: "The source blocked access."},
+			},
+		},
+	}
+	m.help.SetWidth(40)
+
+	footer := m.footerHelp()
+	plain := stripANSICodesForTest(footer)
+
+	if !strings.Contains(footer, "\n") {
+		t.Fatalf("long compile help should wrap across lines, got %q", footer)
+	}
+	assertViewLinesFit(t, footer, 40)
+	for _, expected := range []string{"tab view", "↑/↓ issue", "o open source", "? more help"} {
+		if !strings.Contains(plain, expected) {
+			t.Fatalf("wrapped help should keep %q, got %q", expected, plain)
+		}
 	}
 }
 
