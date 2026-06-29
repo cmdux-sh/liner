@@ -624,9 +624,6 @@ func (m Model) compileHasDroppedCustomSourceIssues() bool {
 }
 
 func (m Model) retryCompileOrSourceEvaluation() (Model, tea.Cmd) {
-	if m.compileHasDroppedCustomSourceIssues() {
-		return m.retryDroppedCustomSources()
-	}
 	return m.startCompile()
 }
 
@@ -760,6 +757,10 @@ func (m Model) viewCompile() string {
 		"",
 		m.viewCompileStatus(width),
 	}
+	if m.sourceRecoveryReview {
+		sections = append(sections, "", m.viewSourceRecoveryReview(width))
+		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	}
 	if m.sourceRecoveryRunning {
 		sections = append(sections, "", m.viewSourceRecoveryWorking(width))
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -832,8 +833,13 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 		m.err = "Wait for JS rendering setup to finish before creating the Operating Layer."
 		return m, nil
 	case m.sourceRecoveryRunning:
-		m.note = "Source recovery is still running. Wait for the retry result."
+		m.note = "Excluded local source retry is still running. Wait for the retry result."
 		m.err = ""
+		return m, nil
+	case m.sourceRecoveryReview:
+		m.sourceRecoveryReview = false
+		m.err = ""
+		m.note = "Returned to Compile Console."
 		return m, nil
 	case m.compileNeedsJSSetup():
 		m.err = "Install JS rendering, then retry compile before creating the Operating Layer."
@@ -860,7 +866,10 @@ func (m Model) viewCompileStatus(width int) string {
 		detail = compileLoaderMessage(m.fxFrame)
 	case m.sourceRecoveryRunning:
 		status = "Working"
-		detail = "Retrying dropped custom sources without rebuilding the corpus."
+		detail = "Retrying excluded local sources without rebuilding the corpus."
+	case m.sourceRecoveryReview:
+		status = "Needs review"
+		detail = "Excluded local source retry finished. Continue to Compile Console when ready."
 	case m.compileErr != "":
 		status = "Needs attention"
 		detail = m.compileErr
@@ -879,11 +888,14 @@ func (m Model) viewCompileStatus(width int) string {
 			recoveryCount = 1
 		}
 		percent = 0.35
-		counts = intLabel(recoveryCount, "recovery source")
+		counts = intLabel(recoveryCount, "excluded local source")
+	} else if m.sourceRecoveryReview && m.sourceRecovery != nil {
+		percent = 1
+		counts = fmt.Sprintf("%d checked", m.sourceRecovery.Attempted)
 	} else if m.compileResult != nil || (!m.compiling && m.compileTotal == 0 && len(m.compileLines) > 0) {
 		percent = 1
 	}
-	if !m.sourceRecoveryRunning && m.compileTotal == 0 {
+	if !m.sourceRecoveryRunning && !m.sourceRecoveryReview && m.compileTotal == 0 {
 		counts = "0 sources"
 	}
 	return renderProgressStatusBlock(width, m.compileBar, percent, status, detail, counts)
@@ -1138,7 +1150,7 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 	}
 	result := *m.sourceRecovery
 	lines := []string{
-		styles.ReportSection.Render("Source recovery"),
+		styles.ReportSection.Render("Excluded local source retry"),
 		styles.NextActionText.Render(fmt.Sprintf("%d checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if result.Succeeded > 0 {
@@ -1153,12 +1165,39 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 	return strings.Join(lines, "\n")
 }
 
+func (m Model) viewSourceRecoveryReview(width int) string {
+	result := sourceRecoveryResult{}
+	if m.sourceRecovery != nil {
+		result = *m.sourceRecovery
+	}
+	lines := []string{
+		styles.ReportSection.Render("Excluded local source retry"),
+		styles.NextActionText.Render(fmt.Sprintf("%d checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
+	}
+	if strings.TrimSpace(m.sourceRecoveryError) != "" {
+		lines = append(lines, styles.ErrorText.Render("Retry error: "+m.sourceRecoveryError))
+	} else if result.Succeeded > 0 {
+		for _, line := range wrapWords("Recovered source content was saved under local-sources/recovered/. Continue to Compile Console, then run Build Corpus so the AI can reconsider it.", width) {
+			lines = append(lines, styles.SuccessText.Render("● ")+styles.NextActionText.Render(line))
+		}
+	} else {
+		for _, line := range wrapWords("No excluded local sources were recovered. Try again after changing network/cookies, or add replacement source content manually.", width) {
+			lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render(line))
+		}
+	}
+	if len(result.Sources) > 0 {
+		lines = append(lines, "", renderSourceRecoveryRows(width, result.Sources))
+	}
+	lines = append(lines, "", styles.NextActionTitle.Render("> Continue: ")+styles.NextActionText.Render("Press enter to return to Compile Console."))
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
 func (m Model) viewSourceRecoveryWorking(width int) string {
 	sources := readDroppedCustomURLSources(m.currentPath, m.currentTape)
 	lines := []string{
-		styles.ReportSection.Render("Source recovery"),
+		styles.ReportSection.Render("Retry excluded local sources"),
 	}
-	for _, line := range wrapWords("Liner is retrying only the dropped custom sources. Build Corpus and compile are not running.", width) {
+	for _, line := range wrapWords("Liner is retrying excluded local sources only. Build Corpus and compile are not running.", width) {
 		lines = append(lines, styles.NextActionText.Render(line))
 	}
 	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to run Build Corpus.", width) {
@@ -1192,6 +1231,39 @@ func (m Model) viewSourceRecoveryWorking(width int) string {
 	)
 	lines = append(lines, "", sourceTable.View())
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func renderSourceRecoveryRows(width int, sources []sourceRecoverySource) string {
+	sourceWidth := max(24, width-48)
+	rows := make([]table.Row, 0, len(sources))
+	for _, source := range sources {
+		detail := source.Message
+		if detail == "" {
+			detail = source.SavedTo
+		}
+		if detail == "" {
+			detail = source.Reason
+		}
+		rows = append(rows, table.Row{
+			truncateMiddle(source.Status, 10),
+			truncateMiddle(visibleSourceType(source.Type), 10),
+			truncateMiddle(source.URL, sourceWidth),
+			truncateMiddle(detail, 20),
+		})
+	}
+	sourceTable := newDataTable(
+		[]table.Column{
+			{Title: "Status", Width: 10},
+			{Title: "Type", Width: 10},
+			{Title: "Excluded local source", Width: sourceWidth},
+			{Title: "Result", Width: 20},
+		},
+		rows,
+		width,
+		min(len(rows)+1, 8),
+		false,
+	)
+	return sourceTable.View()
 }
 
 func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) string {
@@ -1420,7 +1492,10 @@ func (m Model) selectedBlockingCompileWarning() (core.CompileWarningPayload, boo
 
 func (m Model) compileAttentionNextAction() string {
 	if m.compileHasDroppedCustomSourceIssues() {
-		return "Retry dropped custom sources with r, or add replacement source content with a."
+		if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
+			return "Retry excluded local sources with e, or retry source issues with r."
+		}
+		return "Retry excluded local sources with e, or add replacement source content with a."
 	}
 	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.MissingCustom > 0 {
 		return "Run Build Corpus so the AI can reconsider the source list, or add replacement content with a."

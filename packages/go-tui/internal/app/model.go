@@ -156,7 +156,9 @@ type Model struct {
 	compileErr            string
 	compileRows           []compileSourceRow
 	sourceRecovery        *sourceRecoveryResult
+	sourceRecoveryError   string
 	sourceRecoveryRunning bool
+	sourceRecoveryReview  bool
 	improvementCursor     int
 
 	operatingLayerRunning   bool

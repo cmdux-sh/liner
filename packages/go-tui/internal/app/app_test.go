@@ -2160,8 +2160,8 @@ func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
 			t.Fatalf("project sources should list excluded local source %q:\n%s", expected, view)
 		}
 	}
-	if !hasCommandTitle(m.commandItems(), "Retry dropped sources") {
-		t.Fatal("source issues should expose Retry dropped sources command")
+	if !hasCommandTitle(m.commandItems(), "Retry excluded local sources") {
+		t.Fatal("source issues should expose Retry excluded local sources command")
 	}
 	if !hasCommandTitle(m.commandItems(), "Build Corpus") {
 		t.Fatal("project command palette should expose Build Corpus")
@@ -10380,7 +10380,7 @@ emit({
 			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
 		}
 	}
-	if got := m.compileAttentionNextAction(); got != "Retry dropped custom sources with r, or add replacement source content with a." {
+	if got := m.compileAttentionNextAction(); got != "Retry excluded local sources with e, or add replacement source content with a." {
 		t.Fatalf("expected dropped source retry next action, got %q", got)
 	}
 
@@ -10397,19 +10397,22 @@ emit({
 	if !hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
 		t.Fatal("compile help should expose tab view switcher")
 	}
-	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry sources") {
-		t.Fatalf("compile help should label r as source retry, got %#v", sourcePane.helpForScreen().ShortHelp())
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry excluded") {
+		t.Fatalf("compile help should expose excluded local source retry, got %#v", sourcePane.helpForScreen().ShortHelp())
+	}
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry compile") {
+		t.Fatalf("compile help should keep r as compile retry when there are no source issues, got %#v", sourcePane.helpForScreen().ShortHelp())
 	}
 
-	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'r', Text: "r"}))
+	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'e', Text: "e"}))
 	if cmd == nil {
-		t.Fatal("expected dropped source recovery command")
+		t.Fatal("expected excluded local source retry command")
 	}
 	if got.screen == screenResearch {
-		t.Fatal("dropped source retry should not start Build Corpus")
+		t.Fatal("excluded local source retry should not start Build Corpus")
 	}
 	if !got.sourceRecoveryRunning {
-		t.Fatal("expected source recovery running state")
+		t.Fatal("expected excluded local source retry running state")
 	}
 	msg := cmd()
 	recoveryMsg, ok := msg.(sourceRecoveryDoneMsg)
@@ -10424,8 +10427,27 @@ emit({
 	}
 	nextModel, _ := got.Update(recoveryMsg)
 	updated := nextModel.(Model)
-	if !strings.Contains(updated.note, "Run Build Corpus") {
-		t.Fatalf("recovery success should prompt Build Corpus, got note %q", updated.note)
+	if !updated.sourceRecoveryReview {
+		t.Fatal("excluded local source retry should stop on a review result before returning to Compile Console")
+	}
+	if !strings.Contains(updated.note, "Continue when ready") {
+		t.Fatalf("recovery success should prompt the user to continue, got note %q", updated.note)
+	}
+	review := stripANSICodesForTest(updated.viewCompile())
+	for _, expected := range []string{"Excluded local source retry", "1 checked, 1 recovered, 0 still unavailable", "Press enter to return to Compile Console"} {
+		if !strings.Contains(review, expected) {
+			t.Fatalf("recovery review should show %q:\n%s", expected, review)
+		}
+	}
+	continued, continueCmd := updated.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if continueCmd != nil {
+		t.Fatal("continue from recovery review should not start another command")
+	}
+	if continued.sourceRecoveryReview {
+		t.Fatal("enter should return from recovery review to the Compile Console")
+	}
+	if !strings.Contains(continued.note, "Returned to Compile Console") {
+		t.Fatalf("continue should confirm return to compile console, got note %q", continued.note)
 	}
 	items := readLocalSourceManifest(project)
 	var inactiveOriginal, recoveredLocal bool
@@ -10445,6 +10467,53 @@ emit({
 	}
 	if _, err := os.Stat(filepath.Join(project, "working", "source-recovery.yaml")); err != nil {
 		t.Fatalf("expected source recovery report: %v", err)
+	}
+}
+
+func TestCompileHelpSeparatesExcludedLocalSourcesFromSourceIssues(t *testing.T) {
+	project := t.TempDir()
+	working := filepath.Join(project, "working")
+	if err := os.MkdirAll(working, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := `candidates:
+  - url: https://www.youtube.com/watch?v=one11111111
+    title: Custom YouTube source one
+    decision: dropped
+    rationale: YouTube returned no readable transcript body.
+`
+	if err := os.WriteFile(filepath.Join(working, "03-evaluation.yaml"), []byte(evaluation), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	custom := source.Stage([]tape.Source{
+		{Type: "youtube", URL: "https://www.youtube.com/watch?v=one11111111", Priority: "required"},
+	}, true)
+	if err := source.WriteManifests(project, custom); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:      screenCompile,
+		width:       120,
+		currentPath: project,
+		currentTape: tape.Tape{Title: "Launch"},
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: filepath.Join(project, "MIXTAPE.md"),
+			Summary:     core.CompileSummary{Total: 2, Succeeded: 1, Failed: 1},
+			Warnings: []core.CompileWarningPayload{
+				{URL: "https://example.com/blocked", Severity: "error", Message: "The source blocked access."},
+			},
+		},
+	}
+
+	if got := m.compileAttentionNextAction(); got != "Retry excluded local sources with e, or retry source issues with r." {
+		t.Fatalf("expected separated retry next action, got %q", got)
+	}
+	help := m.helpForScreen().ShortHelp()
+	if !hasHelpDesc(help, "retry excluded") {
+		t.Fatalf("compile help should expose excluded local source retry, got %#v", help)
+	}
+	if !hasHelpDesc(help, "retry source issues") {
+		t.Fatalf("compile help should expose source issue retry, got %#v", help)
 	}
 }
 
@@ -10489,7 +10558,7 @@ func TestCompileSourceRecoveryRunningUsesFocusedView(t *testing.T) {
 	}
 
 	view := stripANSICodesForTest(m.viewCompile())
-	for _, expected := range []string{"Source recovery", "Build Corpus and compile are not running", "1 recovery source", "fetching", "one11111111"} {
+	for _, expected := range []string{"Retry excluded local sources", "Build Corpus and compile are not running", "1 excluded local source", "fetching", "one11111111"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("running recovery view should show %q:\n%s", expected, view)
 		}
@@ -10500,14 +10569,14 @@ func TestCompileSourceRecoveryRunningUsesFocusedView(t *testing.T) {
 		}
 	}
 	help := m.helpForScreen().ShortHelp()
-	if !hasHelp(help, "wait") || !hasHelpDesc(help, "source recovery") || hasHelpDesc(help, "retry sources") {
+	if !hasHelp(help, "wait") || !hasHelpDesc(help, "excluded retry") || hasHelpDesc(help, "retry excluded") {
 		t.Fatalf("running recovery help should only expose wait state, got %#v", help)
 	}
 	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if cmd != nil {
 		t.Fatal("enter during source recovery should not start another action")
 	}
-	if got.err != "" || !strings.Contains(got.note, "Source recovery is still running") {
+	if got.err != "" || !strings.Contains(got.note, "Excluded local source retry is still running") {
 		t.Fatalf("enter during recovery should produce wait note without error, err=%q note=%q", got.err, got.note)
 	}
 }

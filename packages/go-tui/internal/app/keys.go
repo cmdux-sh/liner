@@ -105,7 +105,18 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		if key.Matches(keyMsg, bindings.Quit) {
 			return m, tea.Quit
 		}
-		m.note = "Source recovery is still running. Wait for the retry result."
+		m.note = "Excluded local source retry is still running. Wait for the retry result."
+		m.err = ""
+		return m, nil
+	}
+	if m.screen == screenCompile && m.sourceRecoveryReview {
+		if key.Matches(keyMsg, bindings.Quit) {
+			return m, tea.Quit
+		}
+		if key.Matches(keyMsg, bindings.Next) || keyMsg.String() == "enter" {
+			return m.continueFromCompile()
+		}
+		m.note = "Press enter to return to Compile Console."
 		m.err = ""
 		return m, nil
 	}
@@ -404,6 +415,8 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m.dropSelectedCompileWarningSource()
 		case "i":
 			return m.startJSSetupForCompile()
+		case "e":
+			return m.retryExcludedLocalSources()
 		case "r":
 			return m.retryCompileOrSourceEvaluation()
 		case "p":
@@ -1228,10 +1241,18 @@ func (m Model) baseHelpForScreen() screenHelp {
 		}
 	case screenCompile:
 		if m.sourceRecoveryRunning {
-			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("wait", "source recovery"))
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("wait", "excluded retry"))
 			return screenHelp{
 				short: []key.Binding{wait, helpKey},
 				full:  [][]key.Binding{{wait, bindings.Quit, helpKey}},
+			}
+		}
+		if m.sourceRecoveryReview {
+			next := bindings.Next
+			next.SetHelp("enter", "continue")
+			return screenHelp{
+				short: []key.Binding{next, helpKey},
+				full:  [][]key.Binding{{next, bindings.Quit, helpKey}},
 			}
 		}
 		next := bindings.Next
@@ -1248,8 +1269,26 @@ func (m Model) baseHelpForScreen() screenHelp {
 			warningScroll.SetHelp("↑/↓", "source")
 		}
 		retry := bindings.Retry
-		if m.compileHasDroppedCustomSourceIssues() {
-			retry.SetHelp("r", "retry sources")
+		if m.actionableCompileWarningCount() > 0 {
+			retry.SetHelp("r", "retry source issues")
+		} else {
+			retry.SetHelp("r", "retry compile")
+		}
+		retryExcluded := key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "retry excluded"))
+		addExcludedRetry := func(row []key.Binding) []key.Binding {
+			if !m.compileHasDroppedCustomSourceIssues() {
+				return row
+			}
+			out := make([]key.Binding, 0, len(row)+1)
+			inserted := false
+			for _, binding := range row {
+				if !inserted && binding.Help().Key == retry.Help().Key {
+					out = append(out, retryExcluded)
+					inserted = true
+				}
+				out = append(out, binding)
+			}
+			return out
 		}
 		previewKey := bindings.Preview
 		short := []key.Binding{switchView, retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
@@ -1291,6 +1330,10 @@ func (m Model) baseHelpForScreen() screenHelp {
 				}
 			}
 			full = [][]key.Binding{warningFirstRow, {dropSource, addSources, bindings.Copy, bindings.Back, bindings.Quit, helpKey}}
+		}
+		short = addExcludedRetry(short)
+		for index := range full {
+			full[index] = addExcludedRetry(full[index])
 		}
 		return screenHelp{
 			short: short,
