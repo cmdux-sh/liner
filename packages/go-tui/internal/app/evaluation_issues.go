@@ -37,6 +37,14 @@ type candidateIssue struct {
 	Transcript  bool
 	Unavailable bool
 	YouTube     bool
+	Message     string
+}
+
+type excludedLocalSourceIssue struct {
+	Status string
+	Type   string
+	Source string
+	Reason string
 }
 
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
@@ -172,6 +180,7 @@ func readCandidateIssues(project string, summary *evaluationIssueSummary) map[st
 			Transcript:  transcriptIssue,
 			Unavailable: unavailableIssue,
 			YouTube:     youTube,
+			Message:     evaluationCandidateDisplayReason(candidate),
 		}
 		if youTube && (transcriptIssue || unavailableIssue) {
 			summary.DroppedYouTube++
@@ -185,6 +194,45 @@ func readCandidateIssues(project string, summary *evaluationIssueSummary) map[st
 		for _, key := range issueKeysForURL(candidate.URL) {
 			out[key] = issue
 		}
+	}
+	return out
+}
+
+func readExcludedLocalSourceIssues(project string, current tape.Tape) []excludedLocalSourceIssue {
+	if strings.TrimSpace(project) == "" {
+		return nil
+	}
+	accepted := current.Sources
+	if len(accepted) == 0 {
+		if fromDisk, err := tape.ReadProject(project); err == nil {
+			accepted = fromDisk.Sources
+		}
+	}
+	acceptedKeys := sourceKeySet(accepted)
+	candidateIssues := readCandidateIssues(project, &evaluationIssueSummary{})
+	out := []excludedLocalSourceIssue{}
+	for _, item := range readLocalSourceManifest(project) {
+		if !item.Active {
+			continue
+		}
+		keys := issueKeysForSource(item.Source)
+		if keySetContainsAny(acceptedKeys, keys) {
+			continue
+		}
+		status := "not in tape"
+		reason := "This saved local source was not accepted into tape.yaml."
+		if issue, ok := candidateIssueForKeys(candidateIssues, keys); ok && issue.Dropped {
+			status = "dropped"
+			if strings.TrimSpace(issue.Message) != "" {
+				reason = excludedSourceReason(issue.Message)
+			}
+		}
+		out = append(out, excludedLocalSourceIssue{
+			Status: status,
+			Type:   fallbackText(item.Type, item.Source.Type),
+			Source: localSourceIssueLabel(item),
+			Reason: reason,
+		})
 	}
 	return out
 }
@@ -210,6 +258,63 @@ func evaluationCandidateReason(candidate methodologyEvaluationCandidate) string 
 		candidate.FetchStatus,
 		candidate.ContentQuality,
 	}, " "))
+}
+
+func evaluationCandidateDisplayReason(candidate methodologyEvaluationCandidate) string {
+	for _, value := range []string{
+		candidate.Rationale,
+		candidate.FetchStatus,
+		candidate.ContentQuality,
+	} {
+		value = strings.Join(strings.Fields(value), " ")
+		if value != "" {
+			return value
+		}
+	}
+	return "The source was dropped during evaluation."
+}
+
+func excludedSourceReason(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
+	lower := strings.ToLower(value)
+	switch {
+	case strings.Contains(lower, "transcript") && strings.Contains(lower, "429"):
+		return "no transcript/readable body; yt-dlp 429"
+	case strings.Contains(lower, "transcript") && strings.Contains(lower, "dns"):
+		return "transcript fetch failed (DNS)"
+	case strings.Contains(lower, "transcript") || strings.Contains(lower, "caption"):
+		return "no transcript/readable body"
+	case strings.Contains(lower, "blocked") || strings.Contains(lower, "403"):
+		return "blocked access"
+	case strings.Contains(lower, "no readable") || strings.Contains(lower, "readable body"):
+		return "no readable body"
+	case strings.Contains(lower, "unavailable"):
+		return "source unavailable"
+	case strings.Contains(lower, "failed"):
+		return "fetch failed"
+	default:
+		return fallbackText(value, "not accepted into tape.yaml")
+	}
+}
+
+func localSourceIssueLabel(item sourcepkg.StagedSource) string {
+	for _, value := range []string{
+		item.Label,
+		item.Source.URL,
+		item.Destination,
+	} {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	if item.Source.Path != nil && strings.TrimSpace(*item.Source.Path) != "" {
+		return strings.TrimSpace(*item.Source.Path)
+	}
+	if item.Source.Citation != nil && strings.TrimSpace(*item.Source.Citation) != "" {
+		return strings.TrimSpace(*item.Source.Citation)
+	}
+	return "local source"
 }
 
 func sourceHasWarningNote(src tape.Source) bool {

@@ -624,11 +624,15 @@ func (m Model) projectSourcesDetail(width int) string {
 	if summary, ok := readEvaluationIssueSummary(m.currentPath, m.currentTape); ok {
 		rows = append(rows, metadataTableRow{Field: "Dropped candidates", Value: summary.Display(m.currentPath)})
 	}
+	body := newMetadataTable(width, rows).View()
+	if excluded := readExcludedLocalSourceIssues(m.currentPath, m.currentTape); len(excluded) > 0 {
+		body += "\n\n" + renderExcludedLocalSources(width, excluded)
+	}
 	return projectSectionDetail(
 		width,
 		"Sources",
 		"Shows the source set Liner will use when it builds and refreshes the Mixtape.",
-		newMetadataTable(width, rows).View(),
+		body,
 	)
 }
 

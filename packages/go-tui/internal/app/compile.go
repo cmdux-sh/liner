@@ -871,6 +871,9 @@ func (m Model) viewCompileResult(width int) string {
 	if summary, ok := m.compileSourceEvaluationSummary(); ok {
 		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render("Source evaluation: "+summary.Display(m.currentPath)))
 	}
+	if excluded := readExcludedLocalSourceIssues(m.currentPath, m.currentTape); len(excluded) > 0 {
+		lines = append(lines, "", renderExcludedLocalSources(width, excluded))
+	}
 	if m.compileErr != "" {
 		lines = append(lines, styles.ErrorText.Render(m.compileErr))
 	}
@@ -888,6 +891,36 @@ func (m Model) viewCompileResult(width int) string {
 		}
 	}
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) string {
+	if len(issues) == 0 {
+		return ""
+	}
+	sourceWidth := max(22, width/3)
+	reasonWidth := max(24, width-sourceWidth-28)
+	rows := make([]table.Row, 0, len(issues))
+	for _, issue := range issues {
+		rows = append(rows, table.Row{
+			truncateMiddle(issue.Status, 10),
+			truncateMiddle(visibleSourceType(issue.Type), 10),
+			truncateMiddle(issue.Source, sourceWidth),
+			truncateMiddle(issue.Reason, reasonWidth),
+		})
+	}
+	sourceTable := newDataTable(
+		[]table.Column{
+			{Title: "Status", Width: 10},
+			{Title: "Type", Width: 10},
+			{Title: "Local source", Width: sourceWidth},
+			{Title: "Why it is out", Width: reasonWidth},
+		},
+		rows,
+		width,
+		min(len(rows)+1, 10),
+		false,
+	)
+	return styles.ReportSection.Render("Excluded local sources") + "\n" + sourceTable.View()
 }
 
 func (m Model) viewCompileJSSetup(width int) string {

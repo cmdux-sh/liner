@@ -2153,6 +2153,13 @@ func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
 			t.Fatalf("project health should surface dropped custom source issue %q:\n%s", expected, view)
 		}
 	}
+	m.projectPane = 2
+	view = m.viewProject()
+	for _, expected := range []string{"Excluded local sources", "Why it is out", "one11111111", "no transcript/readable body"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("project sources should list excluded local source %q:\n%s", expected, view)
+		}
+	}
 	if !hasCommandTitle(m.commandItems(), "Retry source evaluation") {
 		t.Fatal("source issues should expose Retry source evaluation command")
 	}
@@ -10350,7 +10357,7 @@ process.stdout.write(JSON.stringify({
 	}
 
 	view := m.viewCompileResult(styles.ClampWidth(m.width - 4))
-	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml"} {
+	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml", "Excluded local sources", "one11111111", "no transcript/readable body"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
 		}
