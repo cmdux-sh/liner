@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +20,11 @@ import (
 	"github.com/cmdux/liner/packages/go-tui/internal/tape"
 )
 
+const (
+	compilePaneIssues = iota
+	compilePaneSources
+)
+
 func (m Model) startCompile() (Model, tea.Cmd) {
 	events, done := m.runner.StartCompile(m.currentPath)
 	m.compileEvents = events
@@ -30,6 +36,8 @@ func (m Model) startCompile() (Model, tea.Cmd) {
 	m.compileFailed = 0
 	m.compileResult = nil
 	m.compileWarningIndex = 0
+	m.compilePane = compilePaneIssues
+	m.compileSourceIndex = 0
 	m.compileErr = ""
 	m.compileRows = initialCompileRows(m.currentTape.Sources)
 	m.compileBar = newCompileProgress(compileProgressWidth(m.width))
@@ -43,6 +51,8 @@ func (m Model) startCompileReviewFromArtifacts() (Model, tea.Cmd) {
 	m.compiling = false
 	m.compileErr = ""
 	m.compileWarningIndex = 0
+	m.compilePane = compilePaneIssues
+	m.compileSourceIndex = 0
 	m.compileRows = initialCompileRows(m.currentTape.Sources)
 	for _, sourceIndex := range health.UnavailableIndexes {
 		if sourceIndex < 0 || sourceIndex >= len(m.compileRows) {
@@ -186,6 +196,14 @@ type compileArtifactHealth struct {
 type indexedCompileWarning struct {
 	Index   int
 	Warning core.CompileWarningPayload
+}
+
+type compileSourceListItem struct {
+	Status     string
+	Type       string
+	Source     string
+	Detail     string
+	OpenTarget string
 }
 
 func (m Model) actionableCompileWarnings() []indexedCompileWarning {
@@ -430,6 +448,47 @@ func (m Model) moveCompileWarningSelection(delta int) Model {
 	selected = min(max(selected+delta, 0), len(actionable)-1)
 	m.compileWarningIndex = actionable[selected].Index
 	return m
+}
+
+func (m Model) toggleCompilePane() Model {
+	if m.compilePane == compilePaneSources {
+		m.compilePane = compilePaneIssues
+		return m
+	}
+	m.compilePane = compilePaneSources
+	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
+	return m
+}
+
+func (m Model) moveCompileSourceSelection(delta int) Model {
+	items := m.compileSourceListItems()
+	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex+delta, len(items))
+	return m
+}
+
+func (m Model) selectedCompileSource() (compileSourceListItem, bool) {
+	items := m.compileSourceListItems()
+	if len(items) == 0 {
+		return compileSourceListItem{}, false
+	}
+	index := clampCompileSourceIndex(m.compileSourceIndex, len(items))
+	return items[index], true
+}
+
+func (m Model) openSelectedCompileSource() (Model, tea.Cmd) {
+	item, ok := m.selectedCompileSource()
+	if !ok || strings.TrimSpace(item.OpenTarget) == "" {
+		m.err = "No source is selected."
+		return m, nil
+	}
+	target := strings.TrimSpace(item.OpenTarget)
+	if parsed, err := url.Parse(target); err == nil && parsed.Scheme != "" {
+		return m, openPath(target)
+	}
+	if !filepath.IsAbs(target) {
+		target = projectAbsPath(m.currentPath, target)
+	}
+	return m, openPath(target)
 }
 
 func (m Model) openSelectedCompileWarningSource() (Model, tea.Cmd) {
@@ -695,6 +754,13 @@ func (m Model) viewCompile() string {
 		styles.Subtitle.Render("Fetch sources, assemble MIXTAPE.md, and report anything that needs attention."),
 		"",
 		m.viewCompileStatus(width),
+		m.viewCompilePaneTabs(width),
+	}
+	if m.compilePane == compilePaneSources {
+		if rows := m.viewCompileAllSources(width); rows != "" {
+			sections = append(sections, "", rows)
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, sections...)
 	}
 	if rows := m.viewCompileSources(width); rows != "" {
 		sections = append(sections, "", rows)
@@ -708,6 +774,18 @@ func (m Model) viewCompile() string {
 		}
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func (m Model) viewCompilePaneTabs(width int) string {
+	tabs := []string{}
+	for index, label := range []string{"Issues", "Sources"} {
+		style := styles.SoftText
+		if index == m.compilePane {
+			style = styles.AccentText
+		}
+		tabs = append(tabs, style.Render(label))
+	}
+	return lipgloss.NewStyle().Width(width).Render(styles.Subtitle.Render("View: ") + strings.Join(tabs, styles.Subtitle.Render(" / ")))
 }
 
 func (m Model) compileSourceRowLimit() int {
@@ -830,6 +908,141 @@ func (m Model) viewCompileSources(width int) string {
 	)
 	lines = append(lines, sourceTable.View())
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) viewCompileAllSources(width int) string {
+	items := m.compileSourceListItems()
+	if len(items) == 0 {
+		return ""
+	}
+	index := clampCompileSourceIndex(m.compileSourceIndex, len(items))
+	start, end := visibleWindow(index, len(items), max(6, m.height-12))
+	sourceWidth := max(24, width/3)
+	detailWidth := max(20, width-sourceWidth-39)
+	tableRows := make([]table.Row, 0, end-start)
+	for rowIndex, item := range items[start:end] {
+		absoluteIndex := start + rowIndex
+		selected := " "
+		if absoluteIndex == index {
+			selected = ">"
+		}
+		tableRows = append(tableRows, table.Row{
+			selected,
+			fmt.Sprintf("%02d", absoluteIndex+1),
+			truncateMiddle(item.Status, 10),
+			truncateMiddle(visibleSourceType(item.Type), 10),
+			truncateMiddle(item.Source, sourceWidth),
+			truncateMiddle(item.Detail, detailWidth),
+		})
+	}
+	lines := []string{styles.ReportSection.Render("Sources")}
+	lines = append(lines, styles.Subtitle.Render(compileSourceListSummary(items)))
+	if start > 0 {
+		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↑ %d earlier source(s)", start)))
+	}
+	sourceTable := newDataTable(
+		[]table.Column{
+			{Title: "", Width: 2},
+			{Title: "#", Width: 4},
+			{Title: "Status", Width: 10},
+			{Title: "Type", Width: 10},
+			{Title: "Source", Width: sourceWidth},
+			{Title: "Detail", Width: detailWidth},
+		},
+		tableRows,
+		width,
+		min(len(tableRows)+1, max(7, m.height-10)),
+		false,
+	)
+	lines = append(lines, sourceTable.View())
+	if end < len(items) {
+		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↓ %d later source(s)", len(items)-end)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) compileSourceListItems() []compileSourceListItem {
+	items := make([]compileSourceListItem, 0, len(m.currentTape.Sources)+len(readExcludedLocalSourceIssues(m.currentPath, m.currentTape)))
+	for index, src := range m.currentTape.Sources {
+		row := compileSourceRow{Status: "queued", Type: src.Type, Source: compileTapeSourceLabel(src)}
+		if index < len(m.compileRows) {
+			row = m.compileRows[index]
+		}
+		detail := row.Detail
+		if detail == "" {
+			detail = row.Status
+		}
+		items = append(items, compileSourceListItem{
+			Status:     compileStatusLabel(row.Status),
+			Type:       fallbackText(row.Type, src.Type),
+			Source:     fallbackText(row.Source, compileTapeSourceLabel(src)),
+			Detail:     compileSourceDetailSummary(detail),
+			OpenTarget: compileSourceOpenTarget(src),
+		})
+	}
+	for _, issue := range readExcludedLocalSourceIssues(m.currentPath, m.currentTape) {
+		items = append(items, compileSourceListItem{
+			Status:     issue.Status,
+			Type:       issue.Type,
+			Source:     issue.Source,
+			Detail:     issue.Reason,
+			OpenTarget: issue.OpenTarget,
+		})
+	}
+	return items
+}
+
+func compileSourceListSummary(items []compileSourceListItem) string {
+	accepted := 0
+	excluded := 0
+	for _, item := range items {
+		switch strings.ToLower(strings.TrimSpace(item.Status)) {
+		case "dropped", "not in tape", "excluded":
+			excluded++
+		default:
+			accepted++
+		}
+	}
+	parts := []string{intLabel(accepted, "accepted source")}
+	if excluded > 0 {
+		parts = append(parts, intLabel(excluded, "excluded local source"))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func compileSourceOpenTarget(src tape.Source) string {
+	if strings.TrimSpace(src.URL) != "" {
+		return strings.TrimSpace(src.URL)
+	}
+	if src.Path != nil && strings.TrimSpace(*src.Path) != "" {
+		return strings.TrimSpace(*src.Path)
+	}
+	if src.Citation != nil && strings.TrimSpace(*src.Citation) != "" {
+		return strings.TrimSpace(*src.Citation)
+	}
+	return ""
+}
+
+func visibleWindow(index int, count int, limit int) (int, int) {
+	if count <= 0 {
+		return 0, 0
+	}
+	limit = min(max(limit, 1), count)
+	start := index - limit/2
+	if start < 0 {
+		start = 0
+	}
+	if start+limit > count {
+		start = count - limit
+	}
+	return start, start + limit
+}
+
+func clampCompileSourceIndex(index int, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	return min(max(index, 0), count-1)
 }
 
 func compileStatusLabel(status string) string {

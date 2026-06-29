@@ -10366,6 +10366,20 @@ process.stdout.write(JSON.stringify({
 		t.Fatalf("expected source evaluation retry next action, got %q", got)
 	}
 
+	sourcePane, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
+	if sourcePane.compilePane != compilePaneSources {
+		t.Fatalf("expected tab to switch to sources pane, got %d", sourcePane.compilePane)
+	}
+	sourceView := sourcePane.viewCompile()
+	for _, expected := range []string{"View:", "Sources", "1 accepted source", "1 excluded local source", "https://example.com/kept", "one11111111", "no transcript/readable body"} {
+		if !strings.Contains(sourceView, expected) {
+			t.Fatalf("compile sources pane should show %q:\n%s", expected, sourceView)
+		}
+	}
+	if !hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
+		t.Fatal("compile help should expose tab view switcher")
+	}
+
 	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'r', Text: "r"}))
 	if cmd == nil {
 		t.Fatal("expected source evaluation retry command")

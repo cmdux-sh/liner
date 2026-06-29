@@ -41,10 +41,11 @@ type candidateIssue struct {
 }
 
 type excludedLocalSourceIssue struct {
-	Status string
-	Type   string
-	Source string
-	Reason string
+	Status     string
+	Type       string
+	Source     string
+	Reason     string
+	OpenTarget string
 }
 
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
@@ -228,10 +229,11 @@ func readExcludedLocalSourceIssues(project string, current tape.Tape) []excluded
 			}
 		}
 		out = append(out, excludedLocalSourceIssue{
-			Status: status,
-			Type:   fallbackText(item.Type, item.Source.Type),
-			Source: localSourceIssueLabel(item),
-			Reason: reason,
+			Status:     status,
+			Type:       fallbackText(item.Type, item.Source.Type),
+			Source:     localSourceIssueLabel(item),
+			Reason:     reason,
+			OpenTarget: localSourceOpenTarget(item),
 		})
 	}
 	return out
@@ -315,6 +317,26 @@ func localSourceIssueLabel(item sourcepkg.StagedSource) string {
 		return strings.TrimSpace(*item.Source.Citation)
 	}
 	return "local source"
+}
+
+func localSourceOpenTarget(item sourcepkg.StagedSource) string {
+	for _, value := range []string{
+		item.Source.URL,
+		item.Label,
+		item.Destination,
+	} {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	if item.Source.Path != nil && strings.TrimSpace(*item.Source.Path) != "" {
+		return strings.TrimSpace(*item.Source.Path)
+	}
+	if item.Source.Citation != nil && strings.TrimSpace(*item.Source.Citation) != "" {
+		return strings.TrimSpace(*item.Source.Citation)
+	}
+	return ""
 }
 
 func sourceHasWarningNote(src tape.Source) bool {

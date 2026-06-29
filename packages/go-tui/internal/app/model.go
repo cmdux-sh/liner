@@ -151,6 +151,8 @@ type Model struct {
 	compileFailed       int
 	compileResult       *core.CompileResultPayload
 	compileWarningIndex int
+	compilePane         int
+	compileSourceIndex  int
 	compileErr          string
 	compileRows         []compileSourceRow
 	improvementCursor   int
