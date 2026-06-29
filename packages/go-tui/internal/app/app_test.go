@@ -10296,6 +10296,86 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 	}
 }
 
+func TestCompileResultSurfacesSourceEvaluationIssuesAndRetry(t *testing.T) {
+	project := t.TempDir()
+	working := filepath.Join(project, "working")
+	if err := os.MkdirAll(working, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := `candidates:
+  - url: https://www.youtube.com/watch?v=one11111111
+    title: Custom YouTube source one
+    decision: dropped
+    rationale: YouTube returned no readable transcript body, and yt-dlp returned 429.
+`
+	if err := os.WriteFile(filepath.Join(working, "03-evaluation.yaml"), []byte(evaluation), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	custom := source.Stage([]tape.Source{
+		{Type: "youtube", URL: "https://www.youtube.com/watch?v=one11111111", Priority: "required"},
+	}, true)
+	if err := source.WriteManifests(project, custom); err != nil {
+		t.Fatal(err)
+	}
+	if err := linerprogress.Write(project, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCompile)}); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(t.TempDir(), "runner.cjs")
+	if err := os.WriteFile(script, []byte(`const has = (flag) => process.argv.includes(flag);
+const value = (flag) => process.argv[process.argv.indexOf(flag) + 1] || "";
+process.stdout.write(JSON.stringify({
+  kind: "runner_start",
+  phaseId: value("--phase"),
+  agent: "codex",
+  resume: has("--resume")
+}) + "\n");
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LINER_HEADLESS_RUNNER", script)
+	m := Model{
+		screen:      screenCompile,
+		width:       120,
+		currentPath: project,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "web", URL: "https://example.com/kept", Priority: "required"},
+			},
+		},
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: filepath.Join(project, "MIXTAPE.md"),
+			Summary:     core.CompileSummary{Total: 1, Succeeded: 1},
+		},
+	}
+
+	view := m.viewCompileResult(styles.ClampWidth(m.width - 4))
+	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
+		}
+	}
+	if got := m.compileAttentionNextAction(); got != "Retry source evaluation with r, then compile again." {
+		t.Fatalf("expected source evaluation retry next action, got %q", got)
+	}
+
+	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'r', Text: "r"}))
+	if cmd == nil {
+		t.Fatal("expected source evaluation retry command")
+	}
+	if got.screen != screenResearch {
+		t.Fatalf("expected r to start research retry, got %v", got.screen)
+	}
+	msg := cmd()
+	eventMsg, ok := msg.(methodologyEventMsg)
+	if !ok {
+		t.Fatalf("expected methodology event, got %#v", msg)
+	}
+	if eventMsg.event.PhaseID != "candidates" || eventMsg.event.Resume {
+		t.Fatalf("expected fresh candidates run, got %#v", eventMsg.event)
+	}
+}
+
 func TestCompileEnterStartsOperatingLayerAfterUsableMixtape(t *testing.T) {
 	project := t.TempDir()
 	if err := os.WriteFile(filepath.Join(project, "MIXTAPE.md"), []byte("# Ready\n"), 0o644); err != nil {

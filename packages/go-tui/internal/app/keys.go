@@ -386,7 +386,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		case "i":
 			return m.startJSSetupForCompile()
 		case "r":
-			return m.startCompile()
+			return m.retryCompileOrSourceEvaluation()
 		case "p":
 			return m.previewCompiledMixtape()
 		case "v":

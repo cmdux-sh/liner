@@ -549,6 +549,23 @@ func (m Model) compileAttentionItems() []string {
 	return items
 }
 
+func (m Model) compileSourceEvaluationSummary() (evaluationIssueSummary, bool) {
+	summary, ok := readEvaluationIssueSummary(m.currentPath, m.currentTape)
+	return summary, ok && summary.HasIssues()
+}
+
+func (m Model) compileHasRetryableSourceEvaluationIssues() bool {
+	summary, ok := m.compileSourceEvaluationSummary()
+	return ok && (summary.DroppedCustom > 0 || summary.MissingCustom > 0 || summary.AcceptedIssues > 0)
+}
+
+func (m Model) retryCompileOrSourceEvaluation() (Model, tea.Cmd) {
+	if m.compileHasRetryableSourceEvaluationIssues() {
+		return m.retrySourceEvaluation()
+	}
+	return m.startCompile()
+}
+
 func (m Model) friendlyCompileError(err error) string {
 	var exitErr core.CompileExitError
 	if errors.As(err, &exitErr) {
@@ -851,6 +868,9 @@ func (m Model) viewCompileResult(width int) string {
 	for _, item := range m.compileAttentionItems() {
 		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render(item))
 	}
+	if summary, ok := m.compileSourceEvaluationSummary(); ok {
+		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render("Source evaluation: "+summary.Display(m.currentPath)))
+	}
 	if m.compileErr != "" {
 		lines = append(lines, styles.ErrorText.Render(m.compileErr))
 	}
@@ -1065,6 +1085,9 @@ func (m Model) selectedBlockingCompileWarning() (core.CompileWarningPayload, boo
 }
 
 func (m Model) compileAttentionNextAction() string {
+	if m.compileHasRetryableSourceEvaluationIssues() {
+		return "Retry source evaluation with r, then compile again."
+	}
 	if warning, ok := m.selectedBlockingCompileWarning(); ok {
 		return compileWarningNextAction(warning)
 	}
