@@ -60,7 +60,7 @@ liner setup-js              # installs Playwright + headless Chromium (~150MB)
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).
 
-**Platform support (1.0.0):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
+**Platform support (1.0.1):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
 
 Requires Node 18+.
 
@@ -202,7 +202,7 @@ URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 da
 
 ## Status
 
-Active solo project. The current source targets **v1.0.0** for the Go TUI npm
+Active solo project. The current source targets **v1.0.1** for the Go TUI npm
 release. The CLI and Go TUI are functional. The TUI creates and manages local
 Liner Projects, builds the corpus through the configured local AI runner,
 treats partial compiles as usable when `MIXTAPE.md` is written, opens existing
