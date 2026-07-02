@@ -355,8 +355,7 @@ function tryResolveCliCommand() {
 }
 
 function tryResolveHeadlessRunnerScript() {
-  const candidate = join(packageRoot, "dist", "agents", "headless-runner.js");
-  return existsSync(candidate) ? candidate : null;
+  return join(packageRoot, "dist", "agents", "headless-runner.js");
 }
 
 function printVersion() {
