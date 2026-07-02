@@ -242,7 +242,11 @@ Write the final `mixtape/tape.yaml`, order the sources, and prepare for compile.
 
 Fetch every kept source, extract readable content, write `mixtape/sources/`, and produce `mixtape/MIXTAPE.md`.
 
-The TUI treats compilation as the completion milestone. A partial compile is still a usable finished state when `MIXTAPE.md` is written; the hub shows "Ready to use — compiled with warnings" and pressing Enter on Compile opens the existing compile result instead of fetching again. Recompile is explicit with `r` from the compile result screen.
+The TUI treats compilation as the corpus-ready milestone. A partial compile can
+still be usable when `MIXTAPE.md` is written; the Compile Console shows reviewed
+source warnings, opens Sources review for detail, and lets the user continue to
+the Operating Layer when the current mixtape is usable. Recompile and source
+repair are explicit from the compile result screen.
 
 ### Empirical Test (methodology guidance)
 

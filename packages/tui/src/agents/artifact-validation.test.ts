@@ -532,6 +532,72 @@ describe("validateAssemblyDraft", () => {
     if (!result.ok) expect(result.message).toContain("dropped existing custom source");
   });
 
+  it("rejects drafts that drop active custom sources from the local source manifest", () => {
+    const project = join(TMP, "project-with-active-manifest-source");
+    write(join(project, "tape.yaml"), "sources: []\n");
+    write(join(project, "working/03-evaluation.yaml"), "candidates: []\n");
+    write(
+      join(project, "local-sources/sources-manifest.yaml"),
+      [
+        "sources:",
+        "  - active: true",
+        "    source:",
+        "      type: local_file",
+        "      path: local-sources/recovered/video.md",
+        "      citation: Recovered video",
+        "      priority: required",
+      ].join("\n"),
+    );
+    write(
+      join(project, "working/07-tape-draft.yaml"),
+      [
+        "sources:",
+        "  - type: web",
+        "    url: https://example.com/a",
+        "    section: Foundations",
+        "    priority: required",
+        "    kind: principle",
+        "    note: Useful.",
+      ].join("\n"),
+    );
+
+    const result = validatePhaseArtifact(project, "assembly");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain("dropped active custom source");
+  });
+
+  it("allows active custom URL sources from the manifest without evaluation evidence", () => {
+    const project = join(TMP, "project-with-active-custom-url");
+    write(join(project, "tape.yaml"), "sources: []\n");
+    write(join(project, "working/03-evaluation.yaml"), "candidates: []\n");
+    write(
+      join(project, "local-sources/sources-manifest.yaml"),
+      [
+        "sources:",
+        "  - active: true",
+        "    source:",
+        "      type: youtube",
+        "      url: https://www.youtube.com/watch?v=customsource",
+        "      priority: required",
+        "      kind: principle",
+      ].join("\n"),
+    );
+    write(
+      join(project, "working/07-tape-draft.yaml"),
+      [
+        "sources:",
+        "  - type: youtube",
+        "    url: https://www.youtube.com/watch?v=customsource",
+        "    section: Custom sources",
+        "    priority: required",
+        "    kind: principle",
+        "    note: Curator-selected source.",
+      ].join("\n"),
+    );
+
+    expect(validatePhaseArtifact(project, "assembly")).toEqual({ ok: true });
+  });
+
   it("rejects draft sources without a kind", () => {
     const path = write(
       join(TMP, "draft-missing-kind.yaml"),

@@ -59,9 +59,10 @@ Audit reports.
 _Avoid_: Audit, repair, cleanup, project rewrite
 
 **Next**:
-The recommended next milestone action for the current Liner Project state. It is
-not the same thing as the Enter-key action or the selected-row action.
-_Avoid_: Just next, shortcut hint, selected action, generic primary action
+The recommended next action for the current Liner Project state. It is not the
+same thing as a selected-row action or a generic primary button. When the footer
+pairs `Next` with Enter, Enter must perform that action.
+_Avoid_: Milestone phrasing, shortcut hint, selected action, generic primary action
 
 **Source**:
 Any material Liner can use as evidence for a Mixtape. Sources can be web,

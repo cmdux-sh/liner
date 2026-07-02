@@ -168,6 +168,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clearProjectStatus()
 		m.sourceInput.SetValue("")
 		m.applySourcePreview(source.Preview{})
+		if m.sourceEntryReturnsToCompile() {
+			m.screen = screenCompile
+			m.compilePane = compilePaneSources
+			m.sourceEntryReturnSet = false
+			m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
+			m.note = "Saved source to tape.yaml. Retry compile to include it in MIXTAPE.md."
+			m.err = ""
+			cmds = append(cmds, loadProjectStatus(m.runner, m.currentPath))
+			break
+		}
 		next, cmd := m.startClarificationFlow()
 		m = next
 		cmds = append(cmds, cmd)
@@ -253,21 +263,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.sourceRecoveryError = msg.err.Error()
 			m.err = ""
-			m.note = "Excluded local source retry finished with an error. Continue when ready."
-			m.compileLines = append(m.compileLines, "× Excluded local source retry failed: "+msg.err.Error())
+			m.note = "Unavailable source retry finished with an error. Continue when ready."
+			m.compileLines = append(m.compileLines, "× Unavailable source retry failed: "+msg.err.Error())
 			break
 		}
 		m.sourceRecoveryError = ""
-		summary := fmt.Sprintf("Excluded local source retry checked %d retryable excluded local source(s): %d recovered, %d still unavailable.", msg.result.Attempted, msg.result.Succeeded, msg.result.Failed)
+		summary := fmt.Sprintf("Unavailable source retry checked %d retryable source(s): %d recovered, %d still unavailable.", msg.result.Attempted, msg.result.Succeeded, msg.result.Failed)
 		m.compileLines = append(m.compileLines, summary)
 		if msg.result.Succeeded > 0 {
 			m.note = "Recovered source content saved. Continue when ready."
 			m.compileLines = append(m.compileLines, "Saved recovered source copies under local-sources/recovered/. Run Build Corpus when ready.")
 		} else {
-			m.note = "Excluded local sources are still unavailable. Continue when ready."
+			m.note = "Retryable sources are still unavailable. Continue when ready."
 		}
 		if strings.TrimSpace(m.currentPath) != "" {
 			cmds = append(cmds, loadProjectStatus(m.runner, m.currentPath))
+		}
+		if m.compileRepairRetryCompileAfterRecovery {
+			m.compileRepairRetryCompileAfterRecovery = false
+			m.compileRepairAttempted = true
+			m.compileSourcesReviewed = true
+			if msg.result.Succeeded > 0 {
+				m.compileRepairRebuildCorpusAfterRecovery = true
+				m.note = "Recovered custom source content. Press enter to rebuild the corpus."
+			} else {
+				m.compileRepairRebuildCorpusAfterRecovery = false
+				m.note = "No custom sources recovered. Review sources, repair again, or add replacements."
+			}
 		}
 	case jsSetupFinishedMsg:
 		m.jsSetupRunning = false
@@ -289,6 +311,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.note = "JS rendering is ready. Retrying compile."
 			next, cmd := m.startCompile()
 			m = next
+			m.compileRepairAttempted = true
+			m.compileSourcesReviewed = false
 			cmds = append(cmds, cmd)
 			break
 		}

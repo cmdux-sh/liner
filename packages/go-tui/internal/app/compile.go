@@ -38,7 +38,12 @@ func (m Model) startCompile() (Model, tea.Cmd) {
 	m.compileWarningIndex = 0
 	m.compilePane = compilePaneIssues
 	m.compileSourceIndex = 0
+	m.compileSourcesReviewed = false
+	m.compileRepairAttempted = false
+	m.compileRepairRetryCompileAfterRecovery = false
+	m.compileRepairRebuildCorpusAfterRecovery = false
 	m.compileErr = ""
+	m.sourceRecoveryReview = false
 	m.compileRows = initialCompileRows(m.currentTape.Sources)
 	m.compileBar = newCompileProgress(compileProgressWidth(m.width))
 	m.screen = screenCompile
@@ -53,6 +58,11 @@ func (m Model) startCompileReviewFromArtifacts() (Model, tea.Cmd) {
 	m.compileWarningIndex = 0
 	m.compilePane = compilePaneIssues
 	m.compileSourceIndex = 0
+	m.compileSourcesReviewed = false
+	m.compileRepairAttempted = false
+	m.compileRepairRetryCompileAfterRecovery = false
+	m.compileRepairRebuildCorpusAfterRecovery = false
+	m.sourceRecoveryReview = false
 	m.compileRows = initialCompileRows(m.currentTape.Sources)
 	for _, sourceIndex := range health.UnavailableIndexes {
 		if sourceIndex < 0 || sourceIndex >= len(m.compileRows) {
@@ -200,6 +210,7 @@ type indexedCompileWarning struct {
 
 type compileSourceListItem struct {
 	Status     string
+	Kind       string
 	Type       string
 	Source     string
 	Detail     string
@@ -456,6 +467,7 @@ func (m Model) toggleCompilePane() Model {
 		return m
 	}
 	m.compilePane = compilePaneSources
+	m.compileSourcesReviewed = true
 	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
 	return m
 }
@@ -619,12 +631,86 @@ func (m Model) compileHasRetryableSourceEvaluationIssues() bool {
 }
 
 func (m Model) compileHasDroppedCustomSourceIssues() bool {
-	summary, ok := m.compileSourceEvaluationSummary()
-	return ok && summary.DroppedCustom > 0
+	return len(readDroppedCustomURLSources(m.currentPath, m.currentTape)) > 0
+}
+
+func (m Model) compileHasSourceReviewItems() bool {
+	if m.actionableCompileWarningCount() > 0 {
+		return true
+	}
+	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.HasIssues() {
+		return true
+	}
+	return false
+}
+
+func (m Model) compileHasRepairableSources() bool {
+	return m.compileNeedsJSSetup() || m.actionableCompileWarningCount() > 0 || m.compileHasDroppedCustomSourceIssues()
+}
+
+func (m Model) compileNextActionLabel() string {
+	switch {
+	case m.compiling:
+		return "Wait for compile to finish."
+	case m.sourceRecoveryRunning:
+		return "Wait for unavailable source retry to finish."
+	case m.sourceRecoveryReview:
+		if m.compileRepairRebuildCorpusAfterRecovery {
+			return "Rebuild corpus."
+		}
+		if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
+			return "View sources."
+		}
+		return "Continue to Compile Console."
+	case m.jsSetupRunning:
+		return "Wait for JS rendering setup to finish."
+	case m.compilePane == compilePaneIssues && m.compileHasSourceReviewItems():
+		return "View sources."
+	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
+		return "Repair sources."
+	case !m.compileHasUsableResult():
+		if action := m.compileAttentionNextAction(); action != "" {
+			return action
+		}
+		return "Compile MIXTAPE.md before continuing."
+	default:
+		return "Create the Operating Layer."
+	}
+}
+
+func (m Model) viewCompileSourcesNext() Model {
+	m.compilePane = compilePaneSources
+	m.compileSourcesReviewed = true
+	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
+	m.note = "Review sources, then repair them."
+	m.err = ""
+	return m
+}
+
+func (m Model) repairCompileSources() (Model, tea.Cmd) {
+	m.compileSourcesReviewed = true
+	m.compileRepairAttempted = true
+	m.err = ""
+	if m.compileNeedsJSSetup() {
+		next, cmd := m.startJSSetupForCompile()
+		next.compileSourcesReviewed = true
+		next.compileRepairAttempted = true
+		return next, cmd
+	}
+	if m.compileHasDroppedCustomSourceIssues() {
+		next, cmd := m.retryExcludedLocalSources()
+		next.compileSourcesReviewed = true
+		next.compileRepairAttempted = true
+		next.compileRepairRetryCompileAfterRecovery = true
+		return next, cmd
+	}
+	return m.retryCompileOrSourceEvaluation()
 }
 
 func (m Model) retryCompileOrSourceEvaluation() (Model, tea.Cmd) {
-	return m.startCompile()
+	next, cmd := m.startCompile()
+	next.compileRepairAttempted = true
+	return next, cmd
 }
 
 func (m Model) friendlyCompileError(err error) string {
@@ -765,15 +851,11 @@ func (m Model) viewCompile() string {
 		sections = append(sections, "", m.viewSourceRecoveryWorking(width))
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
 	}
-	sections = append(sections, m.viewCompilePaneTabs(width))
 	if m.compilePane == compilePaneSources {
 		if rows := m.viewCompileAllSources(width); rows != "" {
 			sections = append(sections, "", rows)
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
-	}
-	if rows := m.viewCompileSources(width); rows != "" {
-		sections = append(sections, "", rows)
 	}
 	if result := m.viewCompileResult(width); result != "" {
 		sections = append(sections, "", result)
@@ -784,18 +866,6 @@ func (m Model) viewCompile() string {
 		}
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
-}
-
-func (m Model) viewCompilePaneTabs(width int) string {
-	tabs := []string{}
-	for index, label := range []string{"Issues", "Sources"} {
-		style := styles.SoftText
-		if index == m.compilePane {
-			style = styles.AccentText
-		}
-		tabs = append(tabs, style.Render(label))
-	}
-	return lipgloss.NewStyle().Width(width).Render(styles.Subtitle.Render("View: ") + strings.Join(tabs, styles.Subtitle.Render(" / ")))
 }
 
 func (m Model) compileSourceRowLimit() int {
@@ -833,16 +903,36 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 		m.err = "Wait for JS rendering setup to finish before creating the Operating Layer."
 		return m, nil
 	case m.sourceRecoveryRunning:
-		m.note = "Excluded local source retry is still running. Wait for the retry result."
+		m.note = "Unavailable source retry is still running. Wait for the retry result."
 		m.err = ""
 		return m, nil
 	case m.sourceRecoveryReview:
+		if m.compileRepairRebuildCorpusAfterRecovery {
+			recovery := m.sourceRecovery
+			m.sourceRecoveryReview = false
+			m.compileRepairRebuildCorpusAfterRecovery = false
+			next, cmd := m.retrySourceEvaluation()
+			next.sourceRecovery = recovery
+			next.compileRepairAttempted = true
+			next.compileSourcesReviewed = true
+			next.note = "Recovered custom source content. Rebuilding the corpus so Liner can add it back."
+			return next, cmd
+		}
 		m.sourceRecoveryReview = false
 		m.err = ""
+		if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
+			m.compilePane = compilePaneSources
+			m.note = "No custom sources recovered. Review sources, repair again, or add replacements."
+			return m, nil
+		}
 		m.note = "Returned to Compile Console."
 		return m, nil
+	case m.compilePane == compilePaneIssues && m.compileHasSourceReviewItems():
+		return m.viewCompileSourcesNext(), nil
+	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
+		return m.repairCompileSources()
 	case m.compileNeedsJSSetup():
-		m.err = "Install JS rendering, then retry compile before creating the Operating Layer."
+		m.err = "Repair sources before creating the Operating Layer."
 		return m, nil
 	case m.compileAttentionNextAction() != "":
 		m.err = m.compileAttentionNextAction()
@@ -866,16 +956,25 @@ func (m Model) viewCompileStatus(width int) string {
 		detail = compileLoaderMessage(m.fxFrame)
 	case m.sourceRecoveryRunning:
 		status = "Working"
-		detail = "Retrying excluded local sources without rebuilding the corpus."
+		detail = "Retrying unavailable sources without rebuilding the corpus."
 	case m.sourceRecoveryReview:
 		status = "Needs review"
-		detail = "Excluded local source retry finished. Continue to Compile Console when ready."
+		if m.compileRepairRebuildCorpusAfterRecovery {
+			detail = "Unavailable source retry recovered content. Rebuild the corpus when ready."
+		} else if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
+			detail = "Unavailable source retry finished, but no custom sources recovered."
+		} else {
+			detail = "Unavailable source retry finished. Continue to Compile Console when ready."
+		}
 	case m.compileErr != "":
 		status = "Needs attention"
 		detail = m.compileErr
+	case m.compileHasSourceReviewItems() && m.compileHasUsableResult():
+		status = "Compiled with warnings"
+		detail = ""
 	case len(m.compileAttentionItems()) > 0:
 		status = "Needs attention"
-		detail = "MIXTAPE.md was written, but the output is not ready to trust yet."
+		detail = "Review the compile notes before relying on MIXTAPE.md."
 	case m.compileResult != nil:
 		status = "Compiled"
 		detail = "MIXTAPE.md is ready to preview."
@@ -888,7 +987,7 @@ func (m Model) viewCompileStatus(width int) string {
 			recoveryCount = 1
 		}
 		percent = 0.35
-		counts = intLabel(recoveryCount, "excluded local source")
+		counts = intLabel(recoveryCount, "retryable source")
 	} else if m.sourceRecoveryReview && m.sourceRecovery != nil {
 		percent = 1
 		counts = fmt.Sprintf("%d retryable checked", m.sourceRecovery.Attempted)
@@ -951,9 +1050,10 @@ func (m Model) viewCompileAllSources(width int) string {
 		return ""
 	}
 	index := clampCompileSourceIndex(m.compileSourceIndex, len(items))
-	start, end := visibleWindow(index, len(items), max(6, m.height-12))
+	limit := min(12, max(6, m.height-24))
+	start, end := visibleWindow(index, len(items), limit)
 	sourceWidth := max(24, width/3)
-	detailWidth := max(20, width-sourceWidth-39)
+	detailWidth := max(20, width-sourceWidth-50)
 	tableRows := make([]table.Row, 0, end-start)
 	for rowIndex, item := range items[start:end] {
 		absoluteIndex := start + rowIndex
@@ -964,14 +1064,19 @@ func (m Model) viewCompileAllSources(width int) string {
 		tableRows = append(tableRows, table.Row{
 			selected,
 			fmt.Sprintf("%02d", absoluteIndex+1),
-			truncateMiddle(item.Status, 10),
-			truncateMiddle(visibleSourceType(item.Type), 10),
+			truncateMiddle(item.Status, 12),
+			truncateMiddle(item.Kind, 15),
 			truncateMiddle(item.Source, sourceWidth),
 			truncateMiddle(item.Detail, detailWidth),
 		})
 	}
 	lines := []string{styles.ReportSection.Render("Sources")}
 	lines = append(lines, styles.Subtitle.Render(compileSourceListSummary(items)))
+	if m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources() {
+		lines = append(lines, styles.Subtitle.Render("Repair sources first with r. This retries unavailable custom sources, then rebuilds the corpus if any recover."))
+	} else if m.compilePane == compilePaneSources && m.compileRepairAttempted {
+		lines = append(lines, styles.Subtitle.Render("You can continue with the current MIXTAPE.md, repair again with r, or add replacements with a."))
+	}
 	if start > 0 {
 		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↑ %d earlier source(s)", start)))
 	}
@@ -979,26 +1084,63 @@ func (m Model) viewCompileAllSources(width int) string {
 		[]table.Column{
 			{Title: "", Width: 2},
 			{Title: "#", Width: 4},
-			{Title: "Status", Width: 10},
-			{Title: "Type", Width: 10},
+			{Title: "Status", Width: 12},
+			{Title: "Kind", Width: 15},
 			{Title: "Source", Width: sourceWidth},
 			{Title: "Detail", Width: detailWidth},
 		},
 		tableRows,
 		width,
-		min(len(tableRows)+1, max(7, m.height-10)),
+		min(len(tableRows)+1, limit+1),
 		false,
 	)
 	lines = append(lines, sourceTable.View())
 	if end < len(items) {
 		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↓ %d later source(s)", len(items)-end)))
 	}
+	if detail := m.compileSourceDetail(width); detail != "" {
+		lines = append(lines, "", detail)
+	}
 	return strings.Join(lines, "\n")
 }
 
 func (m Model) compileSourceListItems() []compileSourceListItem {
 	items := make([]compileSourceListItem, 0, len(m.currentTape.Sources)+len(readExcludedLocalSourceIssues(m.currentPath, m.currentTape)))
+	warningKeys := map[string]bool{}
+	if m.compileResult != nil {
+		for _, item := range m.actionableCompileWarnings() {
+			warning := item.Warning
+			source := strings.TrimSpace(warning.URL)
+			if source == "" {
+				source = compileWarningSummary(warning)
+			}
+			for _, key := range issueKeysForURL(source) {
+				warningKeys[key] = true
+			}
+			items = append(items, compileSourceListItem{
+				Status:     fallbackText(warning.Severity, "error"),
+				Kind:       "research source",
+				Type:       "web",
+				Source:     source,
+				Detail:     compileWarningSummary(warning),
+				OpenTarget: source,
+			})
+		}
+	}
+	for _, issue := range readExcludedLocalSourceIssues(m.currentPath, m.currentTape) {
+		items = append(items, compileSourceListItem{
+			Status:     issue.Status,
+			Kind:       "custom source",
+			Type:       issue.Type,
+			Source:     issue.Source,
+			Detail:     issue.Reason,
+			OpenTarget: issue.OpenTarget,
+		})
+	}
 	for index, src := range m.currentTape.Sources {
+		if keySetContainsAny(warningKeys, issueKeysForSource(src)) {
+			continue
+		}
 		row := compileSourceRow{Status: "queued", Type: src.Type, Source: compileTapeSourceLabel(src)}
 		if index < len(m.compileRows) {
 			row = m.compileRows[index]
@@ -1009,38 +1151,77 @@ func (m Model) compileSourceListItems() []compileSourceListItem {
 		}
 		items = append(items, compileSourceListItem{
 			Status:     compileStatusLabel(row.Status),
+			Kind:       "research source",
 			Type:       fallbackText(row.Type, src.Type),
 			Source:     fallbackText(row.Source, compileTapeSourceLabel(src)),
 			Detail:     compileSourceDetailSummary(detail),
 			OpenTarget: compileSourceOpenTarget(src),
 		})
 	}
-	for _, issue := range readExcludedLocalSourceIssues(m.currentPath, m.currentTape) {
-		items = append(items, compileSourceListItem{
-			Status:     issue.Status,
-			Type:       issue.Type,
-			Source:     issue.Source,
-			Detail:     issue.Reason,
-			OpenTarget: issue.OpenTarget,
-		})
-	}
 	return items
 }
 
+func (m Model) compileSourceDetail(width int) string {
+	item, ok := m.selectedCompileSource()
+	if !ok {
+		return ""
+	}
+	rows := []labelValueRow{
+		{Label: "Selected", Value: item.Status},
+		{Label: "Kind", Value: item.Kind},
+		{Label: "Source", Value: truncateMiddle(item.Source, max(24, width-18))},
+		{Label: "Detail", Value: item.Detail},
+	}
+	return styles.ReportSection.Render("Source detail") + "\n" + renderLabelValueBlock(width, rows, 0, 0)
+}
+
 func compileSourceListSummary(items []compileSourceListItem) string {
-	accepted := 0
-	excluded := 0
+	usable := 0
+	retryable := 0
+	needsCorpus := 0
+	customNotUsed := 0
+	attention := 0
 	for _, item := range items {
 		switch strings.ToLower(strings.TrimSpace(item.Status)) {
-		case "dropped", "not in tape", "excluded":
-			excluded++
+		case "retryable", "needs retry":
+			retryable++
+		case "needs corpus":
+			needsCorpus++
+		case "dropped", "not in tape", "excluded", "not selected":
+			customNotUsed++
+		case "failed", "error", "warning":
+			attention++
 		default:
-			accepted++
+			usable++
 		}
 	}
-	parts := []string{intLabel(accepted, "accepted source")}
-	if excluded > 0 {
-		parts = append(parts, intLabel(excluded, "excluded local source"))
+	parts := []string{}
+	if attention > 0 {
+		verb := "need"
+		if attention == 1 {
+			verb = "needs"
+		}
+		parts = append(parts, intLabel(attention, "source")+" "+verb+" attention")
+	}
+	if retryable > 0 {
+		verb := "need"
+		if retryable == 1 {
+			verb = "needs"
+		}
+		parts = append(parts, intLabel(retryable, "custom source")+" "+verb+" retry")
+	}
+	if needsCorpus > 0 {
+		verb := "need"
+		if needsCorpus == 1 {
+			verb = "needs"
+		}
+		parts = append(parts, intLabel(needsCorpus, "recovered custom source")+" "+verb+" Build Corpus")
+	}
+	if customNotUsed > 0 {
+		parts = append(parts, intLabel(customNotUsed, "custom source")+" not used")
+	}
+	if usable > 0 {
+		parts = append(parts, intLabel(usable, "usable source"))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -1101,14 +1282,15 @@ func (m Model) viewCompileResult(width int) string {
 	if m.compileResult != nil {
 		summary := m.compileResult.Summary
 		outcome := "compiled"
-		outcomeStyle := styles.SuccessText
-		if len(m.compileAttentionItems()) > 0 || summary.Failed > 0 {
-			outcome = "needs attention"
-			outcomeStyle = styles.NextActionTitle
+		if m.compileHasSourceReviewItems() {
+			outcome = "compiled with warnings"
 		}
-		lines = append(lines,
-			outcomeStyle.Render("● "+outcome)+"  "+styles.NextActionText.Render(fmt.Sprintf("%d/%d usable sources", summary.Succeeded, summary.Total)),
-		)
+		if m.compileRepairAttempted && m.compileHasSourceReviewItems() {
+			outcome = "repair finished with warnings"
+		} else if m.compileRepairAttempted {
+			outcome = "repair finished"
+		}
+		lines = append(lines, styles.NextActionTitle.Render("● "+outcome)+"  "+styles.NextActionText.Render("MIXTAPE.md is ready with "+intLabel(summary.Succeeded, "usable source")+"."))
 		if m.compileResult.MixtapePath != "" {
 			lines = append(lines, styles.Subtitle.Render("wrote "+m.compileResult.MixtapePath))
 		}
@@ -1116,16 +1298,17 @@ func (m Model) viewCompileResult(width int) string {
 	for _, item := range m.compileAttentionItems() {
 		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render(item))
 	}
-	if summary, ok := m.compileSourceEvaluationSummary(); ok {
-		lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render("Source evaluation: "+summary.Display(m.currentPath)))
+	summaryLines := m.compileResultSummaryLines()
+	if len(summaryLines) > 0 {
+		lines = append(lines, "", styles.ReportSection.Render("Summary"))
+		for _, line := range summaryLines {
+			lines = append(lines, styles.NextActionText.Render(line))
+		}
 	}
 	if recovery := m.viewSourceRecoveryResult(width); recovery != "" {
 		lines = append(lines, "", recovery)
 	}
-	if excluded := readExcludedLocalSourceIssues(m.currentPath, m.currentTape); len(excluded) > 0 {
-		lines = append(lines, "", renderExcludedLocalSources(width, excluded))
-	}
-	if m.compileErr != "" {
+	if m.compileErr != "" && !m.compileHasUsableResult() {
 		lines = append(lines, styles.ErrorText.Render(m.compileErr))
 	}
 	if m.compileNeedsJSSetup() || m.jsSetupRunning {
@@ -1134,15 +1317,56 @@ func (m Model) viewCompileResult(width int) string {
 	if recovered := m.recoveredCompileWarningCount(); recovered > 0 {
 		lines = append(lines, styles.SuccessText.Render(fmt.Sprintf("● recovered %d source(s) with browser rendering", recovered))+"  "+styles.NextActionText.Render("included in MIXTAPE.md"))
 	}
-	if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
-		lines = append(lines, styles.NextActionTitle.Render(intLabel(m.actionableCompileWarningCount(), "source issue")))
-		lines = append(lines, styles.Subtitle.Render("Retry source issues with r. Open or drop the selected source with o/d, or add replacements with a."))
-		lines = append(lines, m.compileWarningsTable(width).View())
-		if detail := m.compileWarningDetail(width); detail != "" {
-			lines = append(lines, "", detail)
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) compileResultSummaryLines() []string {
+	lines := []string{}
+	if count := m.actionableCompileWarningCount(); count > 0 {
+		verb := "need"
+		if count == 1 {
+			verb = "needs"
+		}
+		lines = append(lines, intLabel(count, "research source")+" "+verb+" attention.")
+	}
+	if issues := readExcludedLocalSourceIssues(m.currentPath, m.currentTape); len(issues) > 0 {
+		retryable := 0
+		needsCorpus := 0
+		for _, issue := range issues {
+			switch strings.ToLower(strings.TrimSpace(issue.Status)) {
+			case "retryable":
+				retryable++
+			case "needs corpus":
+				needsCorpus++
+			}
+		}
+		if needsCorpus > 0 {
+			verb := "need"
+			object := "them"
+			if needsCorpus == 1 {
+				verb = "needs"
+				object = "it"
+			}
+			lines = append(lines, intLabel(needsCorpus, "recovered custom source")+" "+verb+" Build Corpus before Liner can use "+object+".")
+		}
+		if retryable > 0 {
+			lines = append(lines, intLabel(retryable, "unavailable custom source")+" can be retried.")
+		}
+		if other := len(issues) - retryable - needsCorpus; other > 0 {
+			verb := "were"
+			if other == 1 {
+				verb = "was"
+			}
+			lines = append(lines, intLabel(other, "saved custom source")+" "+verb+" not used.")
 		}
 	}
-	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+	if summary, ok := m.compileSourceEvaluationSummary(); ok {
+		lines = append(lines, "Source notes: "+summary.Display(m.currentPath)+".")
+	}
+	if m.compileNeedsJSSetup() {
+		lines = append(lines, "JS rendering is missing for at least one repairable source; repair will install it first.")
+	}
+	return lines
 }
 
 func (m Model) viewSourceRecoveryResult(width int) string {
@@ -1150,12 +1374,16 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 		return ""
 	}
 	result := *m.sourceRecovery
+	title := "Unavailable source retry"
+	if m.compileRepairAttempted {
+		title = "Repair result"
+	}
 	lines := []string{
-		styles.ReportSection.Render("Excluded local source retry"),
+		styles.ReportSection.Render(title),
 		styles.NextActionText.Render(fmt.Sprintf("%d retryable checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if result.Succeeded > 0 {
-		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Run Build Corpus so the AI can reconsider it."))
+		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Available for the next Build Corpus run."))
 	}
 	for _, source := range result.Sources {
 		if source.SavedTo == "" {
@@ -1172,33 +1400,47 @@ func (m Model) viewSourceRecoveryReview(width int) string {
 		result = *m.sourceRecovery
 	}
 	lines := []string{
-		styles.ReportSection.Render("Excluded local source retry"),
+		styles.ReportSection.Render("Unavailable source retry"),
 		styles.NextActionText.Render(fmt.Sprintf("%d retryable checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if strings.TrimSpace(m.sourceRecoveryError) != "" {
 		lines = append(lines, styles.ErrorText.Render("Retry error: "+m.sourceRecoveryError))
 	} else if result.Succeeded > 0 {
-		for _, line := range wrapWords("Recovered source content was saved under local-sources/recovered/. Continue to Compile Console, then run Build Corpus so the AI can reconsider it.", width) {
+		message := "Recovered source content was saved under local-sources/recovered/. Continue to Compile Console, then run Build Corpus so the AI can reconsider it."
+		if m.compileRepairRebuildCorpusAfterRecovery {
+			message = "Recovered source content was saved under local-sources/recovered/. Press enter to rebuild the corpus from Candidate discovery so Liner can add it back."
+		}
+		for _, line := range wrapWords(message, width) {
 			lines = append(lines, styles.SuccessText.Render("● ")+styles.NextActionText.Render(line))
 		}
 	} else {
-		for _, line := range wrapWords("No retryable excluded local sources were recovered. Try again after changing network/cookies, or add replacement source content manually.", width) {
+		message := "No retryable unavailable sources were recovered. Try again after changing network/cookies, or add replacement source content manually."
+		if m.compileRepairAttempted {
+			message = "No custom sources were recovered. Return to sources to retry, open the URLs, or add replacement content manually."
+		}
+		for _, line := range wrapWords(message, width) {
 			lines = append(lines, styles.NextActionTitle.Render("! ")+styles.NextActionText.Render(line))
 		}
 	}
 	if len(result.Sources) > 0 {
 		lines = append(lines, "", renderSourceRecoveryRows(width, result.Sources))
 	}
-	lines = append(lines, "", styles.NextActionTitle.Render("> Continue: ")+styles.NextActionText.Render("Press enter to return to Compile Console."))
+	continueText := "Press enter to return to Compile Console."
+	if m.compileRepairRebuildCorpusAfterRecovery {
+		continueText = "Press enter to rebuild the corpus."
+	} else if m.compileRepairAttempted && result.Succeeded == 0 {
+		continueText = "Press enter to return to Sources."
+	}
+	lines = append(lines, "", styles.NextActionTitle.Render("> Continue: ")+styles.NextActionText.Render(continueText))
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) viewSourceRecoveryWorking(width int) string {
 	sources := readDroppedCustomURLSources(m.currentPath, m.currentTape)
 	lines := []string{
-		styles.ReportSection.Render("Retry excluded local sources"),
+		styles.ReportSection.Render("Retry unavailable sources"),
 	}
-	for _, line := range wrapWords("Liner is retrying retryable excluded local sources only. Build Corpus and compile are not running.", width) {
+	for _, line := range wrapWords("Liner is retrying only sources marked retryable. Build Corpus and compile are not running.", width) {
 		lines = append(lines, styles.NextActionText.Render(line))
 	}
 	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to run Build Corpus.", width) {
@@ -1256,7 +1498,7 @@ func renderSourceRecoveryRows(width int, sources []sourceRecoverySource) string 
 		[]table.Column{
 			{Title: "Status", Width: 10},
 			{Title: "Type", Width: 10},
-			{Title: "Excluded local source", Width: sourceWidth},
+			{Title: "Retried source", Width: sourceWidth},
 			{Title: "Result", Width: 20},
 		},
 		rows,
@@ -1271,43 +1513,50 @@ func renderExcludedLocalSources(width int, issues []excludedLocalSourceIssue) st
 	if len(issues) == 0 {
 		return ""
 	}
-	sourceWidth := max(22, width/3)
-	reasonWidth := max(24, width-sourceWidth-28)
+	sourceWidth := max(22, width/4)
+	actionWidth := max(18, min(28, width/4))
+	reasonWidth := max(24, width-sourceWidth-actionWidth-36)
 	rows := make([]table.Row, 0, len(issues))
 	for _, issue := range issues {
 		rows = append(rows, table.Row{
-			truncateMiddle(issue.Status, 10),
+			truncateMiddle(issue.Status, 12),
 			truncateMiddle(visibleSourceType(issue.Type), 10),
 			truncateMiddle(issue.Source, sourceWidth),
 			truncateMiddle(issue.Reason, reasonWidth),
+			truncateMiddle(issue.NextAction, actionWidth),
 		})
 	}
 	sourceTable := newDataTable(
 		[]table.Column{
-			{Title: "Status", Width: 10},
+			{Title: "State", Width: 12},
 			{Title: "Type", Width: 10},
-			{Title: "Local source", Width: sourceWidth},
-			{Title: "Why it is out", Width: reasonWidth},
+			{Title: "Saved source", Width: sourceWidth},
+			{Title: "What happened", Width: reasonWidth},
+			{Title: "Next", Width: actionWidth},
 		},
 		rows,
 		width,
 		min(len(rows)+1, 10),
 		false,
 	)
-	return styles.ReportSection.Render("Excluded local sources") + "\n" + renderExcludedLocalSourceHint(issues) + "\n" + sourceTable.View()
+	return styles.ReportSection.Render("Custom sources not used") + "\n" + renderExcludedLocalSourceHint(issues) + "\n" + sourceTable.View()
 }
 
 func renderExcludedLocalSourceHint(issues []excludedLocalSourceIssue) string {
 	retryable := 0
 	for _, issue := range issues {
-		if strings.EqualFold(strings.TrimSpace(issue.Status), "dropped") {
+		if strings.EqualFold(strings.TrimSpace(issue.Status), "retryable") {
 			retryable++
 		}
 	}
 	if retryable > 0 {
-		return styles.Subtitle.Render(fmt.Sprintf("Retry unavailable excluded local sources with e. %d retryable; %d already left out of tape.yaml.", retryable, max(0, len(issues)-retryable)))
+		verb := "are"
+		if len(issues) == 1 {
+			verb = "is"
+		}
+		return styles.Subtitle.Render(fmt.Sprintf("%s %s missing from the tape. Open Compile Console and press r to repair the %s; recovered sources are saved for the next Build Corpus run.", intLabel(len(issues), "saved custom source"), verb, intLabel(retryable, "custom source")))
 	}
-	return styles.Subtitle.Render("No retryable excluded local sources. Add replacement content with a, or run Build Corpus if these sources should be reconsidered.")
+	return styles.Subtitle.Render("Saved custom sources are missing from the tape. Add replacement content with a, or run Build Corpus after fixing the source files.")
 }
 
 func (m Model) viewCompileJSSetup(width int) string {
@@ -1505,7 +1754,7 @@ func (m Model) selectedBlockingCompileWarning() (core.CompileWarningPayload, boo
 }
 
 func (m Model) compileAttentionNextAction() string {
-	if _, ok := m.selectedBlockingCompileWarning(); ok {
+	if _, ok := m.selectedBlockingCompileWarning(); ok && !m.compileHasUsableResult() {
 		return "Resolve source issues before creating the Operating Layer."
 	}
 	if len(m.compileAttentionItems()) > 0 {
@@ -1517,7 +1766,7 @@ func (m Model) compileAttentionNextAction() string {
 		}
 		return "Resolve the compile notes, then retry compile."
 	}
-	if strings.TrimSpace(m.compileErr) != "" {
+	if strings.TrimSpace(m.compileErr) != "" && !m.compileHasUsableResult() {
 		return "Review the compile error, then retry compile."
 	}
 	return ""

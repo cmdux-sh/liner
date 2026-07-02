@@ -37,7 +37,7 @@ func (m Model) canRegenerateOperatingLayer() bool {
 }
 
 func (m Model) startLinerDraftReview() (Model, tea.Cmd) {
-	if !m.hasCorpusReady() {
+	if !m.hasCorpusReady() && !m.compileHasUsableResult() {
 		m.err = "Reach Corpus Ready before creating the Operating Layer."
 		return m, nil
 	}

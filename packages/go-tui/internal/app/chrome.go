@@ -184,25 +184,7 @@ func (m Model) nextAction() string {
 	case screenBoard:
 		return "Optional: adjust personal sources, then compile the mixtape."
 	case screenCompile:
-		if m.compiling {
-			return "Wait for compile to finish."
-		}
-		if m.sourceRecoveryRunning {
-			return "Wait for excluded local source retry to finish."
-		}
-		if m.sourceRecoveryReview {
-			return "Continue to Compile Console."
-		}
-		if m.jsSetupRunning {
-			return "Wait for JS rendering setup to finish."
-		}
-		if m.compileNeedsJSSetup() {
-			return "Press i to install JS rendering, then retry compile."
-		}
-		if action := m.compileAttentionNextAction(); action != "" {
-			return action
-		}
-		return "Corpus Ready. Create the Operating Layer, or press p to preview MIXTAPE.md."
+		return m.compileNextActionLabel()
 	case screenImprovementReview:
 		return m.improvementNextAction()
 	case screenPreview:

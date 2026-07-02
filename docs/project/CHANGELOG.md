@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Refined Compile Console source repair.** Compile now opens with a compact
+  result summary and sends users to `View sources` for the navigable source
+  table. Sources with errors, retryable custom sources, and recovered content
+  needing Build Corpus are bubbled to the top with clearer `research source` and
+  `custom source` labels.
+- **Made custom source recovery explicit.** Repair retries unavailable custom
+  YouTube/web sources, installs JS rendering first when needed, stops on a
+  recovery review, and asks for a corpus rebuild only when content was actually
+  recovered.
+- **Kept replacement-source repair in context.** Adding sources from Compile now
+  returns to Compile instead of restarting Clarify Goal, and recovered/custom
+  local sources are preserved as active source material for the next corpus
+  build.
+- **Allowed usable partial compiles to continue after review.** Reviewed source
+  warnings stay visible, but a usable `MIXTAPE.md` can proceed to Operating
+  Layer creation instead of being blocked by stale compile-error state.
+- **Aligned Project Complete with its primary action.** `Next` now opens
+  `LINER.md` when the project is complete, so Enter no longer lands on a
+  no-op management state.
+
 ## 1.0.0
 
 - **Ships the Go TUI as the default Liner interface.** Running `liner` or
@@ -107,8 +127,8 @@
 - **Marketing landing page polish.** The Astro marketing site has a refreshed
   hero, copyable `npx linersh` install CTA, version-consistent `0.5.3`
   labeling, Liner logo treatment, WebGL resize fix, continuous marquees,
-  tightened mobile behavior, and a next-agent handoff document in
-  `marketing/site/AI-HANDOFF.md`.
+  tightened mobile behavior, and a marketing-site handoff document that was
+  later archived outside Git.
 - **Per-phase model selection.** The two heaviest phases — candidate discovery
   and evaluation, ~65% of a cycle's tokens — now run on a cheaper model by
   default (Sonnet for Claude, `gpt-5-mini` for Codex). Framing, quality,

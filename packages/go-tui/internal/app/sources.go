@@ -130,11 +130,31 @@ func stagedCounts(items []source.StagedSource) map[string]int {
 }
 
 func (m *Model) startSourceEntry() {
+	returnScreen := screenProject
+	if m.screen == screenCompile {
+		returnScreen = screenCompile
+	}
+	m.sourceEntryReturnScreen = returnScreen
+	m.sourceEntryReturnSet = true
 	m.screen = screenSources
 	m.sourceInput.Focus()
 	if strings.TrimSpace(m.sourceInput.Value()) == "" {
 		m.applySourcePreview(source.Preview{})
 	}
+}
+
+func (m Model) sourceEntryReturnsToCompile() bool {
+	return m.sourceEntryReturnSet && m.sourceEntryReturnScreen == screenCompile
+}
+
+func (m Model) returnFromSourceEntry() Model {
+	target := screenProject
+	if m.sourceEntryReturnSet {
+		target = m.sourceEntryReturnScreen
+	}
+	m.screen = target
+	m.sourceEntryReturnSet = false
+	return m
 }
 
 func (m Model) canOpenLocalSources() bool {

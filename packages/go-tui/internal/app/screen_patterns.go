@@ -124,14 +124,15 @@ func renderProgressStatusBlock(width int, bar progress.Model, percent float64, s
 	if strings.TrimSpace(status) == "" {
 		status = "Working"
 	}
-	if strings.TrimSpace(detail) == "" {
-		detail = "Working."
-	}
 	if strings.TrimSpace(count) == "" {
 		count = fmt.Sprintf("%d%%", int(percent*100))
 	}
+	statusLine := styles.ReportSection.Render(status)
+	if strings.TrimSpace(detail) != "" {
+		statusLine += "  " + styles.NextActionText.Render(detail)
+	}
 	return lipgloss.NewStyle().Width(width).Render(
-		styles.ReportSection.Render(status) + "  " + styles.NextActionText.Render(detail) + "\n" +
+		statusLine + "\n" +
 			bar.ViewAs(percent) + "  " + styles.Subtitle.Render(count),
 	)
 }

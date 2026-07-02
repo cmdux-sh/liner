@@ -191,13 +191,14 @@ automatically update the Status Snapshot to `corpus_ready`. This is a narrow
 status write and does not require a separate confirmation.
 
 `Create Operating Layer` should be visible before `corpus_ready`, but disabled
-with a specific reason. It can only run after the Status Snapshot says
-`corpus_ready`, or after Refresh Status verifies that the corpus evidence is
-ready.
+with a specific reason. It can run after the Status Snapshot says
+`corpus_ready`, after Refresh Status verifies that the corpus evidence is ready,
+or from a current Compile Console result where `MIXTAPE.md` is usable and the
+user has reviewed source warnings.
 
-`Next` is the user-facing label for the recommended next milestone action. It
-should point toward project completion, not merely mirror the Enter-key action
-or selected-row behavior.
+`Next` is the user-facing label for the recommended next action. It should point
+toward project completion without contradicting the Enter-key behavior or
+selected-row behavior.
 
 The stable nouns are:
 

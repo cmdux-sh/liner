@@ -40,15 +40,12 @@ func reportNextAction(current tape.Tape, items []source.StagedSource) string {
 	return fullMethodologyAction
 }
 
-const projectCompleteNextAction = "Project complete. LINER.md and SKILL.md are ready."
+const projectCompleteNextAction = "Open LINER.md."
 
 func renderNextCue(action string) string {
 	action = strings.TrimSpace(action)
 	if action == "" {
 		return ""
-	}
-	if action == projectCompleteNextAction {
-		return styles.NextCueTitle.Render("> Project complete") + " " + styles.NextActionText.Render("LINER.md and SKILL.md are ready.")
 	}
 	return styles.NextCueTitle.Render("> Next:") + " " + styles.NextActionText.Render(action)
 }

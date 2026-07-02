@@ -1265,11 +1265,8 @@ func TestNextCueUsesSofterOrangeThanActionAccent(t *testing.T) {
 		t.Fatalf("Next should not use the main action accent:\n%s", next)
 	}
 	complete := renderNextCue(projectCompleteNextAction)
-	if !strings.Contains(complete, styles.NextCueTitle.Render("> Project complete")) {
-		t.Fatalf("Project complete should render as a completed-state cue:\n%s", complete)
-	}
-	if strings.Contains(complete, "Next:") {
-		t.Fatalf("Project complete cue should not present a next step:\n%s", complete)
+	if !strings.Contains(complete, styles.NextCueTitle.Render("> Next:")) || !strings.Contains(complete, "Open LINER.md") {
+		t.Fatalf("Project complete should expose the next useful action:\n%s", complete)
 	}
 
 	m := Model{researchDone: true, note: "Review the corpus artifacts on disk."}
@@ -2155,13 +2152,13 @@ func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
 	}
 	m.projectPane = 2
 	view = m.viewProject()
-	for _, expected := range []string{"Excluded local sources", "Why it is out", "one11111111", "no transcript/readable body"} {
+	for _, expected := range []string{"Custom sources not used", "What happened", "retryable", "one11111111", "yt-dlp 429"} {
 		if !strings.Contains(view, expected) {
-			t.Fatalf("project sources should list excluded local source %q:\n%s", expected, view)
+			t.Fatalf("project sources should list custom source issue %q:\n%s", expected, view)
 		}
 	}
-	if !hasCommandTitle(m.commandItems(), "Retry excluded local sources") {
-		t.Fatal("source issues should expose Retry excluded local sources command")
+	if !hasCommandTitle(m.commandItems(), "Retry unavailable sources") {
+		t.Fatal("source issues should expose Retry unavailable sources command")
 	}
 	if !hasCommandTitle(m.commandItems(), "Build Corpus") {
 		t.Fatal("project command palette should expose Build Corpus")
@@ -2383,7 +2380,7 @@ func TestProjectViewShowsCompiledMixtapeAsReadyState(t *testing.T) {
 	}
 }
 
-func TestProjectCompleteDoesNotOpenLinerFromPrimaryAction(t *testing.T) {
+func TestProjectCompleteOpensLinerFromPrimaryAction(t *testing.T) {
 	project := t.TempDir()
 	if err := os.WriteFile(filepath.Join(project, "MIXTAPE.md"), []byte("# Launch\n\nReady."), 0o644); err != nil {
 		t.Fatal(err)
@@ -2406,19 +2403,19 @@ func TestProjectCompleteDoesNotOpenLinerFromPrimaryAction(t *testing.T) {
 	if got := m.nextAction(); got != projectCompleteNextAction {
 		t.Fatalf("expected project-complete next action, got %q", got)
 	}
-	if activity := m.viewActivity(); !strings.Contains(activity, "Project complete") || strings.Contains(activity, "Open LINER.md") || strings.Contains(activity, "Next:") {
-		t.Fatalf("expected completed project activity without open-next copy:\n%s", activity)
+	if activity := m.viewActivity(); !strings.Contains(activity, "Next:") || !strings.Contains(activity, "Open LINER.md") {
+		t.Fatalf("expected completed project activity to open LINER.md:\n%s", activity)
 	}
 	got, cmd := m.primaryProjectAction()
 	if cmd != nil {
 		t.Fatalf("project complete primary action should not return a command")
 	}
-	if got.screen != screenProject {
-		t.Fatalf("project complete primary action should stay on project, got %v", got.screen)
+	if got.screen != screenPreview {
+		t.Fatalf("project complete primary action should open LINER.md preview, got %v", got.screen)
 	}
 	help := m.helpForScreen().ShortHelp()
-	if hasHelp(help, "enter") {
-		t.Fatalf("project complete help should not advertise enter: %#v", help)
+	if !hasHelp(help, "enter") || !hasHelpDesc(help, "LINER.md") {
+		t.Fatalf("project complete help should advertise enter for LINER.md: %#v", help)
 	}
 	for _, keyName := range []string{"l", "a", "o"} {
 		if !hasHelp(help, keyName) {
@@ -6834,8 +6831,8 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 	if !got.compileNeedsJSSetup() {
 		t.Fatal("reconstructed compile issues should offer JS setup")
 	}
-	if action := got.nextAction(); !strings.Contains(action, "install JS rendering") {
-		t.Fatalf("compile repair next action should offer JS setup, got %q", action)
+	if action := got.nextAction(); action != "View sources." {
+		t.Fatalf("compile repair next action should start with source review, got %q", action)
 	}
 }
 
@@ -8295,13 +8292,14 @@ func TestCompileJSSetupWarningShowsInstallAction(t *testing.T) {
 	}
 
 	view := stripANSICodesForTest(m.viewCompile())
-	for _, expected := range []string{"JS rendering needed", "Press i to install JS rendering", "Install JS rendering"} {
+	for _, expected := range []string{"JS rendering needed", "repair will install it first", "Install Playwright Chromium"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing JS setup cue %q:\n%s", expected, view)
 		}
 	}
-	if !hasHelp(m.helpForScreen().ShortHelp(), "i") {
-		t.Fatalf("compile help should offer install JS action: %#v", m.helpForScreen().ShortHelp())
+	sourcePane := m.viewCompileSourcesNext()
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
+		t.Fatalf("source review help should offer repair action: %#v", sourcePane.helpForScreen().ShortHelp())
 	}
 	if got := compileWarningRecommendation(m.compileResult.Warnings[0]); !strings.Contains(got, "Install JS rendering") {
 		t.Fatalf("expected JS setup recommendation, got %q", got)
@@ -8352,10 +8350,9 @@ func TestCompileViewKeepsFooterVisibleWithTallWarnings(t *testing.T) {
 		t.Fatalf("compile view should fit terminal height: got %d, want <= %d\n%s", got, height, view)
 	}
 	for _, expected := range []string{
-		"Press i to install JS rendering",
-		"i install JS",
-		"↑/↓ issue",
-		"… more content hidden",
+		"repair will install it first",
+		"enter view sources",
+		"r repair sources",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing %q:\n%s", expected, view)
@@ -8436,8 +8433,8 @@ func TestCompileHTTP404WarningDoesNotSuggestJSSetup(t *testing.T) {
 	if got := compileWarningRecommendation(warning); strings.Contains(got, "Install JS rendering") {
 		t.Fatalf("404 recommendation should not suggest JS setup: %q", got)
 	}
-	if got := m.nextAction(); got != "Resolve source issues before creating the Operating Layer." {
-		t.Fatalf("404 next action should explain repair controls, got %q", got)
+	if got := m.nextAction(); got != "View sources." {
+		t.Fatalf("404 next action should start source review, got %q", got)
 	}
 	fullView := stripANSICodesForTest(m.View().Content)
 	if got := strings.Count(fullView, "> Next:"); got != 1 {
@@ -10226,7 +10223,7 @@ func TestCompileResultUsesPlainSectionWithoutBox(t *testing.T) {
 
 	view := m.viewCompileResult(styles.ClampWidth(m.width - 4))
 	assertNoBoxCorners(t, view)
-	for _, expected := range []string{"Result", "compiled", "2/2 usable sources", "MIXTAPE.md"} {
+	for _, expected := range []string{"Result", "compiled", "2 usable sources", "MIXTAPE.md"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile result missing %q:\n%s", expected, view)
 		}
@@ -10249,17 +10246,8 @@ func TestCompileResultWarningsRespectNarrowWidth(t *testing.T) {
 	view := m.viewCompileResult(styles.ClampWidth(width - 4))
 	assertNoBoxCorners(t, view)
 	for _, expected := range []string{
-		"1 source issue",
-		"Issue detail",
-		"Message",
-		"Recommendation",
-		"Drop",
-		"retry compile",
-		"https://e",
-		"arning/row",
-		"The fetch",
-		"partial after several",
-		"attempts and should",
+		"compiled with warnings",
+		"1 research source needs attention",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile warning view missing %q:\n%s", expected, view)
@@ -10290,19 +10278,102 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 	if got.compileWarningIndex != 1 {
 		t.Fatalf("expected selected warning index 1, got %d", got.compileWarningIndex)
 	}
-	view := got.viewCompileResult(styles.ClampWidth(got.width - 4))
-	for _, expected := range []string{"https://example.com/second", "second failed", "Issue detail", "Recommendation"} {
+	got = got.viewCompileSourcesNext()
+	got = got.moveCompileSourceSelection(1)
+	view := got.viewCompileAllSources(styles.ClampWidth(got.width - 4))
+	for _, expected := range []string{"https://example.com/second", "second failed", "Source detail", "research source"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile warning selection view missing %q:\n%s", expected, view)
 		}
 	}
-	for _, keyName := range []string{"p", "o", "d", "r"} {
+	for _, keyName := range []string{"p", "o", "r"} {
 		if !hasHelp(got.helpForScreen().ShortHelp(), keyName) {
 			t.Fatalf("compile warning help should expose %s", keyName)
 		}
 	}
-	if hasHelp(got.helpForScreen().ShortHelp(), "enter") {
-		t.Fatalf("compile warning help should not make enter the primary action: %#v", got.helpForScreen().ShortHelp())
+	if !hasHelpDesc(got.helpForScreen().ShortHelp(), "repair sources") {
+		t.Fatalf("compile warning help should expose repair action: %#v", got.helpForScreen().ShortHelp())
+	}
+}
+
+func TestSourceEntryBackReturnsToCompileWhenOpenedFromCompile(t *testing.T) {
+	m := Model{
+		screen:      screenCompile,
+		width:       100,
+		sourceInput: textinput.New(),
+		compilePane: compilePaneSources,
+	}
+	m.startSourceEntry()
+	if m.screen != screenSources {
+		t.Fatalf("expected add sources screen, got %v", m.screen)
+	}
+
+	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+
+	if cmd != nil {
+		t.Fatal("back from source entry should not start a command")
+	}
+	if got.screen != screenCompile {
+		t.Fatalf("expected escape to return to compile, got %v", got.screen)
+	}
+	if got.compilePane != compilePaneSources {
+		t.Fatalf("expected compile pane to be preserved, got %d", got.compilePane)
+	}
+}
+
+func TestSourceReviewSaveReturnsToCompileWhenOpenedFromCompile(t *testing.T) {
+	project := t.TempDir()
+	jtbd := "Help me write portfolio case studies."
+	if err := tape.WriteProject(project, tape.Tape{
+		Title:   "Portfolio",
+		JTBD:    &jtbd,
+		Sources: []tape.Source{{Type: "web", URL: "https://example.com/original", Priority: "required"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:        screenCompile,
+		width:         120,
+		currentPath:   project,
+		currentTape:   tape.Tape{Title: "Portfolio", JTBD: &jtbd, Sources: []tape.Source{{Type: "web", URL: "https://example.com/original", Priority: "required"}}},
+		sourceInput:   textinput.New(),
+		sourceTable:   newSourceTable(100, 8),
+		clarifyArea:   newClarifyArea(64),
+		compilePane:   compilePaneSources,
+		compileResult: &core.CompileResultPayload{MixtapePath: filepath.Join(project, "MIXTAPE.md"), Summary: core.CompileSummary{Total: 1, Succeeded: 1}},
+	}
+	m.startSourceEntry()
+	m.screen = screenSourceReview
+	m.applySourceItems(source.Stage([]tape.Source{
+		{Type: "web", URL: "https://example.com/replacement", Priority: "required"},
+	}, true))
+
+	saving, cmd := m.handleSourceReviewKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if cmd == nil {
+		t.Fatal("expected save command")
+	}
+	msg := cmd()
+	saved, ok := msg.(sourceSavedMsg)
+	if !ok {
+		t.Fatalf("expected sourceSavedMsg, got %#v", msg)
+	}
+	next, _ := saving.Update(saved)
+	got := next.(Model)
+
+	if got.screen != screenCompile {
+		t.Fatalf("expected save to return to compile, got %v", got.screen)
+	}
+	if got.clarifyLoading || len(got.clarifyQuestions) > 0 {
+		t.Fatalf("saving a compile replacement should not start clarification: loading=%v questions=%d", got.clarifyLoading, len(got.clarifyQuestions))
+	}
+	if got.compilePane != compilePaneSources {
+		t.Fatalf("expected compile sources pane, got %d", got.compilePane)
+	}
+	if !strings.Contains(got.note, "Retry compile") {
+		t.Fatalf("expected retry compile note, got %q", got.note)
+	}
+	if len(got.currentTape.Sources) != 2 || got.currentTape.Sources[1].URL != "https://example.com/replacement" {
+		t.Fatalf("expected replacement source appended to tape, got %#v", got.currentTape.Sources)
 	}
 }
 
@@ -10378,47 +10449,115 @@ emit({
 	}
 
 	view := m.viewCompileResult(styles.ClampWidth(m.width - 4))
-	for _, expected := range []string{"Source evaluation", "1 custom YouTube source dropped", "working/03-evaluation.yaml", "Excluded local sources", "Retry unavailable excluded local sources with e", "1 retryable", "one11111111", "no transcript/readable body"} {
+	for _, expected := range []string{"compiled with warnings", "MIXTAPE.md is ready with 1 usable source", "Summary", "1 unavailable custom source can be retried", "Source notes", "1 custom YouTube source dropped", "working/03-evaluation.yaml"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile result should surface source evaluation issue %q:\n%s", expected, view)
 		}
 	}
-	if got := m.compileAttentionNextAction(); got != "" {
-		t.Fatalf("excluded local source retry should not replace the forward next action, got %q", got)
+	if got := m.nextAction(); got != "View sources." {
+		t.Fatalf("compile result should point to source review, got %q", got)
 	}
-	if got := m.nextAction(); got != "Corpus Ready. Create the Operating Layer, or press p to preview MIXTAPE.md." {
-		t.Fatalf("excluded local sources should leave the normal forward next action, got %q", got)
+	sourcePane, nextCmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if nextCmd != nil {
+		t.Fatal("viewing sources should not start a command")
 	}
-
-	sourcePane, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
 	if sourcePane.compilePane != compilePaneSources {
-		t.Fatalf("expected tab to switch to sources pane, got %d", sourcePane.compilePane)
+		t.Fatalf("expected enter to switch to sources pane, got %d", sourcePane.compilePane)
 	}
 	sourceView := sourcePane.viewCompile()
-	for _, expected := range []string{"View:", "Sources", "1 accepted source", "1 excluded local source", "https://example.com/kept", "one11111111", "no transcript/readable body"} {
+	for _, expected := range []string{"Sources", "1 custom source needs retry", "1 usable source", "custom source", "research source", "https://example.com/kept", "one11111111", "no transcript/readable body", "Repair sources first with r"} {
 		if !strings.Contains(sourceView, expected) {
 			t.Fatalf("compile sources pane should show %q:\n%s", expected, sourceView)
 		}
 	}
-	if !hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
-		t.Fatal("compile help should expose tab view switcher")
+	if !strings.Contains(sourceView, "rebuilds the corpus if any recover") {
+		t.Fatalf("compile sources pane should explain corpus rebuild after repair:\n%s", sourceView)
 	}
-	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry excluded") {
-		t.Fatalf("compile help should expose excluded local source retry, got %#v", sourcePane.helpForScreen().ShortHelp())
+	if strings.Contains(sourceView, "View:") {
+		t.Fatalf("compile sources pane should not show tab switcher:\n%s", sourceView)
 	}
-	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry compile") {
-		t.Fatalf("compile help should keep r as compile retry when there are no source issues, got %#v", sourcePane.helpForScreen().ShortHelp())
+	if hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
+		t.Fatal("compile help should not expose tab view switcher")
+	}
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
+		t.Fatalf("compile help should expose source repair, got %#v", sourcePane.helpForScreen().ShortHelp())
+	}
+	if got := sourcePane.nextAction(); got != "Repair sources." {
+		t.Fatalf("first source review should point to repair, got %q", got)
+	}
+
+	notSelectedProject := t.TempDir()
+	if err := source.WriteManifests(notSelectedProject, source.Stage([]tape.Source{
+		{Type: "youtube", URL: "https://www.youtube.com/watch?v=notselected1", Priority: "required"},
+	}, true)); err != nil {
+		t.Fatal(err)
+	}
+	notSelected := Model{
+		screen:      screenCompile,
+		width:       120,
+		currentPath: notSelectedProject,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "web", URL: "https://example.com/kept", Priority: "required"},
+			},
+		},
+		compilePane: compilePaneSources,
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: filepath.Join(notSelectedProject, "MIXTAPE.md"),
+			Summary:     core.CompileSummary{Total: 1, Succeeded: 1},
+		},
+	}
+	notSelectedView := notSelected.viewCompileAllSources(styles.ClampWidth(notSelected.width - 4))
+	for _, expected := range []string{"retryable", "transcript was not fetched"} {
+		if !strings.Contains(notSelectedView, expected) {
+			t.Fatalf("missing custom YouTube source should show %q:\n%s", expected, notSelectedView)
+		}
+	}
+	if got := readDroppedCustomURLSources(notSelectedProject, notSelected.currentTape); len(got) != 1 {
+		t.Fatalf("missing custom YouTube source should be retried, got %#v", got)
+	}
+
+	localReadyProject := t.TempDir()
+	recoveredPath := "local-sources/recovered/video.md"
+	recoveredCitation := "Recovered video"
+	if err := source.WriteManifests(localReadyProject, source.Stage([]tape.Source{
+		{Type: "local_file", Path: &recoveredPath, Citation: &recoveredCitation, Priority: "required"},
+	}, true)); err != nil {
+		t.Fatal(err)
+	}
+	localReady := Model{
+		screen:      screenCompile,
+		width:       120,
+		currentPath: localReadyProject,
+		currentTape: tape.Tape{
+			Title: "Launch",
+			Sources: []tape.Source{
+				{Type: "web", URL: "https://example.com/kept", Priority: "required"},
+			},
+		},
+		compilePane: compilePaneSources,
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: filepath.Join(localReadyProject, "MIXTAPE.md"),
+			Summary:     core.CompileSummary{Total: 1, Succeeded: 1},
+		},
+	}
+	localReadyView := localReady.viewCompileAllSources(styles.ClampWidth(localReady.width - 4))
+	for _, expected := range []string{"needs corpus", "recovered content needs Build Corpus", "1 recovered custom source needs Build Corpus", "1 usable source"} {
+		if !strings.Contains(localReadyView, expected) {
+			t.Fatalf("recovered local source should show %q:\n%s", expected, localReadyView)
+		}
 	}
 
 	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'e', Text: "e"}))
 	if cmd == nil {
-		t.Fatal("expected excluded local source retry command")
+		t.Fatal("expected unavailable source retry command")
 	}
 	if got.screen == screenResearch {
-		t.Fatal("excluded local source retry should not start Build Corpus")
+		t.Fatal("unavailable source retry should not start Build Corpus")
 	}
 	if !got.sourceRecoveryRunning {
-		t.Fatal("expected excluded local source retry running state")
+		t.Fatal("expected unavailable source retry running state")
 	}
 	msg := cmd()
 	recoveryMsg, ok := msg.(sourceRecoveryDoneMsg)
@@ -10434,13 +10573,13 @@ emit({
 	nextModel, _ := got.Update(recoveryMsg)
 	updated := nextModel.(Model)
 	if !updated.sourceRecoveryReview {
-		t.Fatal("excluded local source retry should stop on a review result before returning to Compile Console")
+		t.Fatal("unavailable source retry should stop on a review result before returning to Compile Console")
 	}
 	if !strings.Contains(updated.note, "Continue when ready") {
 		t.Fatalf("recovery success should prompt the user to continue, got note %q", updated.note)
 	}
 	review := stripANSICodesForTest(updated.viewCompile())
-	for _, expected := range []string{"Excluded local source retry", "1 retryable checked, 1 recovered, 0 still unavailable", "Press enter to return to Compile Console"} {
+	for _, expected := range []string{"Unavailable source retry", "1 retryable checked, 1 recovered, 0 still unavailable", "Press enter to return to Compile Console"} {
 		if !strings.Contains(review, expected) {
 			t.Fatalf("recovery review should show %q:\n%s", expected, review)
 		}
@@ -10455,6 +10594,97 @@ emit({
 	if !strings.Contains(continued.note, "Returned to Compile Console") {
 		t.Fatalf("continue should confirm return to compile console, got note %q", continued.note)
 	}
+
+	repairProject := t.TempDir()
+	if err := linerprogress.Write(repairProject, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCompile)}); err != nil {
+		t.Fatal(err)
+	}
+	repair := Model{
+		screen:                                 screenCompile,
+		width:                                  120,
+		currentPath:                            repairProject,
+		currentTape:                            tape.Tape{Title: "Launch"},
+		compileRepairAttempted:                 true,
+		compileRepairRetryCompileAfterRecovery: true,
+		sourceRecoveryRunning:                  true,
+	}
+	repairModel, _ := repair.Update(sourceRecoveryDoneMsg{result: sourceRecoveryResult{
+		Attempted: 7,
+		Succeeded: 2,
+		Failed:    5,
+	}})
+	repairUpdated := repairModel.(Model)
+	if !repairUpdated.sourceRecoveryReview || !repairUpdated.compileRepairRebuildCorpusAfterRecovery {
+		t.Fatalf("guided repair should wait for corpus rebuild confirmation: %#v", repairUpdated)
+	}
+	repairReview := stripANSICodesForTest(repairUpdated.viewCompile())
+	for _, expected := range []string{"2 recovered", "Press enter to rebuild the corpus", "so Liner can add it back"} {
+		if !strings.Contains(repairReview, expected) {
+			t.Fatalf("repair recovery review missing %q:\n%s", expected, repairReview)
+		}
+	}
+	if got := repairUpdated.nextAction(); got != "Rebuild corpus." {
+		t.Fatalf("expected rebuild corpus next action, got %q", got)
+	}
+	if !hasHelpDesc(repairUpdated.helpForScreen().ShortHelp(), "rebuild corpus") {
+		t.Fatalf("expected rebuild corpus help, got %#v", repairUpdated.helpForScreen().ShortHelp())
+	}
+	script = filepath.Join(t.TempDir(), "runner.cjs")
+	if err := os.WriteFile(script, []byte(`const value = (flag) => process.argv[process.argv.indexOf(flag) + 1] || "";
+process.stdout.write(JSON.stringify({
+  kind: "runner_start",
+  phaseId: value("--phase"),
+  agent: "codex",
+  resume: process.argv.includes("--resume")
+}) + "\n");
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LINER_HEADLESS_RUNNER", script)
+	rebuilding, rebuildCmd := repairUpdated.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if rebuildCmd == nil {
+		t.Fatal("enter should start corpus rebuild after recovered source retry")
+	}
+	if rebuilding.screen != screenResearch {
+		t.Fatalf("expected corpus rebuild screen, got %v", rebuilding.screen)
+	}
+	if step := linerprogress.Read(repairProject).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseCandidates) {
+		t.Fatalf("expected progress reset to candidates, got %d", step)
+	}
+
+	failedRepair := Model{
+		screen:                                 screenCompile,
+		width:                                  120,
+		currentPath:                            t.TempDir(),
+		currentTape:                            tape.Tape{Title: "Launch"},
+		compilePane:                            compilePaneSources,
+		compileRepairAttempted:                 true,
+		compileRepairRetryCompileAfterRecovery: true,
+		sourceRecoveryRunning:                  true,
+	}
+	failedModel, _ := failedRepair.Update(sourceRecoveryDoneMsg{result: sourceRecoveryResult{
+		Attempted: 7,
+		Succeeded: 0,
+		Failed:    7,
+	}})
+	failedUpdated := failedModel.(Model)
+	if !failedUpdated.sourceRecoveryReview || failedUpdated.compileRepairRebuildCorpusAfterRecovery {
+		t.Fatalf("failed repair should wait on review without corpus rebuild: %#v", failedUpdated)
+	}
+	failedView := stripANSICodesForTest(failedUpdated.viewCompile())
+	for _, expected := range []string{"0 recovered", "No custom sources were recovered", "Press enter to return to Sources"} {
+		if !strings.Contains(failedView, expected) {
+			t.Fatalf("failed repair review missing %q:\n%s", expected, failedView)
+		}
+	}
+	returned, returnedCmd := failedUpdated.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if returnedCmd != nil {
+		t.Fatal("returning to sources after failed repair should not start a command")
+	}
+	if returned.sourceRecoveryReview || returned.compilePane != compilePaneSources {
+		t.Fatalf("failed repair should return to sources pane, got review=%v pane=%d", returned.sourceRecoveryReview, returned.compilePane)
+	}
+
 	items := readLocalSourceManifest(project)
 	var inactiveOriginal, recoveredLocal bool
 	for _, item := range items {
@@ -10511,21 +10741,22 @@ func TestCompileHelpSeparatesExcludedLocalSourcesFromSourceIssues(t *testing.T) 
 		},
 	}
 
-	if got := m.compileAttentionNextAction(); got != "Resolve source issues before creating the Operating Layer." {
-		t.Fatalf("expected separated retry next action, got %q", got)
+	if got := m.nextAction(); got != "View sources." {
+		t.Fatalf("expected compile result to point to source review, got %q", got)
 	}
 	view := stripANSICodesForTest(m.viewCompileResult(styles.ClampWidth(m.width - 4)))
-	for _, expected := range []string{"Retry unavailable excluded local sources with e", "Retry source issues with r"} {
+	for _, expected := range []string{"compiled with warnings", "1 research source needs attention", "1 unavailable custom source can be retried"} {
 		if !strings.Contains(view, expected) {
-			t.Fatalf("compile result should show contextual retry action %q:\n%s", expected, view)
+			t.Fatalf("compile result should summarize source issue %q:\n%s", expected, view)
 		}
 	}
-	help := m.helpForScreen().ShortHelp()
-	if !hasHelpDesc(help, "retry excluded") {
-		t.Fatalf("compile help should expose excluded local source retry, got %#v", help)
+	sourcePane := m.viewCompileSourcesNext()
+	if got := sourcePane.nextAction(); got != "Repair sources." {
+		t.Fatalf("first source review should point to repair, got %q", got)
 	}
-	if !hasHelpDesc(help, "retry source issues") {
-		t.Fatalf("compile help should expose source issue retry, got %#v", help)
+	help := sourcePane.helpForScreen().ShortHelp()
+	if !hasHelpDesc(help, "repair sources") {
+		t.Fatalf("compile help should expose source repair, got %#v", help)
 	}
 }
 
@@ -10570,25 +10801,25 @@ func TestCompileSourceRecoveryRunningUsesFocusedView(t *testing.T) {
 	}
 
 	view := stripANSICodesForTest(m.viewCompile())
-	for _, expected := range []string{"Retry excluded local sources", "Build Corpus and compile are not running", "1 excluded local source", "fetching", "one11111111"} {
+	for _, expected := range []string{"Retry unavailable sources", "Build Corpus and compile are not running", "1 retryable source", "fetching", "one11111111"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("running recovery view should show %q:\n%s", expected, view)
 		}
 	}
-	for _, unexpected := range []string{"Excluded local sources", "source issues", "stale warning", "View: Issues"} {
+	for _, unexpected := range []string{"Custom sources not used", "source issues", "stale warning", "View: Issues"} {
 		if strings.Contains(view, unexpected) {
 			t.Fatalf("running recovery view should hide stale compile UI %q:\n%s", unexpected, view)
 		}
 	}
 	help := m.helpForScreen().ShortHelp()
-	if !hasHelp(help, "wait") || !hasHelpDesc(help, "excluded retry") || hasHelpDesc(help, "retry excluded") {
+	if !hasHelp(help, "wait") || !hasHelpDesc(help, "source retry") || hasHelpDesc(help, "retry unavailable") {
 		t.Fatalf("running recovery help should only expose wait state, got %#v", help)
 	}
 	got, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if cmd != nil {
 		t.Fatal("enter during source recovery should not start another action")
 	}
-	if got.err != "" || !strings.Contains(got.note, "Excluded local source retry is still running") {
+	if got.err != "" || !strings.Contains(got.note, "Unavailable source retry is still running") {
 		t.Fatalf("enter during recovery should produce wait note without error, err=%q note=%q", got.err, got.note)
 	}
 }
@@ -10614,16 +10845,28 @@ func TestFooterHelpWrapsLongCompileHelp(t *testing.T) {
 		t.Fatalf("long compile help should wrap across lines, got %q", footer)
 	}
 	assertViewLinesFit(t, footer, 40)
-	for _, expected := range []string{"tab view", "↑/↓ issue", "o open source", "? more help"} {
+	for _, expected := range []string{"↑/↓ issue", "o open source", "? more help"} {
 		if !strings.Contains(plain, expected) {
 			t.Fatalf("wrapped help should keep %q, got %q", expected, plain)
 		}
+	}
+	if strings.Contains(plain, "tab view") {
+		t.Fatalf("wrapped help should not include tab view, got %q", plain)
 	}
 }
 
 func TestCompileEnterStartsOperatingLayerAfterUsableMixtape(t *testing.T) {
 	project := t.TempDir()
-	if err := os.WriteFile(filepath.Join(project, "MIXTAPE.md"), []byte("# Ready\n"), 0o644); err != nil {
+	mixtape := strings.Join([]string{
+		"# Ready",
+		"",
+		"Compiled with a usable partial result.",
+		"",
+		"## Compilation notes",
+		"",
+		"- **https://example.com/blocked** — Failed to fetch https://example.com/blocked — category: forbidden; status: HTTP 401",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(project, "MIXTAPE.md"), []byte(mixtape), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(project, "synthesis.md"), []byte("# Synthesis\nUse the compiled evidence.\n"), 0o644); err != nil {
@@ -10633,8 +10876,9 @@ func TestCompileEnterStartsOperatingLayerAfterUsableMixtape(t *testing.T) {
 		screen:      screenCompile,
 		width:       100,
 		currentPath: project,
+		compileErr:  "Partial compile: 1/2 sources were usable. Review source issues before relying on MIXTAPE.md.",
 		compileResult: &core.CompileResultPayload{
-			Summary: core.CompileSummary{Total: 1, Succeeded: 1},
+			Summary: core.CompileSummary{Total: 2, Succeeded: 1, Failed: 1},
 		},
 	}
 
@@ -10643,15 +10887,18 @@ func TestCompileEnterStartsOperatingLayerAfterUsableMixtape(t *testing.T) {
 	if got.screen != screenLinerReview {
 		t.Fatalf("enter should start Operating Layer review, screen=%v err=%s", got.screen, got.err)
 	}
+	if got.err != "" {
+		t.Fatalf("partial compile with usable result should not block Operating Layer review, got err=%q", got.err)
+	}
 	help := m.helpForScreen().ShortHelp()
-	if !hasHelp(help, "enter") || !hasHelpDesc(help, "operating layer") {
+	if !hasHelp(help, "enter") || !hasHelpDesc(help, "create layer") {
 		t.Fatalf("compile help should expose enter as Operating Layer action, got %#v", help)
 	}
 	if !hasHelp(help, "p") {
 		t.Fatalf("compile help should keep p as preview action, got %#v", help)
 	}
-	if got := m.nextAction(); !strings.Contains(got, "Create the Operating Layer") || !strings.Contains(got, "p to preview") {
-		t.Fatalf("compile next action should point to Operating Layer and optional preview, got %q", got)
+	if got := m.nextAction(); got != "Create the Operating Layer." {
+		t.Fatalf("compile next action should point to Operating Layer, got %q", got)
 	}
 }
 
@@ -10699,7 +10946,7 @@ func TestCompileRecoveredJSFallbackWarningStillContinues(t *testing.T) {
 	if strings.Contains(view, "source issue") || strings.Contains(view, "Issue detail") {
 		t.Fatalf("recovered source should not render warning table/details, got:\n%s", view)
 	}
-	if got := m.nextAction(); !strings.Contains(got, "Corpus Ready. Create the Operating Layer") {
+	if got := m.nextAction(); got != "Create the Operating Layer." {
 		t.Fatalf("recovered source next action should point to Operating Layer, got %q", got)
 	}
 

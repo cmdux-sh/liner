@@ -1,6 +1,6 @@
 # Liner AI Handoff
 
-Last updated: 2026-06-25
+Last updated: 2026-07-02
 
 This is the short orientation document for an AI agent continuing Liner work without the full chat history. It intentionally avoids release-candidate scratch paths and old local worktrees; verify the current checkout with `pwd` and `git status --short` before editing.
 
@@ -15,7 +15,10 @@ This is the short orientation document for an AI agent continuing Liner work wit
   the tracked skill bundle at `docs/curation-skill/`. During npm packaging, it
   is copied into `packages/tui/cli-update-docs/`.
 - JS rendering support is optional. `liner setup-js` installs Playwright Chromium; the TUI offers this during onboarding and again when compile detects a source that needs browser rendering.
-- Compilation is the product completion milestone. If `MIXTAPE.md` is written with warnings, the project can still be ready to use with warnings shown.
+- Compilation is the Corpus Ready milestone. If `MIXTAPE.md` is written with
+  warnings, the project can still be ready to use after source review. Project
+  Complete means the Operating Layer has written `LINER.md`, root `SKILL.md`,
+  and `liner.yaml`.
 
 ## What Liner Is Building
 
@@ -49,6 +52,13 @@ Phase 2 searches against both the knowledge map and required source roles. Phase
 - Enter should advance the primary next action. Preview/log/retry/open actions need their own keys.
 - Long-running work should use the established loading/progress pattern and keep default logs short.
 - Warnings need a recovery route: open, drop, replace, retry, add sources, or continue with a documented limitation.
+- Compile should show a compact result summary first. Full source tables belong
+  in Sources review, with error/retryable rows bubbled to the top and usable
+  rows navigated through the table controls.
+- Custom sources are user intent. If one is missing, say the concrete reason
+  such as transcript not fetched or no readable body; repair should retry
+  unavailable custom sources and preserve recovered local content for the next
+  corpus build.
 - Letter commands must not interfere with typing.
 - Two-option setup/improvement screens should use the shared option style: active orange, inactive gray, selected description white, inactive description gray.
 - Completed compile should open the existing result by default; recompile is explicit.
@@ -88,7 +98,7 @@ Docs hygiene:
 
 ```sh
 git diff --check
-rg -n "current release v0\\.5|docs/tui/|docs/README|marketing/site|ink/|go-refactor|personal/ only" README.md docs packages/tui packages/go-tui --glob "*.md" --glob "!docs/curation-skill/AI-HANDOFF.md" --glob "!docs/project/CHANGELOG.md"
+rg -n "current release v0\\.5|GO_TERMINAL_AGENT_HANDOFF|TUI_RESULTS_HANDOFF|GO_TUI_UX_CLEANUP|LINER_PRODUCT_UNKNOWNS|TUI-BACKLOG|LINER-MD-PRD|JTBD-MASTER-PROMPT-ABOUT|marketing/site/AI-HANDOFF|go-refactor|personal/ only" README.md docs packages/tui packages/go-tui marketing/site --glob "*.md" --glob "*.mdx" --glob "!docs/curation-skill/AI-HANDOFF.md" --glob "!docs/project/CHANGELOG.md"
 ```
 
 ## Gotchas

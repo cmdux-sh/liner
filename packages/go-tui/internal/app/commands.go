@@ -100,7 +100,7 @@ func (m Model) commandItems() []list.Item {
 		items = append(items, commandItem{"Compile MIXTAPE.md", "Build MIXTAPE.md from saved sources", func(m Model) (Model, tea.Cmd) { return m.startCompile() }})
 	}
 	if hasProject && m.hasDroppedCustomSources() {
-		items = append(items, commandItem{"Retry excluded local sources", "Fetch excluded local sources without rebuilding the corpus", func(m Model) (Model, tea.Cmd) {
+		items = append(items, commandItem{"Retry unavailable sources", "Retry missing custom URL sources without rebuilding the corpus", func(m Model) (Model, tea.Cmd) {
 			return m.retryExcludedLocalSources()
 		}})
 	}

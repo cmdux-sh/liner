@@ -45,6 +45,7 @@ type excludedLocalSourceIssue struct {
 	Type       string
 	Source     string
 	Reason     string
+	NextAction string
 	OpenTarget string
 }
 
@@ -128,9 +129,17 @@ func (s evaluationIssueSummary) Display(project string) string {
 	if missingOther := s.MissingCustom - s.DroppedCustom; missingOther > 0 {
 		missingYouTubeOther := s.MissingCustomYT - s.DroppedCustomYT
 		if missingYouTubeOther > 0 {
-			parts = append(parts, intLabel(missingYouTubeOther, "custom YouTube source")+" not in tape")
+			verb := "need"
+			if missingYouTubeOther == 1 {
+				verb = "needs"
+			}
+			parts = append(parts, intLabel(missingYouTubeOther, "custom YouTube source")+" "+verb+" transcript retry")
 		} else {
-			parts = append(parts, intLabel(missingOther, "custom source")+" not in tape")
+			verb := "need"
+			if missingOther == 1 {
+				verb = "needs"
+			}
+			parts = append(parts, intLabel(missingOther, "custom source")+" "+verb+" retry")
 		}
 	}
 	if s.AcceptedIssuesYT > 0 {
@@ -226,19 +235,25 @@ func readExcludedLocalSourceIssues(project string, current tape.Tape) []excluded
 		if keySetContainsAny(acceptedKeys, keys) {
 			continue
 		}
-		status := "not in tape"
-		reason := "This saved local source was not accepted into tape.yaml."
+		status := "needs corpus"
+		reason := missingCustomSourceReason(item)
+		nextAction := "Build Corpus"
 		if issue, ok := candidateIssueForKeys(candidateIssues, keys); ok && issue.Dropped {
-			status = "dropped"
+			status = "retryable"
+			nextAction = "Repair in Compile"
 			if strings.TrimSpace(issue.Message) != "" {
 				reason = excludedSourceReason(issue.Message)
 			}
+		} else if strings.TrimSpace(item.Source.URL) != "" {
+			status = "retryable"
+			nextAction = "Repair in Compile"
 		}
 		out = append(out, excludedLocalSourceIssue{
 			Status:     status,
 			Type:       fallbackText(item.Type, item.Source.Type),
 			Source:     localSourceIssueLabel(item),
 			Reason:     reason,
+			NextAction: nextAction,
 			OpenTarget: localSourceOpenTarget(item),
 		})
 	}
@@ -271,13 +286,20 @@ func readDroppedCustomURLSources(project string, current tape.Tape) []droppedCus
 			continue
 		}
 		issue, ok := candidateIssueForKeys(candidateIssues, keys)
-		if !ok || !issue.Dropped {
-			continue
+		reason := missingCustomSourceReason(item)
+		if ok && issue.Dropped {
+			reason = excludedSourceReason(issue.Message)
+		} else {
+			issue = candidateIssue{
+				Unavailable: true,
+				YouTube:     isYouTubeSource(item.Source),
+				Message:     reason,
+			}
 		}
 		out = append(out, droppedCustomSource{
 			Item:   item,
 			Issue:  issue,
-			Reason: excludedSourceReason(issue.Message),
+			Reason: reason,
 		})
 	}
 	return out
@@ -340,6 +362,19 @@ func excludedSourceReason(value string) string {
 		return "fetch failed"
 	default:
 		return fallbackText(value, "not accepted into tape.yaml")
+	}
+}
+
+func missingCustomSourceReason(item sourcepkg.StagedSource) string {
+	switch strings.ToLower(strings.TrimSpace(item.Source.Type)) {
+	case "youtube":
+		return "transcript was not fetched"
+	case "web":
+		return "source was not fetched"
+	case "local_file":
+		return "recovered content needs Build Corpus"
+	default:
+		return "custom source missing from tape"
 	}
 }
 

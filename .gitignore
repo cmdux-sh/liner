@@ -15,6 +15,8 @@ uv.lock
 
 # Node / TUI build artifacts
 node_modules/
+packages/tui/bin/liner-tui
+packages/tui/bin/liner-tui.exe
 
 # Generated npm platform binary packages (large PyInstaller outputs).
 packages/platform/
@@ -34,9 +36,8 @@ process.json
 # Local-only build tarballs from `npm pack` (not source).
 *.tgz
 
-# Skill bundle copied into the TUI package at prepack time. The source of
-# truth is /docs/skill/ at the repo root; the copy is for npm-publish
-# layout only.
+# Skill bundle copied into the TUI package at prepack time. The tracked source
+# of truth is docs/curation-skill/; this copy is for npm-publish layout only.
 packages/tui/cli-update-docs/
 
 # Worktrees (workspace state, not source)

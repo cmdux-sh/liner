@@ -105,7 +105,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		if key.Matches(keyMsg, bindings.Quit) {
 			return m, tea.Quit
 		}
-		m.note = "Excluded local source retry is still running. Wait for the retry result."
+		m.note = "Unavailable source retry is still running. Wait for the retry result."
 		m.err = ""
 		return m, nil
 	}
@@ -116,7 +116,13 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		if key.Matches(keyMsg, bindings.Next) || keyMsg.String() == "enter" {
 			return m.continueFromCompile()
 		}
-		m.note = "Press enter to return to Compile Console."
+		if m.compileRepairRebuildCorpusAfterRecovery {
+			m.note = "Press enter to rebuild the corpus."
+		} else if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
+			m.note = "Press enter to return to Sources."
+		} else {
+			m.note = "Press enter to return to Compile Console."
+		}
 		m.err = ""
 		return m, nil
 	}
@@ -389,8 +395,6 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	if m.screen == screenCompile {
 		switch keyMsg.String() {
-		case "tab":
-			return m.toggleCompilePane(), nil
 		case "enter":
 			return m.continueFromCompile()
 		case "up", "k":
@@ -418,7 +422,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		case "e":
 			return m.retryExcludedLocalSources()
 		case "r":
-			return m.retryCompileOrSourceEvaluation()
+			return m.repairCompileSources()
 		case "p":
 			return m.previewCompiledMixtape()
 		case "v":
@@ -531,8 +535,7 @@ func (m Model) handleSourceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	case key.Matches(keyMsg, bindings.Quit):
 		return m, tea.Quit
 	case key.Matches(keyMsg, bindings.Back):
-		m.screen = screenProject
-		return m, nil
+		return m.returnFromSourceEntry(), nil
 	case sourceEntryHasListFocus(m) && key.Matches(keyMsg, bindings.Toggle):
 		index := clampSourceCursor(m.sourceTable.Cursor(), len(m.sourceItems))
 		m.sourceItems[index].Active = !m.sourceItems[index].Active
@@ -573,6 +576,12 @@ func (m Model) handleSourceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(m.sourceItems) == 0 {
+			if m.sourceEntryReturnsToCompile() {
+				m = m.returnFromSourceEntry()
+				m.note = "No sources added. Returned to Compile Console."
+				m.err = ""
+				return m, nil
+			}
 			m.note = ""
 			return m.startClarificationFlow()
 		}
@@ -652,7 +661,10 @@ func (m Model) handleSourceReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			m.err = "No active sources selected. Reactivate one or add more."
 			return m, nil
 		}
-		m.note = "Saving active sources and preparing clarification."
+		m.note = "Saving active sources."
+		if !m.sourceEntryReturnsToCompile() {
+			m.note = "Saving active sources and preparing clarification."
+		}
 		return m, saveActiveSources(m.currentPath, m.sourceItems)
 	case key.Matches(keyMsg, bindings.OpenReview):
 		if !m.canOpenLocalSources() {
@@ -1040,7 +1052,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 		if m.hasPendingAssemblyDraft() {
 			next.SetHelp("enter", "review draft")
 		} else if m.isProjectComplete() {
-			showNext = false
+			next.SetHelp("enter", "LINER.md")
 		} else if m.projectCompileNeedsAttention() {
 			next.SetHelp("enter", "review compile")
 		} else if m.hasCorpusReady() {
@@ -1241,7 +1253,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 		}
 	case screenCompile:
 		if m.sourceRecoveryRunning {
-			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("wait", "excluded retry"))
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("wait", "source retry"))
 			return screenHelp{
 				short: []key.Binding{wait, helpKey},
 				full:  [][]key.Binding{{wait, bindings.Quit, helpKey}},
@@ -1249,18 +1261,30 @@ func (m Model) baseHelpForScreen() screenHelp {
 		}
 		if m.sourceRecoveryReview {
 			next := bindings.Next
-			next.SetHelp("enter", "continue")
+			if m.compileRepairRebuildCorpusAfterRecovery {
+				next.SetHelp("enter", "rebuild corpus")
+			} else if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
+				next.SetHelp("enter", "view sources")
+			} else {
+				next.SetHelp("enter", "continue")
+			}
 			return screenHelp{
 				short: []key.Binding{next, helpKey},
 				full:  [][]key.Binding{{next, bindings.Quit, helpKey}},
 			}
 		}
 		next := bindings.Next
-		next.SetHelp("enter", "operating layer")
+		switch {
+		case m.compilePane == compilePaneIssues && m.compileHasUsableResult() && m.compileHasSourceReviewItems():
+			next.SetHelp("enter", "view sources")
+		case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
+			next.SetHelp("enter", "repair")
+		default:
+			next.SetHelp("enter", "create layer")
+		}
 		addSources := bindings.AddSources
 		addSources.SetHelp("a", "add sources")
 		logs := key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "logs"))
-		switchView := key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "view"))
 		openSource := key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open source"))
 		dropSource := key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "drop source"))
 		installJS := key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "install JS"))
@@ -1269,71 +1293,56 @@ func (m Model) baseHelpForScreen() screenHelp {
 			warningScroll.SetHelp("↑/↓", "source")
 		}
 		retry := bindings.Retry
-		if m.actionableCompileWarningCount() > 0 {
-			retry.SetHelp("r", "retry source issues")
+		if m.compileHasRepairableSources() {
+			retry.SetHelp("r", "repair sources")
 		} else {
 			retry.SetHelp("r", "retry compile")
 		}
-		retryExcluded := key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "retry excluded"))
-		addExcludedRetry := func(row []key.Binding) []key.Binding {
-			if !m.compileHasDroppedCustomSourceIssues() {
-				return row
-			}
-			out := make([]key.Binding, 0, len(row)+1)
-			inserted := false
-			for _, binding := range row {
-				if !inserted && binding.Help().Key == retry.Help().Key {
-					out = append(out, retryExcluded)
-					inserted = true
-				}
-				out = append(out, binding)
-			}
-			return out
-		}
 		previewKey := bindings.Preview
-		short := []key.Binding{switchView, retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
-		full := [][]key.Binding{{switchView, retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+		short := []key.Binding{retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
+		full := [][]key.Binding{{retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 		if m.compileHasUsableResult() {
-			short = []key.Binding{switchView, next, previewKey, retry, bindings.Copy, addSources, bindings.Back, helpKey}
-			full = [][]key.Binding{{switchView, next, previewKey, retry, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+			short = []key.Binding{next, previewKey, retry, bindings.Copy, addSources, bindings.Back, helpKey}
+			full = [][]key.Binding{{next, previewKey, retry, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 		}
 		if len(m.compileLines) > 0 {
-			short = []key.Binding{switchView, retry, bindings.Preview, logs, bindings.Copy, bindings.Back, helpKey}
-			full = [][]key.Binding{{switchView, retry, bindings.Preview, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+			short = []key.Binding{retry, bindings.Preview, logs, bindings.Copy, bindings.Back, helpKey}
+			full = [][]key.Binding{{retry, bindings.Preview, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 			if m.compileHasUsableResult() {
-				short = []key.Binding{switchView, next, previewKey, retry, logs, bindings.Copy, bindings.Back, helpKey}
-				full = [][]key.Binding{{switchView, next, previewKey, retry, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
+				short = []key.Binding{next, previewKey, retry, logs, bindings.Copy, bindings.Back, helpKey}
+				full = [][]key.Binding{{next, previewKey, retry, logs, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
 			}
 		}
 		if m.compileResult != nil && m.actionableCompileWarningCount() > 0 {
-			warningsBlockNext := !m.compileHasUsableResult() || m.compileHasBlockingWarnings()
-			warningFirstRow := []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry}
-			short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry, bindings.Back, helpKey}
+			warningsBlockNext := !m.compileHasUsableResult()
+			warningFirstRow := []key.Binding{next, warningScroll, openSource, previewKey, retry}
+			short = []key.Binding{next, warningScroll, openSource, previewKey, retry, bindings.Back, helpKey}
 			if warningsBlockNext {
-				short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
-				warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry}
+				short = []key.Binding{warningScroll, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
+				warningFirstRow = []key.Binding{warningScroll, openSource, dropSource, addSources, previewKey, retry}
 				if m.compileNeedsJSSetup() && !m.jsSetupRunning {
-					short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
-					warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry}
+					short = []key.Binding{warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, bindings.Back, helpKey}
+					warningFirstRow = []key.Binding{warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry}
 				}
 			}
 			if len(m.compileLines) > 0 {
-				short = []key.Binding{switchView, next, warningScroll, openSource, previewKey, retry, logs, bindings.Back, helpKey}
+				short = []key.Binding{next, warningScroll, openSource, previewKey, retry, logs, bindings.Back, helpKey}
 				warningFirstRow = append(warningFirstRow, logs)
 				if warningsBlockNext {
-					short = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
-					warningFirstRow = []key.Binding{switchView, warningScroll, openSource, dropSource, addSources, previewKey, retry, logs}
+					short = []key.Binding{warningScroll, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
+					warningFirstRow = []key.Binding{warningScroll, openSource, dropSource, addSources, previewKey, retry, logs}
 					if m.compileNeedsJSSetup() && !m.jsSetupRunning {
-						short = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
-						warningFirstRow = []key.Binding{switchView, warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs}
+						short = []key.Binding{warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs, bindings.Back, helpKey}
+						warningFirstRow = []key.Binding{warningScroll, installJS, openSource, dropSource, addSources, previewKey, retry, logs}
 					}
 				}
 			}
 			full = [][]key.Binding{warningFirstRow, {dropSource, addSources, bindings.Copy, bindings.Back, bindings.Quit, helpKey}}
 		}
-		short = addExcludedRetry(short)
-		for index := range full {
-			full[index] = addExcludedRetry(full[index])
+		short = insertHelpBinding(short, addSources, bindings.Back)
+		if len(full) > 0 {
+			last := len(full) - 1
+			full[last] = insertHelpBinding(full[last], addSources, bindings.Back)
 		}
 		return screenHelp{
 			short: short,

@@ -25,6 +25,7 @@ type EvaluationValidationOptions = {
 type AssemblyValidationOptions = {
   currentTapePath?: string;
   evaluationPath?: string;
+  sourceManifestPath?: string;
 };
 
 export function validatePhaseArtifact(
@@ -48,6 +49,7 @@ export function validatePhaseArtifact(
       return validateAssemblyDraft(join(project, "working/07-tape-draft.yaml"), {
         currentTapePath: join(project, "tape.yaml"),
         evaluationPath: join(project, "working/03-evaluation.yaml"),
+        sourceManifestPath: join(project, "local-sources/sources-manifest.yaml"),
       });
     default:
       return { ok: true };
@@ -273,8 +275,15 @@ export function validateAssemblyDraft(
     const preservation = validateExistingCustomSources(draftSources, options.currentTapePath);
     if (!preservation.ok) return preservation;
   }
+  const activeManifestKeys = options.sourceManifestPath
+    ? activeManifestSourceKeys(options.sourceManifestPath)
+    : new Set<string>();
+  if (options.sourceManifestPath) {
+    const preservation = validateActiveManifestSources(draftSources, options.sourceManifestPath);
+    if (!preservation.ok) return preservation;
+  }
   if (options.evaluationPath) {
-    const evidence = validateDraftSourcesAgainstEvaluation(draftSources, options.evaluationPath);
+    const evidence = validateDraftSourcesAgainstEvaluation(draftSources, options.evaluationPath, activeManifestKeys);
     if (!evidence.ok) return evidence;
   }
 
@@ -327,6 +336,7 @@ function validateEvidenceFields(
 function validateDraftSourcesAgainstEvaluation(
   draftSources: Record<string, unknown>[],
   evaluationPath: string,
+  protectedSourceKeys: Set<string> = new Set(),
 ): ArtifactValidationResult {
   const parsed = parseYaml(evaluationPath, "evaluation");
   if (!parsed.ok) return parsed;
@@ -351,6 +361,8 @@ function validateDraftSourcesAgainstEvaluation(
     const type = stringField(source, "type") || "web";
     if (type !== "web" && type !== "youtube") continue;
     const url = stringField(source, "url");
+    const key = customSourceKey(source);
+    if (key && protectedSourceKeys.has(key)) continue;
     const candidate = byUrl.get(normalizeCandidateUrl(url));
     if (!candidate) {
       return {
@@ -370,6 +382,58 @@ function validateDraftSourcesAgainstEvaluation(
   }
 
   return { ok: true };
+}
+
+function validateActiveManifestSources(
+  draftSources: Record<string, unknown>[],
+  sourceManifestPath: string,
+): ArtifactValidationResult {
+  const manifest = activeManifestSources(sourceManifestPath);
+  if (manifest.length === 0) return { ok: true };
+
+  const draftKeys = new Set(
+    draftSources
+      .map(customSourceKey)
+      .filter((key): key is string => key !== null),
+  );
+  const missing = manifest.filter((source) => {
+    const key = customSourceKey(source);
+    return key !== null && !draftKeys.has(key);
+  });
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      message: `working/07-tape-draft.yaml dropped active custom source: ${customSourceLabel(missing[0]!)}`,
+    };
+  }
+
+  return { ok: true };
+}
+
+function activeManifestSourceKeys(sourceManifestPath: string): Set<string> {
+  return new Set(
+    activeManifestSources(sourceManifestPath)
+      .map(customSourceKey)
+      .filter((key): key is string => key !== null),
+  );
+}
+
+function activeManifestSources(sourceManifestPath: string): Record<string, unknown>[] {
+  if (!existsSync(sourceManifestPath)) return [];
+  const parsed = parseYaml(sourceManifestPath, "source manifest");
+  if (!parsed.ok || !isRecord(parsed.value)) return [];
+  const items = parsed.value["sources"];
+  if (!Array.isArray(items)) return [];
+
+  const sources: Record<string, unknown>[] = [];
+  for (const item of items) {
+    if (!isRecord(item)) continue;
+    if (item["active"] === false) continue;
+    const source = item["source"];
+    if (isRecord(source)) sources.push(source);
+  }
+  return sources;
 }
 
 function validateExistingCustomSources(
@@ -419,6 +483,11 @@ function validateExistingCustomSources(
 
 function customSourceKey(source: Record<string, unknown>): string | null {
   const type = stringField(source, "type");
+  if (type === "web" || type === "youtube") {
+    const url = stringField(source, "url");
+    if (!url) return null;
+    return `${type}|${normalizeCandidateUrl(url)}`;
+  }
   if (type === "local_file") {
     const sourcePath = stringField(source, "path");
     if (!sourcePath) return null;

@@ -140,8 +140,9 @@ describe("buildPhasePrompt", () => {
 
     expect(prompt).toContain("web | youtube | local_file | skill");
     expect(prompt).toContain("Preserve every existing `local_file` and `skill` source");
+    expect(prompt).toContain("Preserve every `active: true` source from `local-sources/sources-manifest.yaml`");
     expect(prompt).toContain("Do not silently convert `local_file` or `skill` sources into `web` sources");
-    expect(prompt).toContain("Include them only when they already exist in tape.yaml");
+    expect(prompt).toContain("Include them only when they already exist in tape.yaml or as active entries");
     expect(prompt).toContain("fetch_status: readable|partial");
     expect(prompt).toContain("content_quality: high|medium");
     expect(prompt).toContain("stop and repair `working/03-evaluation.yaml`");

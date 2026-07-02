@@ -102,7 +102,7 @@ func (m Model) primaryProjectAction() (Model, tea.Cmd) {
 		return m.startCompileReviewFromArtifacts()
 	}
 	if m.isProjectComplete() {
-		return m, nil
+		return m.openPreview("LINER.md")
 	}
 	if m.hasCorpusReady() {
 		return m.startLinerDraftReview()
@@ -777,7 +777,7 @@ func (m Model) projectPrimaryLabel() string {
 	case m.projectCompileNeedsAttention():
 		return "Review compile issues"
 	case m.isProjectComplete():
-		return "Project complete"
+		return "Open LINER.md"
 	case m.hasCorpusReady():
 		return "Create Operating Layer"
 	case m.needsClarificationBeforeMethodology():

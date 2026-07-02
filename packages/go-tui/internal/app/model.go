@@ -140,26 +140,32 @@ type Model struct {
 	boardIndex                int
 	clarifySpin               spinner.Model
 
-	compileEvents         <-chan core.CompileEvent
-	compileDone           <-chan error
-	compileLines          []string
-	compileSpin           spinner.Model
-	compileBar            progress.Model
-	compiling             bool
-	compileTotal          int
-	compileDoneN          int
-	compileFailed         int
-	compileResult         *core.CompileResultPayload
-	compileWarningIndex   int
-	compilePane           int
-	compileSourceIndex    int
-	compileErr            string
-	compileRows           []compileSourceRow
-	sourceRecovery        *sourceRecoveryResult
-	sourceRecoveryError   string
-	sourceRecoveryRunning bool
-	sourceRecoveryReview  bool
-	improvementCursor     int
+	compileEvents                           <-chan core.CompileEvent
+	compileDone                             <-chan error
+	compileLines                            []string
+	compileSpin                             spinner.Model
+	compileBar                              progress.Model
+	compiling                               bool
+	compileTotal                            int
+	compileDoneN                            int
+	compileFailed                           int
+	compileResult                           *core.CompileResultPayload
+	compileWarningIndex                     int
+	compilePane                             int
+	compileSourceIndex                      int
+	compileSourcesReviewed                  bool
+	compileRepairAttempted                  bool
+	compileRepairRetryCompileAfterRecovery  bool
+	compileRepairRebuildCorpusAfterRecovery bool
+	compileErr                              string
+	compileRows                             []compileSourceRow
+	sourceEntryReturnScreen                 screen
+	sourceEntryReturnSet                    bool
+	sourceRecovery                          *sourceRecoveryResult
+	sourceRecoveryError                     string
+	sourceRecoveryRunning                   bool
+	sourceRecoveryReview                    bool
+	improvementCursor                       int
 
 	operatingLayerRunning   bool
 	operatingLayerComplete  bool
