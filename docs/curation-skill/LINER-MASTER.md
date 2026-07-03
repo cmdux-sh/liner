@@ -390,9 +390,22 @@ Validation:
 python3 scripts/validate-platform-package.py --pack-dry-run
 ```
 
-The GitHub workflow `.github/workflows/platform-bundles.yml` builds platform
-package artifacts on manual dispatch. Publish manually only after all platform
-artifacts and the clean consumer release smoke pass.
+The GitHub workflow `.github/workflows/platform-bundles.yml` builds one package
+artifact at a time from the public `cmdux-sh/liner` repo. The default release
+path is:
+
+```sh
+scripts/release-tarballs.sh --version <version>
+```
+
+The helper verifies the requested version against `packages/tui/package.json`,
+`packages/tui/package-lock.json`, `pyproject.toml`, and
+`src/liner/__init__.py`, confirms the public branch is pushed, confirms the
+version is not already published on npm, downloads all six tarballs into a
+local `release-tarballs-<version>` folder, deletes the GitHub artifacts, writes
+checksums, and writes `PUBLISH-COMMANDS.md`. Give Arturo that generated command
+block verbatim and publish the five platform packages before the main
+`linersh` package.
 
 ### The Skill Bundle
 

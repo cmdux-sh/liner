@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.2
+
 - **Refined Compile Console source repair.** Compile now opens with a compact
   result summary and sends users to `View sources` for the navigable source
   table. Sources with errors, retryable custom sources, and recovered content
@@ -21,6 +23,13 @@
 - **Aligned Project Complete with its primary action.** `Next` now opens
   `LINER.md` when the project is complete, so Enter no longer lands on a
   no-op management state.
+- **Locked the npm tarball release process.** Release packaging now has a
+  version-gated helper that builds each public GitHub Actions tarball, saves
+  them into a local `release-tarballs-<version>` folder, writes checksums, and
+  produces the exact platform-first npm publish command block for Arturo.
+  Release testing now includes a hard-reset external-user smoke path that
+  removes global installs, npx caches, Liner state, and Playwright Chromium
+  before running `npx linersh@<version>` cleanly.
 
 ## 1.0.0
 

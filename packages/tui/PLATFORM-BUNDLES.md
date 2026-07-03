@@ -79,7 +79,22 @@ The workflow `.github/workflows/platform-bundles.yml` is intended to run from
 the public `cmdux-sh/liner` repository. It builds one selected target at a time
 so the release can stay under GitHub Free artifact storage limits.
 
-Manual trigger examples:
+Use the release helper from the public repo root:
+
+```sh
+VERSION=1.0.2
+scripts/release-tarballs.sh --version "$VERSION"
+```
+
+The helper verifies that the local version files match the requested release
+version, confirms the public branch is pushed and aligned with its upstream,
+checks that none of the release packages already exists on npm for that version,
+triggers the one-target workflow for all six targets, downloads each artifact
+into `/Users/arturo/Documents/Projects/Liner Public/release-tarballs-<version>/`,
+deletes the GitHub Actions artifact after download, writes `SHA256SUMS.txt`, and
+writes `PUBLISH-COMMANDS.md` with the exact commands Arturo should run.
+
+Manual trigger examples, for fallback only:
 
 ```sh
 gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh-darwin-arm64
@@ -87,9 +102,10 @@ gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=
 gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh
 ```
 
-Download each artifact immediately, delete it from GitHub Actions, then run the
-next target. Publish manually only after all five platform package tarballs and
-the main `linersh` tarball have been downloaded and inspected.
+If the fallback path is used, download each artifact immediately, delete it from
+GitHub Actions, then run the next target. Publish manually only after all five
+platform package tarballs and the main `linersh` tarball have been downloaded
+and inspected.
 
 ## Automated Publish
 
