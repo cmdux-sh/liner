@@ -1562,19 +1562,21 @@ func renderExcludedLocalSourceHint(issues []excludedLocalSourceIssue) string {
 func (m Model) viewCompileJSSetup(width int) string {
 	status := "JS rendering needed"
 	detail := "Install Playwright Chromium, then retry this compile."
-	percent := 0.35
 	if m.jsSetupRunning {
 		status = "Installing JS rendering"
 		detail = "Downloading Playwright Chromium. First run can take a few minutes."
-		percent = jsSetupProgressPercent(m.fxFrame)
 	}
 	action := "Press i to install JS rendering. If setup succeeds, Liner retries this compile automatically."
 	if m.jsSetupRunning {
 		action = "Wait for setup to finish. If it succeeds, Liner retries this compile automatically."
 	}
+	statusBlock := renderProgressStatusBlock(width, m.compileBar, 0.35, status, detail, "browser setup")
+	if m.jsSetupRunning {
+		statusBlock = renderWaitStatusBlock(width, status, detail, "browser setup in progress")
+	}
 	lines := []string{
 		styles.ReportSection.Render("JS rendering"),
-		renderProgressStatusBlock(width, m.compileBar, percent, status, detail, "browser setup"),
+		statusBlock,
 		styles.Subtitle.Render(action),
 	}
 	return strings.Join(lines, "\n")

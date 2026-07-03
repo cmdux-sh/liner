@@ -8209,7 +8209,7 @@ func TestOnboardingJSSetupViewExplainsDownloadAndSkip(t *testing.T) {
 	}
 }
 
-func TestOnboardingJSSetupRunningShowsMovingInstallState(t *testing.T) {
+func TestOnboardingJSSetupRunningShowsWaitStateWithoutProgressBar(t *testing.T) {
 	m := Model{
 		screen:         screenOnboarding,
 		width:          118,
@@ -8226,7 +8226,7 @@ func TestOnboardingJSSetupRunningShowsMovingInstallState(t *testing.T) {
 	for _, expected := range []string{
 		"Installing",
 		"Downloading Playwright Chromium. First run can take a few minutes.",
-		"browser setup",
+		"browser setup in progress",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("running JS setup view missing %q:\n%s", expected, view)
@@ -8244,11 +8244,8 @@ func TestOnboardingJSSetupRunningShowsMovingInstallState(t *testing.T) {
 		strings.Contains(rawView, styles.MutedText.Render("Skip")) {
 		t.Fatalf("running JS setup view should hide the option selector:\n%s", rawView)
 	}
-
-	m.fxFrame = 10
-	nextView := m.viewOnboarding()
-	if rawView == nextView {
-		t.Fatalf("running JS setup view should animate across frames:\n%s", rawView)
+	if strings.Contains(rawView, "━") || strings.Contains(rawView, "─") {
+		t.Fatalf("running JS setup view should not show a fake progress bar:\n%s", rawView)
 	}
 	help := m.helpForScreen().ShortHelp()
 	if hasHelp(help, "↑/↓") || hasHelp(help, "enter") {
@@ -8256,21 +8253,6 @@ func TestOnboardingJSSetupRunningShowsMovingInstallState(t *testing.T) {
 	}
 	if got := m.nextAction(); got != "Setup complete when JS rendering setup finishes." {
 		t.Fatalf("unexpected running JS setup next action: %q", got)
-	}
-}
-
-func TestJSSetupProgressPercentAnimatesWithinBounds(t *testing.T) {
-	for _, frame := range []int{-5, 0, 1, 12, 35, 36, 72} {
-		got := jsSetupProgressPercent(frame)
-		if got < 0.20 || got > 0.75 {
-			t.Fatalf("frame %d progress out of expected bounds: %.3f", frame, got)
-		}
-	}
-	if jsSetupProgressPercent(0) == jsSetupProgressPercent(1) {
-		t.Fatal("JS setup progress should move between adjacent frames")
-	}
-	if jsSetupProgressPercent(0) != jsSetupProgressPercent(36) {
-		t.Fatal("JS setup progress should loop predictably")
 	}
 }
 
@@ -8387,10 +8369,13 @@ func TestCompileJSSetupRunningShowsWaitState(t *testing.T) {
 	rawView := m.viewCompile()
 	assertTitleLineHasLoader(t, rawView, "Compile Console")
 	view := stripANSICodesForTest(rawView)
-	for _, expected := range []string{"Installing JS rendering", "Wait for setup to finish", "browser setup"} {
+	for _, expected := range []string{"Installing JS rendering", "Wait for setup to finish", "browser setup in progress"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("running compile JS setup view missing %q:\n%s", expected, view)
 		}
+	}
+	if strings.Contains(rawView, "━") || strings.Contains(rawView, "─") {
+		t.Fatalf("running compile JS setup view should not show a fake progress bar:\n%s", rawView)
 	}
 	if strings.Contains(view, "Press i to install JS rendering") {
 		t.Fatalf("running compile JS setup view should not advertise install action:\n%s", view)

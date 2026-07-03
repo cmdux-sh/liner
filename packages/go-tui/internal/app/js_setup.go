@@ -14,14 +14,6 @@ func setupJS(r core.Runner) tea.Cmd {
 	}
 }
 
-func jsSetupProgressPercent(frame int) float64 {
-	if frame < 0 {
-		frame = 0
-	}
-	step := frame % 36
-	return 0.22 + (float64(step) * 0.015)
-}
-
 func compileWarningNeedsJSSetup(warning core.CompileWarningPayload) bool {
 	return compileMessageNeedsJSSetup(warning.Message)
 }

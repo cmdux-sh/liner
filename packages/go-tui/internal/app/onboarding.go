@@ -117,7 +117,7 @@ func (m Model) viewOnboardingJS() string {
 		styles.PrimaryText.Render(copy),
 	}
 	if m.jsSetupRunning {
-		parts = append(parts, "", renderProgressStatusBlock(width, m.compileBar, jsSetupProgressPercent(m.fxFrame), "Installing", "Downloading Playwright Chromium. First run can take a few minutes.", "browser setup"))
+		parts = append(parts, "", renderWaitStatusBlock(width, "Installing", "Downloading Playwright Chromium. First run can take a few minutes.", "browser setup in progress"))
 		return lipgloss.JoinVertical(lipgloss.Left, parts...)
 	}
 	if m.settings.JSSetupCompleted {

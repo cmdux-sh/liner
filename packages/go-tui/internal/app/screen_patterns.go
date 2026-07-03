@@ -137,6 +137,21 @@ func renderProgressStatusBlock(width int, bar progress.Model, percent float64, s
 	)
 }
 
+func renderWaitStatusBlock(width int, status string, detail string, count string) string {
+	if strings.TrimSpace(status) == "" {
+		status = "Working"
+	}
+	statusLine := styles.ReportSection.Render(status)
+	if strings.TrimSpace(detail) != "" {
+		statusLine += "  " + styles.NextActionText.Render(detail)
+	}
+	lines := []string{statusLine}
+	if strings.TrimSpace(count) != "" {
+		lines = append(lines, styles.Subtitle.Render(count))
+	}
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
 func newTaskProgressBar(width int) progress.Model {
 	return progress.New(
 		progress.WithWidth(width),
