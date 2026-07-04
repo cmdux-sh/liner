@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Removed fake JS setup progress bars.** First-run JS rendering setup and
+  Compile's Playwright Chromium install state now use an indeterminate loader
+  with wait text instead of a looping progress bar. The install can still take a
+  few minutes, but the UI no longer implies measurable progress that moves
+  backward.
+
 ## 1.0.2
 
 - **Refined Compile Console source repair.** Compile now opens with a compact
