@@ -29,24 +29,16 @@
 - **Aligned Project Complete with its primary action.** `Next` now opens
   `LINER.md` when the project is complete, so Enter no longer lands on a
   no-op management state.
-- **Locked the npm tarball release process.** Release packaging now has a
-  version-gated helper that builds each public GitHub Actions tarball, saves
-  them into a local `release-tarballs-<version>` folder, writes checksums, and
-  produces the exact platform-first npm publish command block for Arturo.
-  Release testing now includes a hard-reset external-user smoke path that
-  removes global installs, npx caches, Liner state, and Playwright Chromium
-  before running `npx linersh@<version>` cleanly.
 
 ## 1.0.0
 
 - **Ships the Go TUI as the default Liner interface.** Running `liner` or
   `npx linersh` opens the Charm-based Go TUI for creating, opening, and
   managing local Liner Projects.
-- **Packages the TUI and CLI through one npm install command.** The main
-  `linersh` package provides the `liner` shim, TypeScript methodology runner,
-  and bundled curation docs. The matching optional platform package provides
-  both native binaries: `liner` for CLI subcommands and `liner-tui` for the Go
-  interface.
+- **Installs through one npm command.** `npx linersh` or
+  `npm install -g linersh` installs the terminal app and the matching local
+  binaries for the user's platform, so normal use does not require a Python
+  setup.
 - **Creates the Operating Layer for completed projects.** After the corpus is
   ready, Liner writes `LINER.md`, root `SKILL.md`, and `liner.yaml` so future
   AI sessions know how to use the project, what evidence to trust, and where
@@ -54,10 +46,9 @@
 - **Tightens corpus-to-method generation.** Operating Layer output now promotes
   corpus synthesis, quality checks, source roles, and capability patterns into
   executable project behavior instead of leaving generic source-use rules.
-- **Keeps release packaging auditable.** `npm run acceptance:go -- release-smoke`
-  now packs a local platform package plus the main package, installs both into
-  a clean consumer project, and verifies that the installed shim launches the
-  platform-provided Go TUI binary.
+- **Keeps clean installs testable.** The installed package can be checked from
+  a temporary home directory and project folder, which makes it easier to prove
+  a fresh `npx linersh` run opens the same Go TUI a regular user receives.
 
 ## 0.5.7
 
@@ -91,10 +82,9 @@
 
 ## 0.5.5
 
-- **Ships matching 0.5.5 platform binaries.** The Python core is now versioned
-  0.5.5 and the npm TUI pins all five optional platform packages to
-  `linersh-*@0.5.5`, so the web extraction fixes below reach clean `npx
-  linersh` installs on macOS, Linux, and Windows x64.
+- **Ships the web extraction fixes to clean npm installs.** Fresh
+  `npx linersh` runs on macOS, Linux, and Windows x64 receive the source
+  fetching improvements below.
 - **Fixed done-screen scrolling.** The final response now has an internal
   scroll viewport in the terminal alternate screen. In the default done view,
   use ↑/↓ or pgup/pgdn to scroll the green final-response box; inspect mode
@@ -124,9 +114,9 @@
 - **Added first-run JS-rendering onboarding.** Fresh installs now get an
   optional setup screen explaining Playwright/Chromium support right after the
   agent/model setup flow, with install and skip paths.
-- **Added `liner uninstall`.** The npm shim can now remove local Liner state,
-  Playwright's Chromium cache, and npm's `_npx` execution cache for clean
-  reinstall testing.
+- **Added `liner uninstall`.** The installed command can now remove local
+  Liner state, Playwright's Chromium cache, and npm's `_npx` execution cache
+  for clean reinstall testing.
 
 ## 0.5.4
 
@@ -135,15 +125,13 @@
   the skill directory or at `SKILL.md`, and shows the checked paths when the
   bundle still cannot be found. This fixes the Phase 2 "Couldn't find the
   curating-mixtapes skill bundle" failure seen after `npx linersh`.
-- **Prepared Windows optional dependency wiring.** `linersh@0.5.4` declares
-  `linersh-win32-x64@0.5.0` alongside the existing macOS/Linux platform
-  packages. Publish the Windows platform package before publishing the main
-  package so Windows installs receive the bundled CLI binary.
+- **Prepared Windows x64 installs.** Windows support was added alongside the
+  existing macOS and Linux install paths so Windows users can receive the
+  bundled CLI binary through npm.
 - **Marketing landing page polish.** The Astro marketing site has a refreshed
   hero, copyable `npx linersh` install CTA, version-consistent `0.5.3`
   labeling, Liner logo treatment, WebGL resize fix, continuous marquees,
-  tightened mobile behavior, and a marketing-site handoff document that was
-  later archived outside Git.
+  and tightened mobile behavior.
 - **Per-phase model selection.** The two heaviest phases — candidate discovery
   and evaluation, ~65% of a cycle's tokens — now run on a cheaper model by
   default (Sonnet for Claude, `gpt-5-mini` for Codex). Framing, quality,
@@ -174,13 +162,12 @@ Version-reporting fix + version-pin cleanup.
 
 - **`liner --version` now reports the TUI/npm version**, not just the bundled
   Python core. It used to forward straight to the core and print e.g.
-  `liner 0.5.0` regardless of which package you installed — confusing when
-  verifying a publish. Now prints `liner <tui> (tui)  ·  <core> (core)` (and
+  `liner 0.5.0` regardless of which package you installed. Now prints
+  `liner <tui> (tui)  ·  <core> (core)` (and
   just the TUI version when the core isn't resolvable).
 - **Single source of truth for the version.** The header chip and the boot
   splash now read the version from `package.json` at runtime instead of
-  separately-edited string constants. (The splash had silently sat at `0.5.0`
-  through the entire 0.5.2 cycle.) Only `package.json` needs bumping on release.
+  separately edited string constants.
 
 ## 0.5.2
 
@@ -242,13 +229,14 @@ First broad bug-fix + polish pass after the initial public release.
 
 ## 0.5.0 — first public release
 
-TUI npm bundle release. This is the package path for publishing the interactive TUI with a bundled per-platform Liner core.
+First public npm release of the interactive terminal UI.
 
-- `linersh` npm package now declares per-platform optional CLI packages (`linersh-darwin-arm64`, `linersh-darwin-x64`, `linersh-linux-arm64`, `linersh-linux-x64`, `linersh-win32-x64`) so the TUI can find the bundled core on clean machines.
-- The npm `liner` shim now opens the TUI when run with no arguments and forwards CLI subcommands (`setup-js`, `compile`, `share`, `status`, etc.) to the bundled core.
-- Added publish guards: `prepack` builds `dist/`, and `prepublishOnly` runs typecheck, tests, and build before publish.
-- Bumped the TUI package/version labels to `0.5.0`.
-- Updated npm/TUI docs to describe the bundled CLI and `liner setup-js` path for JavaScript rendering.
+- `npx linersh` now opens the TUI on clean machines.
+- Running `liner` with no arguments opens the TUI after a global install.
+- CLI subcommands such as `setup-js`, `compile`, `share`, and `status` continue
+  to work from the installed command.
+- The install docs now describe the bundled CLI and `liner setup-js` path for
+  JavaScript-rendered sources.
 
 ## 0.3.0 — unreleased
 
