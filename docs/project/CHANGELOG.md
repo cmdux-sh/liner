@@ -244,7 +244,9 @@ First public npm release of the interactive terminal UI.
 
 - New source type `local_file` for content the curator has on disk (PDF, Markdown, text, HTML). Required fields: `path` (must resolve under the project's new `personal/` subdirectory) and `citation`. Max 10MB per file.
 - New `render` field on `web` sources. Default `server` (existing behavior); `js` opts into Playwright-backed rendering for JavaScript-only sites.
-- New optional dependency group `linersh[js]` — installs Playwright + Chromium for `render: js`. The default `pipx install linersh` stays lean (~30MB); `pipx install 'linersh[js]'` adds ~150MB.
+- JavaScript-rendered sources can use Playwright + Chromium for `render: js`.
+  The default install stays lean; browser-backed extraction adds the Chromium
+  download only when the user opts into JS rendering.
 - `pdfplumber` added to core dependencies for PDF extraction.
 - New `liner share --no-personal` flag. `personal/` is included in exports by default; library submissions must pass `--no-personal` and use only public sources.
 - `share` prints a soft warning when the tape contains `local_file` sources, noting the result isn't library-eligible.
