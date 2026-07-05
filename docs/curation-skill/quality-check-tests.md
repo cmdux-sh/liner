@@ -90,8 +90,6 @@ If yes, keep the better one and cut the other. Volume is not a virtue. Five exce
 
 Redundancy is different from coverage. Two sources covering the same topic from different angles or with different evidence is coverage, not redundancy. The test is whether the AI would generate meaningfully different output with both vs. with only one. If not, redundant.
 
-> TODO: Insert a worked example from the Cowork synthesis where two sources were collapsed because of redundancy. The Van Slyck talk appearing in transcripts 02 and 03 is a known case — same talk uploaded twice. Show how the redundancy was named and resolved.
-
 ---
 
 ## Test 2 — The coverage test
@@ -107,8 +105,6 @@ A mixtape that silently omits a major area is worse than one that says explicitl
 
 If a section has sources but they're all rated 2 or 3, that's a weak-coverage signal — the section is technically populated but the sources aren't load-bearing. Either find stronger sources or note the weakness.
 
-> TODO: Insert a worked example. If the Cowork synthesis had a section that needed reinforcement after first-pass evaluation, show the coverage check that surfaced it and how the gap was addressed.
-
 ---
 
 ## Test 3 — The disagreement test
@@ -122,8 +118,6 @@ A corpus where every source agrees teaches the AI no nuance. The AI then can't s
 If the topic is genuinely uncontested — the W3C HTML spec, for example, isn't really contested in the way a design philosophy might be — that's fine, and the working notes should say so. The test isn't "manufacture disagreement"; it's "if disagreement exists, surface it; if it doesn't, document why."
 
 **The test in action:** identify the strongest claim in the corpus. Search for "[claim] critique" or "[claim] is wrong" or "alternative to [claim]." If you find a credible critique you haven't included, you've found your dissenting source. Add it.
-
-> TODO: Insert a worked example from CLI/TUI research. The corpus probably had a contested-question moment — possibly around whether CLIs should follow Unix conventions strictly vs. break them deliberately, or around accessibility being assumed-by-default vs. explicitly designed-for. Surface the actual disagreement and how it was handled.
 
 ---
 
@@ -188,8 +182,6 @@ This format is checked by the TUI: a quality-checks file without a "Perspectives
 The earlier loose version of this test failed quietly in practice. A real session keeping one designer source whose content was never fetched produced a corpus the curator described as "engineering-heavy, one designer voice unverified" — and the quality-check still passed because "1 source ≥ 1 = covered." Naming perspectives in advance and refusing to count unverified sources is what makes the test do work instead of legitimize tokenism.
 
 If the framing gap is real, accept the cost of going back. Phase 2 is cheap relative to shipping a mixtape with a hole in it.
-
-> TODO: Insert the canonical worked example from the Cowork synthesis. OpenClaw's initial 50-source list was anchored in "CLI/TUI implementation" framing and missed "the entire wizard/form-design tradition (Form Design Patterns, NN/g articles, Tidwell, Cooper)." Cowork ran the framing-gap test, named the missing tradition, added 43 net-new sources, and reframed the corpus. This is the textbook framing-gap-test rescue. Pull the specific moment the gap was identified and the specific sources added.
 
 ---
 
@@ -430,8 +422,6 @@ user_can_add:
   - Concrete custom source the user could add if web research stays thin.
 skip_note: What remains weaker if the user skips for now.
 ```
-
-> TODO: Insert a sample `working/04-quality-checks.md` from the Cowork synthesis. The full structure with each test, the finding, and the resulting action is the most useful worked example in this file.
 
 ---
 

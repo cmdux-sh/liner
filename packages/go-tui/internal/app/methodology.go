@@ -259,17 +259,17 @@ func (m Model) retrySourceEvaluation() (Model, tea.Cmd) {
 	}
 	m.stopMethodology("")
 	corpusPath := projectCorpusPath(m.currentPath)
-	index, ok := methodologyIndexForProgressPhase(linerprogress.PhaseCandidates)
+	index, ok := methodologyIndexForProgressPhase(linerprogress.PhaseEvaluation)
 	if !ok {
-		m.err = "Candidate discovery phase is not available."
+		m.err = "Source evaluation phase is not available."
 		return m, nil
 	}
-	if err := linerprogress.Write(corpusPath, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCandidates)}); err != nil {
+	if err := linerprogress.Write(corpusPath, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseEvaluation)}); err != nil {
 		m.err = "Could not reset source evaluation progress: " + err.Error()
 		return m, nil
 	}
 	m.err = ""
-	m.note = "Retrying source evaluation."
+	m.note = "Refreshing source evaluation."
 	m.screen = screenResearch
 	m.researchDone = false
 	m.methodologyFailed = false
@@ -280,8 +280,8 @@ func (m Model) retrySourceEvaluation() (Model, tea.Cmd) {
 	m.researchStep = index
 	m.methodologyPhaseIndex = index
 	m.researchLines = []string{
-		"Retrying source evaluation.",
-		"Queued Candidate discovery through Assembly.",
+		"Refreshing source evaluation.",
+		"Queued Evaluation through Assembly. Framing and Candidate discovery are not rerunning.",
 	}
 	m.ensureBoardItems()
 	m.syncMethodologyLog(true)

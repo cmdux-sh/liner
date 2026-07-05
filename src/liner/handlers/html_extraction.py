@@ -38,6 +38,9 @@ BOT_CHALLENGE_PATTERNS = (
     "please verify you are a human",  # PerimeterX / hCaptcha
     "press and hold",  # PerimeterX press-and-hold
     "/_px/",  # PerimeterX asset path
+    "vercel security checkpoint",  # Vercel bot mitigation
+    "we're verifying your browser",  # Vercel challenge copy
+    "website owner? click here to fix",  # Vercel challenge footer
 )
 
 # Signals that an HTML response is only the application shell for a client-side

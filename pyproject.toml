@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linersh"
-version = "1.0.2"
+version = "1.0.3"
 description = "Liner — compile curated bundles of sources (YouTube + web) into AI-consumable mixtapes."
 readme = "README.md"
 license = { text = "MIT" }

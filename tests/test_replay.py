@@ -24,6 +24,7 @@ import yaml
 from typer.testing import CliRunner
 
 from liner.cli import app
+from liner.project import ProjectFolder
 
 runner = CliRunner()
 
@@ -70,13 +71,13 @@ def test_replay_clones_inputs_into_default_destination(tmp_path: Path) -> None:
 
     dest = tmp_path / "original-replay"
     assert dest.exists(), "default destination should be <source>-replay"
-    tape = _load(dest / "tape.yaml")
+    tape = _load(ProjectFolder(dest).tape_path)
 
     # Curator-facing inputs cloned.
     assert tape["jtbd"] == "Write good CLI prose."
     assert tape["mode"] == "quick"
     assert tape["curator"] == "tester"
-    # Parent is recorded so replayed outputs can be compared later.
+    # Parent is recorded so Phase 8 can run a comparison test.
     assert tape["parent"] == str(src.resolve())
     # Sources reset — the replay regenerates the pipeline from scratch.
     assert tape["sources"] == []
@@ -95,7 +96,7 @@ def test_replay_carries_jtbd_clarifications(tmp_path: Path) -> None:
     result = runner.invoke(app, ["replay", str(src)])
     assert result.exit_code == 0, result.stdout
 
-    dest_tape = _load(tmp_path / "src-replay" / "tape.yaml")
+    dest_tape = _load(ProjectFolder(tmp_path / "src-replay").tape_path)
     clars = dest_tape.get("jtbd_clarifications")
     assert isinstance(clars, list) and len(clars) == 2
     assert clars[0]["answer"] == "Equally."
@@ -109,7 +110,7 @@ def test_replay_honors_explicit_out(tmp_path: Path) -> None:
     result = runner.invoke(app, ["replay", str(src), "--out", str(out)])
     assert result.exit_code == 0, result.stdout
     assert out.exists()
-    assert (out / "tape.yaml").exists()
+    assert ProjectFolder(out).tape_path.exists()
 
 
 def test_replay_refuses_existing_destination_without_force(tmp_path: Path) -> None:
@@ -137,7 +138,7 @@ def test_replay_force_overwrites_destination(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.stdout
     # New tape replaces the old one.
-    tape = _load(dest / "tape.yaml")
+    tape = _load(ProjectFolder(dest).tape_path)
     assert tape["jtbd"] == "Write good CLI prose."
 
 
@@ -153,13 +154,14 @@ def test_replay_does_not_copy_synthesis_or_working(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.stdout
 
     dest = tmp_path / "src-replay"
-    syn = (dest / "synthesis.md").read_text(encoding="utf-8")
+    dest_project = ProjectFolder(dest)
+    syn = dest_project.synthesis_path.read_text(encoding="utf-8")
     assert "Specific text only present in the source" not in syn
 
     # Working artifacts from the source must not appear in the destination.
     src_working_file = src / "working" / "01-jtbd-and-knowledge-map.md"
     src_content = src_working_file.read_text(encoding="utf-8")
-    dest_working_file = dest / "working" / "01-jtbd-and-knowledge-map.md"
+    dest_working_file = dest_project.working_dir / "01-jtbd-and-knowledge-map.md"
     if dest_working_file.exists():
         # Scaffolding may produce a placeholder file; it must be a placeholder,
         # not a copy of the source's content.

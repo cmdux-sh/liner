@@ -803,33 +803,36 @@ func writeProjectSkillFile(project string, current tape.Tape) (string, string, e
 	}
 	mixtapePath := displayProjectPath(project, "MIXTAPE.md")
 	sourcesPath := strings.TrimSuffix(displayProjectPath(project, "sources"), "/")
-	description := fallbackText(current.Description, "Use this Liner project's corpus.")
 	contract := readOperatingCorpusContract(project)
 	var b strings.Builder
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "name: %s\n", name)
-	fmt.Fprintf(&b, "description: %s\n", yamlSingleQuotedScalar(fmt.Sprintf("Use the %s Liner project. %s", fallbackText(current.Title, name), description)))
+	fmt.Fprintf(&b, "description: %s\n", yamlSingleQuotedScalar(projectSkillDescription(current, name)))
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", name)
 	b.WriteString("## Use When\n\n")
-	b.WriteString("Use this Project Skill when an AI agent needs this Liner project's sources for its job:\n\n")
+	b.WriteString("Use this Project Skill only when the request matches this Liner project's job:\n\n")
 	fmt.Fprintf(&b, "> %s\n\n", jtbd)
+	b.WriteString("If the request is adjacent but not covered by the corpus, say what is missing before proceeding.\n\n")
 	b.WriteString("## Source Grounding\n\n")
+	b.WriteString("- Treat this `SKILL.md` as the entrypoint; `LINER.md` is the single source of truth for detailed operating rules.\n")
 	b.WriteString("- Load `LINER.md` first.\n")
 	fmt.Fprintf(&b, "- Load `%s` before making source-backed claims.\n", mixtapePath)
 	fmt.Fprintf(&b, "- Treat source files under `%s/` as deeper evidence when an answer depends on detail.\n\n", sourcesPath)
 	writeSkillCorpusMethod(&b, contract)
-	if projectSkillProfileFor(current).Full {
-		b.WriteString("## Behavior\n\n")
-		b.WriteString("1. Restate the user's request in the language of this Liner project.\n")
-		b.WriteString("2. Identify the relevant corpus stance, source section, or boundary.\n")
-		b.WriteString("3. Produce the smallest useful answer, critique, plan, or question grounded in that evidence.\n")
-		b.WriteString("4. Name missing evidence when the corpus cannot support a strong answer.\n\n")
-	}
+	b.WriteString("## Process\n\n")
+	b.WriteString("1. Orient: decide whether the request belongs inside this project's job.\n")
+	b.WriteString("2. Retrieve: read `LINER.md`, then `MIXTAPE.md`; open source files only when the answer needs source-level detail.\n")
+	b.WriteString("3. Apply: turn the corpus stance into the answer, critique, plan, or question the user needs.\n")
+	b.WriteString("4. Check: finish only when you can name the supporting stance, source section, source file, or evidence gap.\n\n")
+	b.WriteString("## Completion Criteria\n\n")
+	b.WriteString("- For source-backed answers, name the corpus stance, rule, source section, or source file that supports the claim.\n")
+	b.WriteString("- For unsupported requests, name the missing evidence instead of filling the gap from general knowledge.\n")
+	b.WriteString("- For project-file changes, draft under `working/` unless the user explicitly asks to edit production files.\n\n")
 	b.WriteString("## Boundaries\n\n")
 	b.WriteString("- Use this Project Skill only for this Liner project's job and sources.\n")
 	b.WriteString("- Do not override `LINER.md`, source hierarchy, conflict rules, or abstention rules.\n")
-	b.WriteString("- Draft changes under `working/` and require review before changing project files.\n")
+	b.WriteString("- Do not duplicate detailed operating rules here; update `LINER.md` when the method changes.\n")
 	body := b.String()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		return "", "", err
@@ -838,6 +841,21 @@ func writeProjectSkillFile(project string, current tape.Tape) (string, string, e
 	_ = os.Remove(legacyPath)
 	_ = os.Remove(filepath.Dir(legacyPath))
 	return name, relPath, nil
+}
+
+func projectSkillDescription(current tape.Tape, name string) string {
+	title := fallbackText(current.Title, name)
+	trigger := ""
+	if current.JTBD != nil && strings.TrimSpace(*current.JTBD) != "" {
+		trigger = strings.TrimSpace(*current.JTBD)
+	} else if strings.TrimSpace(current.Description) != "" {
+		trigger = strings.TrimSpace(current.Description)
+	}
+	trigger = strings.Join(strings.Fields(trigger), " ")
+	if trigger == "" {
+		return fmt.Sprintf("Use for %s Liner work. Load LINER.md first; answer from this corpus or name the evidence gap.", title)
+	}
+	return fmt.Sprintf("Use for %s Liner work: %s. Load LINER.md first; answer from this corpus or name the evidence gap.", title, trimTrailingPeriod(trigger))
 }
 
 func writeSkillCorpusMethod(b *strings.Builder, contract operatingCorpusContract) {

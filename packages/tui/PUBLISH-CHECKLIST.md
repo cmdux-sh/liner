@@ -40,7 +40,7 @@ machine. Each platform package contains both native binaries:
 4. Generate tarballs from the public repo with the release helper:
 
    ```sh
-   VERSION=1.0.2
+   VERSION=1.0.3
    scripts/release-tarballs.sh --version "$VERSION"
    ```
 
@@ -109,7 +109,7 @@ npm cache clean --force
 After the reset, test as an external user with an explicit version:
 
 ```sh
-VERSION=1.0.2
+VERSION=1.0.3
 tmp=$(mktemp -d)
 home="$tmp/home"
 cache="$tmp/npm-cache"

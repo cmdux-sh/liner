@@ -27,7 +27,7 @@ def test_pack_default_includes_personal(tmp_path: Path) -> None:
     result = pack(ProjectFolder(path))
     with zipfile.ZipFile(result.archive_path) as zf:
         names = set(zf.namelist())
-    assert "topic/personal/note.md" in names
+    assert "topic/mixtape/personal/note.md" in names
 
 
 def test_pack_no_personal_excludes_personal(tmp_path: Path) -> None:
@@ -39,8 +39,8 @@ def test_pack_no_personal_excludes_personal(tmp_path: Path) -> None:
     )
     with zipfile.ZipFile(result.archive_path) as zf:
         names = set(zf.namelist())
-    assert not any(n.startswith("topic/personal/") for n in names)
-    assert "topic/tape.yaml" in names
+    assert not any(n.startswith("topic/mixtape/personal/") for n in names)
+    assert "topic/mixtape/tape.yaml" in names
 
 
 def test_pack_and_unpack_personal_roundtrip(tmp_path: Path) -> None:
@@ -62,11 +62,12 @@ def test_pack_default_includes_everything(tmp_path: Path) -> None:
     assert result.archive_path.name == "topic.mixtape"
     with zipfile.ZipFile(result.archive_path) as zf:
         names = set(zf.namelist())
-    assert "topic/tape.yaml" in names
-    assert "topic/synthesis.md" in names
-    assert "topic/MIXTAPE.md" in names
-    assert any(n.startswith("topic/sources/") for n in names)
-    assert any(n.startswith("topic/working/") for n in names)
+    assert "topic/liner.yaml" in names
+    assert "topic/mixtape/tape.yaml" in names
+    assert "topic/mixtape/synthesis.md" in names
+    assert "topic/mixtape/MIXTAPE.md" in names
+    assert any(n.startswith("topic/mixtape/sources/") for n in names)
+    assert any(n.startswith("topic/mixtape/working/") for n in names)
 
 
 def test_pack_minimal_only_includes_tape(tmp_path: Path) -> None:
@@ -75,7 +76,7 @@ def test_pack_minimal_only_includes_tape(tmp_path: Path) -> None:
     result = pack(ProjectFolder(path), options=ShareOptions(minimal=True))
     with zipfile.ZipFile(result.archive_path) as zf:
         names = set(zf.namelist())
-    assert names == {"topic/tape.yaml"}
+    assert names == {"topic/mixtape/tape.yaml"}
 
 
 def test_pack_excludes_working_and_sources_via_flags(tmp_path: Path) -> None:
@@ -87,9 +88,9 @@ def test_pack_excludes_working_and_sources_via_flags(tmp_path: Path) -> None:
     )
     with zipfile.ZipFile(result.archive_path) as zf:
         names = set(zf.namelist())
-    assert not any(n.startswith("topic/sources/") for n in names)
-    assert not any(n.startswith("topic/working/") for n in names)
-    assert "topic/tape.yaml" in names
+    assert not any(n.startswith("topic/mixtape/sources/") for n in names)
+    assert not any(n.startswith("topic/mixtape/working/") for n in names)
+    assert "topic/mixtape/tape.yaml" in names
 
 
 def test_pack_then_unpack_roundtrip(tmp_path: Path) -> None:

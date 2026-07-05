@@ -134,9 +134,13 @@ If the synthesis names source numbers ("Source 1 argues..."), it's probably synt
 
 ## Worked examples
 
-> TODO: Insert two worked synthesis excerpts from the Cowork CLI/TUI synthesis. The full Cowork document is the longest worked example available — pull the opening framing paragraphs as one example, and a contested-question or distinction paragraph as another.
+Good synthesis shape:
 
-> TODO: Insert one example of synthesis-as-recap (bad) for contrast. Either invent one against the CLI/TUI material or pull an earlier draft if one exists. The bad example should make the difference between "describing sources" and "framing a domain" obvious at a glance.
+> This corpus treats onboarding as a trust-building sequence, not as a checklist. The useful question is not "which screens does the user see?" but "what does each step prove before asking for the next commitment?" Sources disagree on how much explanation belongs up front, but they converge on one rule: every prompt should reduce uncertainty before it increases work.
+
+Bad synthesis-as-recap shape:
+
+> Source 1 explains onboarding screens. Source 2 covers empty states. Source 3 discusses progressive disclosure. Together, these sources show that onboarding is important.
 
 ---
 

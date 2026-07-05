@@ -258,7 +258,7 @@ def test_js_required_auto_falls_back_to_web_js(tmp_path: Path) -> None:
     assert result.total_succeeded == 1
     assert "rendered via playwright" in (result.sources[0].content.body or "")
     # The fallback emits a notice as a warning so the curator sees what happened.
-    assert any("auto-fell back to render: js" in w.message for w in result.warnings)
+    assert any("Recovered this source with JS rendering" in w.message for w in result.warnings)
 
 
 def test_js_required_without_web_js_handler_surfaces_setup_hint(tmp_path: Path) -> None:

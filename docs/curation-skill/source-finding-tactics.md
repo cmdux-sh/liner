@@ -16,8 +16,6 @@ This tactic is the single highest-leverage move for discovering primary document
 
 **How to apply:** Open the most credible source you have. Scan the references, footnotes, or "further reading" section. Note every source that's cited *and* recurs in another credible source's references. Recurrence across multiple credible sources is the signal — it's how you find the references nobody links anymore.
 
-> TODO: Insert worked example from the Cowork CLI/TUI synthesis. Look for a moment in the research where citation-chasing surfaced a canonical source that didn't show up in any initial keyword search. Form Design Patterns by Adam Silver is a candidate — it's cited across multiple Phase 1 sources but didn't surface from "CLI wizard design" searches.
-
 ---
 
 ## 2. Reverse-engineer experts' reading lists
@@ -29,8 +27,6 @@ Many domain experts publish their own reading lists or syllabi. These already en
 Are.na deserves a specific note: it's a network designed for visual and textual reference-collecting. Practitioners use it to curate the kind of sources that don't make it into mainstream publications. Constrain a search with "site:are.na <topic>" and look for channels related to your JTBD.
 
 **How to apply:** Find three to five experts in the domain. Search each one's name plus "reading list" or "syllabus" or "references." Catalog what they recommend. Cross-reference with the candidates already on your long-list — overlaps are strong signal; uniques are leads.
-
-> TODO: Insert worked example from the Cowork CLI/TUI synthesis. Look for a tactical mention of an expert reading list that surfaced relevant work. If none exists, this section can use an example from a different domain — the methodology generalizes.
 
 ---
 
@@ -49,8 +45,6 @@ University courses, bootcamp curricula, and serious online courses have already 
 
 Course syllabi skew toward foundations. They're best for the early-section knowledge-map buckets. Recent practitioner work is rarely on them.
 
-> TODO: Insert worked example. If no syllabus surfaced in the CLI/TUI research, note this and use a hypothetical that's specific enough to be useful.
-
 ---
 
 ## 4. Find who experts cite
@@ -61,8 +55,6 @@ This tactic is structurally similar to citation-chasing (#1), but starts from pe
 
 **How to apply:** Identify three to five practitioners credible in the domain. Open their most recent significant work. Note the sources they cite. Open the sources cited by two or more practitioners. Those are your high-priority candidates.
 
-> TODO: Insert worked example from CLI/TUI research. Carolyn Van Slyck, Aanand Prasad (clig.dev), Will McGugan (Textualize), and Amanda Pinsker (GitHub CLI) are candidates whose citation patterns could be traced.
-
 ---
 
 ## 5. Conference proceedings
@@ -72,8 +64,6 @@ Going through three years of a specific conference is more efficient than topic-
 **How to apply:** Identify one or two conferences serious in the domain. Open their proceedings, talk lists, or YouTube channels for the last three years. Skim titles and abstracts. Flag any talk whose abstract addresses a knowledge-map section.
 
 Conference talks vary widely in density. The same talk reposted across multiple conferences is one signal of substance. Talks from speakers who are also cited by other practitioners (tactic #4) are another.
-
-> TODO: Insert worked example. The CLI/TUI corpus has multiple Van Slyck talks across GopherCon and other venues — a real example of how conference-proceeding mining surfaced both her work and what to keep when the same talk appears at multiple conferences.
 
 ---
 
@@ -86,8 +76,6 @@ AI is bad at recall — at remembering and surfacing sources you don't know abou
 **How to apply:** Show the candidate list (titles and one-line rationales) along with the JTBD and knowledge map. Ask explicitly: "What perspective is missing? What discipline is underrepresented? What kind of source is this list short on?" Then go find sources to fill the gaps named.
 
 This tactic is structurally related to the framing-gap test in Phase 5, but earlier and lower-stakes. Doing it in Phase 2 is cheaper than discovering the gap in Phase 5 and having to backtrack.
-
-> TODO: Insert worked example from the Cowork synthesis. The Cowork run discovered that OpenClaw's initial 50-source list missed "the entire wizard/form-design tradition (Form Design Patterns, NN/g articles, Tidwell, Cooper)" — this is the canonical example of gap-finding working. Pull the specific moment where the gap was named and how it changed the candidate pool.
 
 ---
 

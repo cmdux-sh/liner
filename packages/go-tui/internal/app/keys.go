@@ -117,7 +117,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m.continueFromCompile()
 		}
 		if m.compileRepairRebuildCorpusAfterRecovery {
-			m.note = "Press enter to rebuild the corpus."
+			m.note = "Press enter to refresh source evaluation."
 		} else if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
 			m.note = "Press enter to return to Sources."
 		} else {
@@ -1262,7 +1262,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 		if m.sourceRecoveryReview {
 			next := bindings.Next
 			if m.compileRepairRebuildCorpusAfterRecovery {
-				next.SetHelp("enter", "rebuild corpus")
+				next.SetHelp("enter", "refresh eval")
 			} else if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
 				next.SetHelp("enter", "view sources")
 			} else {
@@ -1338,6 +1338,12 @@ func (m Model) baseHelpForScreen() screenHelp {
 				}
 			}
 			full = [][]key.Binding{warningFirstRow, {dropSource, addSources, bindings.Copy, bindings.Back, bindings.Quit, helpKey}}
+		}
+		if m.compileNeedsJSSetup() && !m.jsSetupRunning {
+			short = insertHelpBinding(short, installJS, openSource)
+			if len(full) > 0 {
+				full[0] = insertHelpBinding(full[0], installJS, openSource)
+			}
 		}
 		short = insertHelpBinding(short, addSources, bindings.Back)
 		if len(full) > 0 {

@@ -40,6 +40,11 @@ process.json
 # of truth is docs/curation-skill/; this copy is for npm-publish layout only.
 packages/tui/cli-update-docs/
 
+# Local-only documents kept outside this repo (handoffs, planning,
+# old PRDs). Path is for documentation; the directory lives outside
+# the repo so this rule is just a safety net.
+liner-private-docs/
+
 # Worktrees (workspace state, not source)
 .claude/worktrees/
 .vercel

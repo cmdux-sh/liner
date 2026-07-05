@@ -17,7 +17,7 @@ def _spec(path: str, citation: str = "Test citation") -> SourceSpec:
 def _setup_project(tmp_path: Path) -> tuple[Path, LocalFileHandler]:
     project = init_project(tmp_path / "p")
     project.personal_dir.mkdir(parents=True, exist_ok=True)
-    return project.path, LocalFileHandler(project)
+    return project.corpus_path, LocalFileHandler(project)
 
 
 def test_md_file_extraction(tmp_path: Path) -> None:
@@ -36,6 +36,14 @@ def test_txt_file_extraction(tmp_path: Path) -> None:
     (path / "personal" / "n.txt").write_text("plain text content", encoding="utf-8")
     content = handler.fetch(_spec("personal/n.txt"))
     assert content.body == "plain text content"
+
+
+def test_local_sources_inbox_file_extraction(tmp_path: Path) -> None:
+    path, handler = _setup_project(tmp_path)
+    (path / "local-sources").mkdir(parents=True, exist_ok=True)
+    (path / "local-sources" / "n.txt").write_text("inbox content", encoding="utf-8")
+    content = handler.fetch(_spec("local-sources/n.txt"))
+    assert content.body == "inbox content"
 
 
 def test_html_file_extraction(tmp_path: Path) -> None:

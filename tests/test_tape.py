@@ -159,6 +159,25 @@ sources:
     assert exc.value.field_path == "sources[0].path"
 
 
+def test_local_file_path_may_use_local_sources_inbox(tmp_path: Path) -> None:
+    p = tmp_path / "t.yaml"
+    p.write_text(
+        """title: T
+description: d
+version: 1
+curator: c
+
+sources:
+  - type: local_file
+    path: local-sources/example.md
+    citation: "Example note"
+""",
+        encoding="utf-8",
+    )
+    tape = load_tape(p)
+    assert tape.sources[0].path == "local-sources/example.md"
+
+
 def test_local_file_absolute_path_rejected(tmp_path: Path) -> None:
     p = tmp_path / "t.yaml"
     p.write_text(
@@ -256,6 +275,63 @@ sources:
     with pytest.raises(TapeValidationError) as exc:
         load_tape(p)
     assert exc.value.field_path == "sources[0].render"
+
+
+def test_skill_source_path_accepted(tmp_path: Path) -> None:
+    p = tmp_path / "t.yaml"
+    p.write_text(
+        """title: T
+description: d
+version: 1
+curator: c
+
+sources:
+  - type: skill
+    path: terminal-ui
+    note: "Extract terminal interaction guidance."
+""",
+        encoding="utf-8",
+    )
+    tape = load_tape(p)
+    assert tape.sources[0].type == "skill"
+    assert tape.sources[0].path == "terminal-ui"
+
+
+def test_skill_source_github_url_accepted(tmp_path: Path) -> None:
+    p = tmp_path / "t.yaml"
+    p.write_text(
+        """title: T
+description: d
+version: 1
+curator: c
+
+sources:
+  - type: skill
+    url: https://github.com/user/repo/tree/main/skills/writing
+""",
+        encoding="utf-8",
+    )
+    tape = load_tape(p)
+    assert tape.sources[0].url == "https://github.com/user/repo/tree/main/skills/writing"
+
+
+def test_skill_source_requires_path_or_url(tmp_path: Path) -> None:
+    p = tmp_path / "t.yaml"
+    p.write_text(
+        """title: T
+description: d
+version: 1
+curator: c
+
+sources:
+  - type: skill
+    note: "x"
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(TapeValidationError) as exc:
+        load_tape(p)
+    assert exc.value.field_path == "sources[0].path"
 
 
 def test_url_source_with_path_rejected(tmp_path: Path) -> None:

@@ -49,7 +49,7 @@ Every mixtape moves through the same phases regardless of mode. Quick mode runs 
 5. **Quality checks** — redundancy, coverage, disagreement, framing-gap, source-kind, and source-role tests
 6. **Synthesis** — AI drafts the synthesis; curator may edit (synthesis is required, not optional)
 7. **Final assembly** — `liner compile` writes `mixtape/MIXTAPE.md` and populates `mixtape/sources/` in v2 projects
-8. **Empirical test** (optional but recommended) — compile, paste into AI conversation, compare with/without
+8. **Empirical test** (optional methodology validation) — compile, paste into AI conversation, compare with/without. This is not a driven TUI phase.
 
 Three natural human-in-the-loop gates: framing confirmation before source search, candidate confirmation before fetching (saves wasted network calls), and evaluation review before synthesis (catches the AI's misjudgments). Quick mode can auto-accept gates while preserving progress state; methodology mode pauses for real review.
 
@@ -176,7 +176,7 @@ The design:
 - No comments, ratings, or community voting in v1
 - A passive popularity signal may be shown but does not drive default sorting
 
-This feature is not part of the initial Liner release. It will be built only if there's evidence of demand from real users of the v1 tools and library. In the meantime, the `/mixtapes` route on the website serves as a placeholder with an interest signup.
+This feature is not part of the initial Liner release. It will be built only if there's evidence of demand from real users of the v1 tools and planned library.
 
 ---
 

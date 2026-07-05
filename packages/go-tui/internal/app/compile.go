@@ -627,7 +627,7 @@ func (m Model) compileSourceEvaluationSummary() (evaluationIssueSummary, bool) {
 
 func (m Model) compileHasRetryableSourceEvaluationIssues() bool {
 	summary, ok := m.compileSourceEvaluationSummary()
-	return ok && (summary.DroppedCustom > 0 || summary.MissingCustom > 0 || summary.AcceptedIssues > 0)
+	return ok && summary.NeedsSourceReview()
 }
 
 func (m Model) compileHasDroppedCustomSourceIssues() bool {
@@ -638,7 +638,7 @@ func (m Model) compileHasSourceReviewItems() bool {
 	if m.actionableCompileWarningCount() > 0 {
 		return true
 	}
-	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.HasIssues() {
+	if summary, ok := m.compileSourceEvaluationSummary(); ok && summary.NeedsSourceReview() {
 		return true
 	}
 	return false
@@ -656,7 +656,7 @@ func (m Model) compileNextActionLabel() string {
 		return "Wait for unavailable source retry to finish."
 	case m.sourceRecoveryReview:
 		if m.compileRepairRebuildCorpusAfterRecovery {
-			return "Rebuild corpus."
+			return "Refresh source evaluation."
 		}
 		if m.compileRepairAttempted && m.sourceRecovery != nil && m.sourceRecovery.Succeeded == 0 {
 			return "View sources."
@@ -682,7 +682,11 @@ func (m Model) viewCompileSourcesNext() Model {
 	m.compilePane = compilePaneSources
 	m.compileSourcesReviewed = true
 	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
-	m.note = "Review sources, then repair them."
+	if m.compileHasRepairableSources() {
+		m.note = "Review sources, then repair them."
+	} else {
+		m.note = "Review sources."
+	}
 	m.err = ""
 	return m
 }
@@ -915,7 +919,7 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 			next.sourceRecovery = recovery
 			next.compileRepairAttempted = true
 			next.compileSourcesReviewed = true
-			next.note = "Recovered custom source content. Rebuilding the corpus so Liner can add it back."
+			next.note = "Recovered custom source content. Refreshing source evaluation so Liner can add it back."
 			return next, cmd
 		}
 		m.sourceRecoveryReview = false
@@ -1073,7 +1077,7 @@ func (m Model) viewCompileAllSources(width int) string {
 	lines := []string{styles.ReportSection.Render("Sources")}
 	lines = append(lines, styles.Subtitle.Render(compileSourceListSummary(items)))
 	if m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources() {
-		lines = append(lines, styles.Subtitle.Render("Repair sources first with r. This retries unavailable custom sources, then rebuilds the corpus if any recover."))
+		lines = append(lines, styles.Subtitle.Render("Repair sources first with r. This retries unavailable custom sources, then refreshes source evaluation if any recover."))
 	} else if m.compilePane == compilePaneSources && m.compileRepairAttempted {
 		lines = append(lines, styles.Subtitle.Render("You can continue with the current MIXTAPE.md, repair again with r, or add replacements with a."))
 	}
@@ -1215,7 +1219,7 @@ func compileSourceListSummary(items []compileSourceListItem) string {
 		if needsCorpus == 1 {
 			verb = "needs"
 		}
-		parts = append(parts, intLabel(needsCorpus, "recovered custom source")+" "+verb+" Build Corpus")
+		parts = append(parts, intLabel(needsCorpus, "recovered custom source")+" "+verb+" source evaluation refresh")
 	}
 	if customNotUsed > 0 {
 		parts = append(parts, intLabel(customNotUsed, "custom source")+" not used")
@@ -1347,7 +1351,7 @@ func (m Model) compileResultSummaryLines() []string {
 				verb = "needs"
 				object = "it"
 			}
-			lines = append(lines, intLabel(needsCorpus, "recovered custom source")+" "+verb+" Build Corpus before Liner can use "+object+".")
+			lines = append(lines, intLabel(needsCorpus, "recovered custom source")+" "+verb+" source evaluation refresh before Liner can use "+object+".")
 		}
 		if retryable > 0 {
 			lines = append(lines, intLabel(retryable, "unavailable custom source")+" can be retried.")
@@ -1362,9 +1366,6 @@ func (m Model) compileResultSummaryLines() []string {
 	}
 	if summary, ok := m.compileSourceEvaluationSummary(); ok {
 		lines = append(lines, "Source notes: "+summary.Display(m.currentPath)+".")
-	}
-	if m.compileNeedsJSSetup() {
-		lines = append(lines, "JS rendering is missing for at least one repairable source; repair will install it first.")
 	}
 	return lines
 }
@@ -1383,7 +1384,7 @@ func (m Model) viewSourceRecoveryResult(width int) string {
 		styles.NextActionText.Render(fmt.Sprintf("%d retryable checked, %d recovered, %d still unavailable", result.Attempted, result.Succeeded, result.Failed)),
 	}
 	if result.Succeeded > 0 {
-		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Available for the next Build Corpus run."))
+		lines = append(lines, styles.SuccessText.Render("● saved recovered source content")+"  "+styles.NextActionText.Render("Available for the next source evaluation refresh."))
 	}
 	for _, source := range result.Sources {
 		if source.SavedTo == "" {
@@ -1406,9 +1407,9 @@ func (m Model) viewSourceRecoveryReview(width int) string {
 	if strings.TrimSpace(m.sourceRecoveryError) != "" {
 		lines = append(lines, styles.ErrorText.Render("Retry error: "+m.sourceRecoveryError))
 	} else if result.Succeeded > 0 {
-		message := "Recovered source content was saved under local-sources/recovered/. Continue to Compile Console, then run Build Corpus so the AI can reconsider it."
+		message := "Recovered source content was saved under local-sources/recovered/. Continue to Compile Console, then refresh source evaluation so the AI can reconsider it."
 		if m.compileRepairRebuildCorpusAfterRecovery {
-			message = "Recovered source content was saved under local-sources/recovered/. Press enter to rebuild the corpus from Candidate discovery so Liner can add it back."
+			message = "Recovered source content was saved under local-sources/recovered/. Press enter to refresh source evaluation from Evaluation so Liner can add it back without rerunning discovery."
 		}
 		for _, line := range wrapWords(message, width) {
 			lines = append(lines, styles.SuccessText.Render("● ")+styles.NextActionText.Render(line))
@@ -1427,7 +1428,7 @@ func (m Model) viewSourceRecoveryReview(width int) string {
 	}
 	continueText := "Press enter to return to Compile Console."
 	if m.compileRepairRebuildCorpusAfterRecovery {
-		continueText = "Press enter to rebuild the corpus."
+		continueText = "Press enter to refresh source evaluation."
 	} else if m.compileRepairAttempted && result.Succeeded == 0 {
 		continueText = "Press enter to return to Sources."
 	}
@@ -1443,7 +1444,7 @@ func (m Model) viewSourceRecoveryWorking(width int) string {
 	for _, line := range wrapWords("Liner is retrying only sources marked retryable. Build Corpus and compile are not running.", width) {
 		lines = append(lines, styles.NextActionText.Render(line))
 	}
-	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to run Build Corpus.", width) {
+	for _, line := range wrapWords("If a source is recovered, Liner saves a local copy under local-sources/recovered/ and asks you to refresh source evaluation.", width) {
 		lines = append(lines, styles.Subtitle.Render(line))
 	}
 	if len(sources) == 0 {
@@ -1554,32 +1555,24 @@ func renderExcludedLocalSourceHint(issues []excludedLocalSourceIssue) string {
 		if len(issues) == 1 {
 			verb = "is"
 		}
-		return styles.Subtitle.Render(fmt.Sprintf("%s %s missing from the tape. Open Compile Console and press r to repair the %s; recovered sources are saved for the next Build Corpus run.", intLabel(len(issues), "saved custom source"), verb, intLabel(retryable, "custom source")))
+		return styles.Subtitle.Render(fmt.Sprintf("%s %s missing from the tape. Open Compile Console and press r to repair the %s; recovered sources are saved for the next source evaluation refresh.", intLabel(len(issues), "saved custom source"), verb, intLabel(retryable, "custom source")))
 	}
-	return styles.Subtitle.Render("Saved custom sources are missing from the tape. Add replacement content with a, or run Build Corpus after fixing the source files.")
+	return styles.Subtitle.Render("Saved custom sources are missing from the tape. Add replacement content with a, or refresh source evaluation after fixing the source files.")
 }
 
 func (m Model) viewCompileJSSetup(width int) string {
-	status := "JS rendering needed"
-	detail := "Install Playwright Chromium, then retry this compile."
 	if m.jsSetupRunning {
-		status = "Installing JS rendering"
-		detail = "Downloading Playwright Chromium. First run can take a few minutes."
+		return strings.Join([]string{
+			styles.ReportSection.Render("JS rendering"),
+			renderWaitStatusBlock(width, "Installing JS rendering", "Downloading Playwright Chromium. First run can take a few minutes.", "browser setup in progress"),
+			styles.Subtitle.Render("If setup succeeds, Liner retries this compile automatically."),
+		}, "\n")
 	}
-	action := "Press i to install JS rendering. If setup succeeds, Liner retries this compile automatically."
-	if m.jsSetupRunning {
-		action = "Wait for setup to finish. If it succeeds, Liner retries this compile automatically."
-	}
-	statusBlock := renderProgressStatusBlock(width, m.compileBar, 0.35, status, detail, "browser setup")
-	if m.jsSetupRunning {
-		statusBlock = renderWaitStatusBlock(width, status, detail, "browser setup in progress")
-	}
-	lines := []string{
+	return strings.Join([]string{
 		styles.ReportSection.Render("JS rendering"),
-		statusBlock,
-		styles.Subtitle.Render(action),
-	}
-	return strings.Join(lines, "\n")
+		styles.Subtitle.Render("One source needs a browser to reveal the article text. Liner can install Playwright's headless Chromium, retry this compile automatically, and use the rendered page instead of the blocked stub."),
+		styles.NextActionTitle.Render("> Press i to install JS rendering."),
+	}, "\n")
 }
 
 func (m Model) compileWarningsTable(width int) table.Model {
@@ -1647,7 +1640,7 @@ func compileWarningRecommendation(warning core.CompileWarningPayload) string {
 	case compileWarningRecoveredWithJS(warning):
 		return "Liner recovered this source with browser rendering and included the rendered text in MIXTAPE.md. You can continue; open it only if you want to inspect the captured evidence."
 	case compileWarningNeedsJSSetup(warning):
-		return "Install JS rendering from this screen, then retry compile. If the source still fails after browser setup, replace or drop it."
+		return "Press i to install JS rendering. Liner will retry this compile automatically; if the source still fails, replace or drop it."
 	case strings.Contains(message, "very short") || strings.Contains(message, "short"):
 		return "Open the source if it is important. If the page has no readable body, drop it from tape.yaml and retry compile; otherwise keep it only as a weak pointer."
 	case strings.Contains(message, "transcript"):
@@ -1780,7 +1773,7 @@ func compileWarningNextAction(warning core.CompileWarningPayload) string {
 	case compileWarningRecoveredWithJS(warning):
 		return "This source was recovered with JS rendering and included in MIXTAPE.md."
 	case compileWarningNeedsJSSetup(warning):
-		return "Press i to install JS rendering, then retry compile."
+		return "Press i to install JS rendering."
 	case strings.Contains(message, "404") ||
 		strings.Contains(message, "not_found") ||
 		strings.Contains(message, "not found") ||

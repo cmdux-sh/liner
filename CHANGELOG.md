@@ -2,11 +2,29 @@
 
 ## Unreleased
 
-- **Removed fake JS setup progress bars.** First-run JS rendering setup and
-  Compile's Playwright Chromium install state now use an indeterminate loader
-  with wait text instead of a looping progress bar. The install can still take a
-  few minutes, but the UI no longer implies measurable progress that moves
-  backward.
+## 1.0.3
+
+- **Sharpened generated Project Skills.** Root `SKILL.md` now acts as a concise
+  project entrypoint with trigger-oriented description text, explicit load
+  order, and checkable completion criteria while leaving detailed operating
+  rules in `LINER.md`.
+- **Recovered more browser-renderable source blocks.** Vercel Security
+  Checkpoint responses now route through the existing JS-render fallback instead
+  of surfacing as generic `HTTP 429` fetch failures when Playwright can recover
+  the article.
+- **Kept source repair refreshes scoped.** When recovered custom source content
+  needs reconsideration, Compile now refreshes source evaluation from Evaluation
+  onward instead of resetting the corpus build to Candidate discovery.
+- **Separated source notes from warnings.** Accepted sources with notes remain
+  visible in Compile summaries, but they no longer label an otherwise usable
+  compile as `compiled with warnings` or prompt repair when there is nothing to
+  fix.
+- **Simplified JS rendering setup.** First-run JS rendering setup and Compile's
+  Playwright Chromium install state now use one clear explanation, one `i`
+  install action, and an indeterminate loader only while setup is actually
+  running. The UI no longer shows a fake progress bar or duplicate repair/retry
+  instructions before the browser has been installed, and it clears the retrying
+  note once the automatic recompile finishes.
 
 ## 1.0.2
 

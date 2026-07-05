@@ -72,13 +72,14 @@ In both modes, notes are required. A source without a note doesn't ship.
 
 ## Worked examples
 
-> TODO: Insert three to five worked examples from the Cowork CLI/TUI synthesis. Each should show all three things landed. Look for notes in the Cowork material that are concrete about role, location of value, and limitations — not vague praise.
->
-> Suggested examples to pull:
-> - A "watch first" foundational note (likely on a Van Slyck talk or clig.dev)
-> - A note with specific time-coding on a video ("the section starting at 14:30")
-> - A trim note that explicitly says what to skip ("Skip the OpenStack-specific noise")
-> - A "contested counterpoint" note that names the source it disagrees with
-> - A note that names a temporal limitation ("dated on X, durable on Y")
+Good notes:
 
-> TODO: Insert one or two examples of bad notes for contrast. Pull the original AI-drafted notes from OpenClaw if they're available — those are the canonical "this is a useful resource" generic notes that Cowork rewrote.
+- "Watch first for the operating model: the middle section names the workflow constraint this corpus adopts. Dated on tool names, durable on the interaction principle."
+- "Use as the counterpoint to the default stance. Strong on risks and failure modes; do not treat it as the corpus's main recommendation."
+- "Skim the setup and use the worked example section. It shows the output bar, but the implementation details are platform-specific."
+
+Bad notes:
+
+- "Useful overview of the topic."
+- "Highly recommended resource."
+- "Good background reading."

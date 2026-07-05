@@ -1,6 +1,6 @@
 {
   "name": "linersh",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Liner — npm shim, Go TUI launcher, and headless methodology runner.",
   "type": "module",
   "license": "MIT",

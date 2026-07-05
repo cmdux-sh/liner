@@ -116,6 +116,10 @@ func (s evaluationIssueSummary) HasIssues() bool {
 		s.UnavailableIssues > 0
 }
 
+func (s evaluationIssueSummary) NeedsSourceReview() bool {
+	return s.DroppedCustom > 0 || s.MissingCustom > 0
+}
+
 func (s evaluationIssueSummary) Display(project string) string {
 	if !s.HasIssues() {
 		return "none"
@@ -143,9 +147,9 @@ func (s evaluationIssueSummary) Display(project string) string {
 		}
 	}
 	if s.AcceptedIssuesYT > 0 {
-		parts = append(parts, intLabel(s.AcceptedIssuesYT, "accepted YouTube source")+" needs review")
+		parts = append(parts, intLabel(s.AcceptedIssuesYT, "accepted YouTube source")+" has source note")
 	} else if s.AcceptedIssues > 0 {
-		parts = append(parts, intLabel(s.AcceptedIssues, "accepted source")+" needs review")
+		parts = append(parts, intLabel(s.AcceptedIssues, "accepted source")+" has source note")
 	}
 	if len(parts) == 0 {
 		if s.DroppedYouTube > 0 {
@@ -372,7 +376,7 @@ func missingCustomSourceReason(item sourcepkg.StagedSource) string {
 	case "web":
 		return "source was not fetched"
 	case "local_file":
-		return "recovered content needs Build Corpus"
+		return "recovered content needs source evaluation refresh"
 	default:
 		return "custom source missing from tape"
 	}

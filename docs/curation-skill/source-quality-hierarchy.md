@@ -171,8 +171,6 @@ Drop unless the source encodes a genuinely transferable pattern. A Ratatui tutor
 
 A source flagged as "low-value" during candidate discovery (Phase 2) sometimes turns out to be the only one that addresses a specific gap once you've actually read every candidate. If a low-priority source uniquely covers a knowledge-map section that would otherwise be empty or thin, rescue it. Mark the decision and the rationale clearly.
 
-> TODO: Insert worked example from the Cowork CLI/TUI synthesis. The canonical example is the Caligula segment inside transcript #34 "some cool Linux programs you've never seen" — OpenClaw flagged it as lower-value, Cowork rescued it as "the closest direct precedent in your whole corpus." This is the textbook rescue move. Pull the specific decision and the rationale used.
-
 ### Author overrepresentation
 
 Three of five sources in a section are by the same author. This narrows perspective and reduces the AI's ability to synthesize across views. Keep the single strongest piece by that author; replace the others with sources by different practitioners. The exception: if the author has genuinely written the canonical work in multiple sub-areas, and no other practitioner has equivalent work, keeping multiple pieces is justified — but you should be able to defend it.
@@ -209,5 +207,3 @@ candidates:
 ```
 
 For dropped sources, the rationale should name *why* dropped — "duplicates Source 4," "shallow listicle," "AI-generated," "off-topic relative to JTBD." Generic "low quality" is not useful. Be specific.
-
-> TODO: Insert two or three worked evaluation entries pulled from the Cowork synthesis — one keep with rating 5, one trim with rating 3, one drop with a specific rationale. These are the highest-leverage examples in the file.

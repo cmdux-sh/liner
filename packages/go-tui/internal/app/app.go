@@ -240,15 +240,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.compileErr = m.friendlyCompileError(msg.err)
 			m.compileLines = append(m.compileLines, "× "+m.compileErr)
+			m.note = ""
 			if !m.compileHasUsableResult() {
 				m.err = m.compileErr
+			} else {
+				m.note = "Compile finished with an error. Review the result before continuing."
 			}
 		} else {
 			m.compileErr = ""
 			if len(m.compileAttentionItems()) > 0 {
 				m.compileLines = append(m.compileLines, "Compile finished, but the mixtape needs attention.")
+				m.note = "Compile finished with source issues. Review sources before continuing."
 			} else {
 				m.compileLines = append(m.compileLines, "Compile finished.")
+				if recovered := m.recoveredCompileWarningCount(); recovered > 0 {
+					m.note = fmt.Sprintf("JS rendering recovered %s. Review sources when ready.", intLabel(recovered, "source"))
+				} else {
+					m.note = "Compile finished. MIXTAPE.md is ready."
+				}
 			}
 		}
 		m.recordCompileProgress()
@@ -285,7 +294,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.compileSourcesReviewed = true
 			if msg.result.Succeeded > 0 {
 				m.compileRepairRebuildCorpusAfterRecovery = true
-				m.note = "Recovered custom source content. Press enter to rebuild the corpus."
+				m.note = "Recovered custom source content. Press enter to refresh source evaluation."
 			} else {
 				m.compileRepairRebuildCorpusAfterRecovery = false
 				m.note = "No custom sources recovered. Review sources, repair again, or add replacements."

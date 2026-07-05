@@ -25,7 +25,13 @@ def _result() -> CompileResult:
         mode="quick",
         jtbd="Test how the renderer formats master and source files.",
     )
-    s1 = SourceSpec(type="youtube", url="https://yt/1", note="watch first", section="intro")
+    s1 = SourceSpec(
+        type="youtube",
+        url="https://yt/1",
+        note="watch first",
+        section="intro",
+        kind="principle",
+    )
     s2 = SourceSpec(type="web", url="https://ex/a", note="bg reading", section="intro")
     s3 = SourceSpec(type="web", url="https://ex/b", note="loose end")  # no section
     c1 = SourceContent(
@@ -107,12 +113,25 @@ def test_source_file_format(tmp_path: Path) -> None:
     body = (project.sources_dir / "01-vid-1.md").read_text(encoding="utf-8")
     assert body.startswith("# Vid 1\n")
     assert "**Source type:** youtube" in body
+    assert "**Kind:** principle" in body
     assert "**URL:** https://yt/1" in body
     assert "**Author:** Channel A" in body
     assert "**Duration:** 2:05" in body
     assert "**Fetched:** 2026-05-16" in body
-    assert "watch first" in body
+    assert "> **Curator note:** **[principle]** watch first" in body
     assert "A short transcript." in body
+
+
+def test_curator_note_kind_chip_is_rendered_in_index_and_source_file(tmp_path: Path) -> None:
+    project = _project_with_synthesis(tmp_path)
+    write_mixtape(project, _result())
+    master = project.mixtape_path.read_text(encoding="utf-8")
+    source = (project.sources_dir / "01-vid-1.md").read_text(encoding="utf-8")
+
+    assert "- **Curator note:** **[principle]** watch first" in master
+    assert "> **Curator note:** **[principle]** watch first" in source
+    assert "- **Curator note:** loose end" in master
+    assert "**[]**" not in master
 
 
 def test_failed_source_file_notes_unavailability(tmp_path: Path) -> None:

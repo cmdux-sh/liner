@@ -2165,7 +2165,7 @@ func TestProjectViewSurfacesDroppedCustomYouTubeSources(t *testing.T) {
 	}
 }
 
-func TestProjectViewSurfacesAcceptedYouTubeSourcesThatNeedReview(t *testing.T) {
+func TestProjectViewSurfacesAcceptedYouTubeSourceNotes(t *testing.T) {
 	project := t.TempDir()
 	note := "Metadata-only during evaluation: transcript unavailable."
 	m := Model{
@@ -2181,9 +2181,9 @@ func TestProjectViewSurfacesAcceptedYouTubeSourcesThatNeedReview(t *testing.T) {
 	}
 
 	view := m.viewProject()
-	for _, expected := range []string{"Evaluation issues", "1 accepted YouTube source needs review", "tape.yaml"} {
+	for _, expected := range []string{"Evaluation issues", "1 accepted YouTube source has source note", "tape.yaml"} {
 		if !strings.Contains(view, expected) {
-			t.Fatalf("project health should surface accepted YouTube review issue %q:\n%s", expected, view)
+			t.Fatalf("project health should surface accepted YouTube source note %q:\n%s", expected, view)
 		}
 	}
 }
@@ -7108,15 +7108,27 @@ Finding: pass. The corpus supports a concrete operating layer rather than a gene
 		t.Fatal(err)
 	}
 	for _, expected := range []string{
+		"description: 'Use for Launch Liner work. Load LINER.md first; answer from this corpus or name the evidence gap.'",
+		"## Source Grounding",
+		"Treat this `SKILL.md` as the entrypoint; `LINER.md` is the single source of truth for detailed operating rules.",
 		"## Corpus Method",
 		"Core action: translate launch references into trust-building web interface rules.",
 		"Capability pattern: reference-translation.",
 		"Caller handoff: tokens, hierarchy rules, proof modules, state behavior, and checks for implementation agents.",
 		"Apply these corpus-derived rules:",
 		"Lead with the trust signal before the decorative claim.",
+		"## Process",
+		"finish only when you can name the supporting stance, source section, source file, or evidence gap.",
+		"## Completion Criteria",
+		"For unsupported requests, name the missing evidence instead of filling the gap from general knowledge.",
 	} {
 		if !strings.Contains(string(skill), expected) {
 			t.Fatalf("generated SKILL.md missing corpus method %q:\n%s", expected, skill)
+		}
+	}
+	for _, unexpected := range []string{"Produce the smallest useful answer", "Restate the user's request"} {
+		if strings.Contains(string(skill), unexpected) {
+			t.Fatalf("generated SKILL.md should avoid generic behavior prose %q:\n%s", unexpected, skill)
 		}
 	}
 }
@@ -7373,7 +7385,7 @@ func TestLinerReviewEnterStartsOperatingLayerCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected default Project Skill file to be created: %v", err)
 	}
-	for _, expected := range []string{"---", "name: liner-launch", "description:", "# liner-launch"} {
+	for _, expected := range []string{"---", "name: liner-launch", "description:", "# liner-launch", "## Process", "## Completion Criteria"} {
 		if !strings.Contains(string(skill), expected) {
 			t.Fatalf("SKILL.md missing %q:\n%s", expected, skill)
 		}
@@ -7463,7 +7475,7 @@ func TestOperatingLayerCreationWritesLinerSkillAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected Project Skill file: %v", err)
 	}
-	for _, expected := range []string{"---", "name: liner-launch", "description:", "## Source Grounding", "## Boundaries"} {
+	for _, expected := range []string{"---", "name: liner-launch", "description:", "## Source Grounding", "## Process", "## Completion Criteria", "## Boundaries"} {
 		if !strings.Contains(string(skill), expected) {
 			t.Fatalf("SKILL.md missing %q:\n%s", expected, skill)
 		}
@@ -8264,7 +8276,7 @@ func TestCompileJSSetupWarningShowsInstallAction(t *testing.T) {
 		compileBar: newCompileProgress(48),
 		compileResult: &core.CompileResultPayload{
 			MixtapePath: "/tmp/MIXTAPE.md",
-			Summary:     core.CompileSummary{Total: 1, Succeeded: 0, Failed: 1},
+			Summary:     core.CompileSummary{Total: 2, Succeeded: 1, Failed: 1},
 			Warnings: []core.CompileWarningPayload{{
 				URL:      "https://example.test/app",
 				Message:  "render: js needs Playwright. Run: liner setup-js",
@@ -8273,17 +8285,38 @@ func TestCompileJSSetupWarningShowsInstallAction(t *testing.T) {
 		},
 	}
 
-	view := stripANSICodesForTest(m.viewCompile())
-	for _, expected := range []string{"JS rendering needed", "repair will install it first", "Install Playwright Chromium"} {
+	rawView := m.viewCompile()
+	view := stripANSICodesForTest(rawView)
+	for _, expected := range []string{
+		"JS rendering",
+		"One source needs a browser to reveal the article text.",
+		"Liner can install Playwright's headless Chromium",
+		"Press i to install JS rendering.",
+	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing JS setup cue %q:\n%s", expected, view)
 		}
+	}
+	for _, unexpected := range []string{
+		"repair will install it first",
+		"Install Playwright Chromium, then retry this compile.",
+		"JS rendering is missing",
+	} {
+		if strings.Contains(view, unexpected) {
+			t.Fatalf("compile view should not show stale JS setup copy %q:\n%s", unexpected, view)
+		}
+	}
+	if strings.Contains(rawView, "━") || strings.Contains(rawView, "─") {
+		t.Fatalf("compile JS setup prompt should not show a fake progress bar:\n%s", rawView)
+	}
+	if !hasHelp(m.helpForScreen().ShortHelp(), "i") || !hasHelpDesc(m.helpForScreen().ShortHelp(), "install JS") {
+		t.Fatalf("compile help should offer JS install even with a usable partial result: %#v", m.helpForScreen().ShortHelp())
 	}
 	sourcePane := m.viewCompileSourcesNext()
 	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
 		t.Fatalf("source review help should offer repair action: %#v", sourcePane.helpForScreen().ShortHelp())
 	}
-	if got := compileWarningRecommendation(m.compileResult.Warnings[0]); !strings.Contains(got, "Install JS rendering") {
+	if got := compileWarningRecommendation(m.compileResult.Warnings[0]); !strings.Contains(got, "Liner will retry this compile automatically") {
 		t.Fatalf("expected JS setup recommendation, got %q", got)
 	}
 }
@@ -8332,7 +8365,8 @@ func TestCompileViewKeepsFooterVisibleWithTallWarnings(t *testing.T) {
 		t.Fatalf("compile view should fit terminal height: got %d, want <= %d\n%s", got, height, view)
 	}
 	for _, expected := range []string{
-		"repair will install it first",
+		"One source needs a browser to reveal the article text.",
+		"i install JS",
 		"enter view sources",
 		"r repair sources",
 	} {
@@ -8369,7 +8403,7 @@ func TestCompileJSSetupRunningShowsWaitState(t *testing.T) {
 	rawView := m.viewCompile()
 	assertTitleLineHasLoader(t, rawView, "Compile Console")
 	view := stripANSICodesForTest(rawView)
-	for _, expected := range []string{"Installing JS rendering", "Wait for setup to finish", "browser setup in progress"} {
+	for _, expected := range []string{"Installing JS rendering", "If setup succeeds, Liner retries this compile automatically.", "browser setup in progress"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("running compile JS setup view missing %q:\n%s", expected, view)
 		}
@@ -8382,6 +8416,48 @@ func TestCompileJSSetupRunningShowsWaitState(t *testing.T) {
 	}
 	if hasHelp(m.helpForScreen().ShortHelp(), "i") {
 		t.Fatalf("running compile JS setup help should not offer install JS: %#v", m.helpForScreen().ShortHelp())
+	}
+}
+
+func TestCompileDoneAfterJSSetupClearsRetryingNote(t *testing.T) {
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "synthesis.md"), []byte("# Synthesis\n\nReady.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:      screenCompile,
+		width:       118,
+		height:      42,
+		compiling:   true,
+		note:        "JS rendering is ready. Retrying compile.",
+		currentPath: project,
+		compileBar:  newCompileProgress(48),
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: "/tmp/MIXTAPE.md",
+			Summary:     core.CompileSummary{Total: 1, Succeeded: 1},
+			Warnings: []core.CompileWarningPayload{{
+				URL:      "https://example.test/app",
+				Message:  "Recovered this source with JS rendering and included in MIXTAPE.md.",
+				Severity: "warning",
+			}},
+		},
+		compileLines: []string{"Starting compile...", "Result: 1/1 usable sources"},
+	}
+
+	next, _ := m.Update(compileDoneMsg{})
+	got := next.(Model)
+	if strings.Contains(got.note, "Retrying compile") {
+		t.Fatalf("compile completion should clear stale retrying note, got %q", got.note)
+	}
+	if !strings.Contains(got.note, "JS rendering recovered 1 source") {
+		t.Fatalf("compile completion should report recovered JS source, got %q", got.note)
+	}
+	view := stripANSICodesForTest(got.View().Content)
+	if strings.Contains(view, "Retrying compile") {
+		t.Fatalf("compile view should not show stale retrying note after completion:\n%s", view)
+	}
+	if !strings.Contains(view, "recovered 1 source(s) with browser rendering") {
+		t.Fatalf("compile view should still show recovered JS result:\n%s", view)
 	}
 }
 
@@ -9666,7 +9742,7 @@ process.stdout.write(JSON.stringify({
 	}
 }
 
-func TestRetrySourceEvaluationStartsCandidateDiscoveryFresh(t *testing.T) {
+func TestRetrySourceEvaluationStartsEvaluationFresh(t *testing.T) {
 	project := t.TempDir()
 	if err := linerprogress.Write(project, linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseCompile)}); err != nil {
 		t.Fatal(err)
@@ -9693,19 +9769,25 @@ process.stdout.write(JSON.stringify({
 	if got.screen != screenResearch {
 		t.Fatalf("expected retry to switch to research screen, got %v", got.screen)
 	}
-	if step := linerprogress.Read(project).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseCandidates) {
-		t.Fatalf("expected progress reset to candidates, got %d", step)
+	if step := linerprogress.Read(project).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseEvaluation) {
+		t.Fatalf("expected progress reset to evaluation, got %d", step)
 	}
 	msg := cmd()
 	eventMsg, ok := msg.(methodologyEventMsg)
 	if !ok {
 		t.Fatalf("expected methodology event, got %#v", msg)
 	}
-	if eventMsg.event.PhaseID != "candidates" || eventMsg.event.Resume {
-		t.Fatalf("expected fresh candidates run, got %#v", eventMsg.event)
+	if eventMsg.event.PhaseID != "evaluation" || eventMsg.event.Resume {
+		t.Fatalf("expected fresh evaluation run, got %#v", eventMsg.event)
 	}
-	if !strings.Contains(strings.Join(got.researchLines, "\n"), "Starting Candidate discovery") {
+	if !strings.Contains(strings.Join(got.researchLines, "\n"), "Starting Evaluation") {
 		t.Fatalf("expected fresh-start copy in log, got %#v", got.researchLines)
+	}
+	if !strings.Contains(strings.Join(got.researchLines, "\n"), "Queued Evaluation through Assembly") {
+		t.Fatalf("expected scoped refresh copy in log, got %#v", got.researchLines)
+	}
+	if strings.Contains(strings.Join(got.researchLines, "\n"), "Queued Candidate discovery through Assembly") {
+		t.Fatalf("source evaluation refresh should not promise candidate discovery rerun, got %#v", got.researchLines)
 	}
 }
 
@@ -10281,6 +10363,63 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 	}
 }
 
+func TestCompileAcceptedSourceNotesDoNotCreateWarningState(t *testing.T) {
+	note := "Transcript was not fetched earlier, but this source compiled successfully."
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "synthesis.md"), []byte("# Synthesis\n\nReady.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		screen:      screenCompile,
+		width:       118,
+		height:      42,
+		currentPath: project,
+		currentTape: tape.Tape{Title: "Design Engineer", Sources: []tape.Source{{
+			Type: "web",
+			URL:  "https://example.test/source",
+			Note: &note,
+		}}},
+		compileTotal: 1,
+		compileDoneN: 1,
+		compileResult: &core.CompileResultPayload{
+			MixtapePath: "/tmp/MIXTAPE.md",
+			Summary:     core.CompileSummary{Total: 1, Succeeded: 1},
+		},
+	}
+
+	if m.compileHasSourceReviewItems() {
+		t.Fatal("accepted source notes should not create source review warnings")
+	}
+	if m.compileHasRepairableSources() {
+		t.Fatal("accepted source notes should not create repairable sources")
+	}
+	view := stripANSICodesForTest(m.viewCompile())
+	for _, expected := range []string{
+		"Compiled",
+		"1/1 sources",
+		"Source notes",
+		"1 accepted source has source note",
+	} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("compile view missing %q:\n%s", expected, view)
+		}
+	}
+	for _, unexpected := range []string{
+		"Compiled with warnings",
+		"Next: View sources.",
+		"repair sources",
+		"Review sources, then repair them.",
+		"needs review",
+	} {
+		if strings.Contains(view, unexpected) {
+			t.Fatalf("accepted source note should not show warning/repair copy %q:\n%s", unexpected, view)
+		}
+	}
+	if got := m.nextAction(); got != "Create the Operating Layer." {
+		t.Fatalf("accepted source notes should keep create-layer next action, got %q", got)
+	}
+}
+
 func TestSourceEntryBackReturnsToCompileWhenOpenedFromCompile(t *testing.T) {
 	m := Model{
 		screen:      screenCompile,
@@ -10455,8 +10594,8 @@ emit({
 			t.Fatalf("compile sources pane should show %q:\n%s", expected, sourceView)
 		}
 	}
-	if !strings.Contains(sourceView, "rebuilds the corpus if any recover") {
-		t.Fatalf("compile sources pane should explain corpus rebuild after repair:\n%s", sourceView)
+	if !strings.Contains(sourceView, "refreshes source evaluation if any recover") {
+		t.Fatalf("compile sources pane should explain source evaluation refresh after repair:\n%s", sourceView)
 	}
 	if strings.Contains(sourceView, "View:") {
 		t.Fatalf("compile sources pane should not show tab switcher:\n%s", sourceView)
@@ -10528,7 +10667,7 @@ emit({
 		},
 	}
 	localReadyView := localReady.viewCompileAllSources(styles.ClampWidth(localReady.width - 4))
-	for _, expected := range []string{"needs corpus", "recovered content needs Build Corpus", "1 recovered custom source needs Build Corpus", "1 usable source"} {
+	for _, expected := range []string{"needs corpus", "recovered content needs source evaluation refresh", "1 recovered custom source needs source evaluation refresh", "1 usable source"} {
 		if !strings.Contains(localReadyView, expected) {
 			t.Fatalf("recovered local source should show %q:\n%s", expected, localReadyView)
 		}
@@ -10603,16 +10742,28 @@ emit({
 		t.Fatalf("guided repair should wait for corpus rebuild confirmation: %#v", repairUpdated)
 	}
 	repairReview := stripANSICodesForTest(repairUpdated.viewCompile())
-	for _, expected := range []string{"2 recovered", "Press enter to rebuild the corpus", "so Liner can add it back"} {
+	for _, expected := range []string{"2 recovered", "Press enter to refresh source evaluation", "without rerunning discovery"} {
 		if !strings.Contains(repairReview, expected) {
 			t.Fatalf("repair recovery review missing %q:\n%s", expected, repairReview)
 		}
 	}
-	if got := repairUpdated.nextAction(); got != "Rebuild corpus." {
-		t.Fatalf("expected rebuild corpus next action, got %q", got)
+	for _, unexpected := range []string{"rebuild the corpus", "from Candidate discovery"} {
+		if strings.Contains(repairReview, unexpected) {
+			t.Fatalf("repair recovery review should not show stale rebuild copy %q:\n%s", unexpected, repairReview)
+		}
 	}
-	if !hasHelpDesc(repairUpdated.helpForScreen().ShortHelp(), "rebuild corpus") {
-		t.Fatalf("expected rebuild corpus help, got %#v", repairUpdated.helpForScreen().ShortHelp())
+	if got := repairUpdated.nextAction(); got != "Refresh source evaluation." {
+		t.Fatalf("expected source evaluation refresh next action, got %q", got)
+	}
+	if !hasHelpDesc(repairUpdated.helpForScreen().ShortHelp(), "refresh eval") {
+		t.Fatalf("expected source evaluation refresh help, got %#v", repairUpdated.helpForScreen().ShortHelp())
+	}
+	prompted, promptCmd := repairUpdated.handleKey(tea.KeyPressMsg(tea.Key{Code: 'x', Text: "x"}))
+	if promptCmd != nil {
+		t.Fatal("non-enter recovery review key should not start a command")
+	}
+	if !strings.Contains(prompted.note, "refresh source evaluation") || strings.Contains(prompted.note, "rebuild the corpus") {
+		t.Fatalf("recovery review prompt should point to source evaluation refresh, got %q", prompted.note)
 	}
 	script = filepath.Join(t.TempDir(), "runner.cjs")
 	if err := os.WriteFile(script, []byte(`const value = (flag) => process.argv[process.argv.indexOf(flag) + 1] || "";
@@ -10628,13 +10779,21 @@ process.stdout.write(JSON.stringify({
 	t.Setenv("LINER_HEADLESS_RUNNER", script)
 	rebuilding, rebuildCmd := repairUpdated.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if rebuildCmd == nil {
-		t.Fatal("enter should start corpus rebuild after recovered source retry")
+		t.Fatal("enter should start source evaluation refresh after recovered source retry")
 	}
 	if rebuilding.screen != screenResearch {
-		t.Fatalf("expected corpus rebuild screen, got %v", rebuilding.screen)
+		t.Fatalf("expected source evaluation refresh screen, got %v", rebuilding.screen)
 	}
-	if step := linerprogress.Read(repairProject).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseCandidates) {
-		t.Fatalf("expected progress reset to candidates, got %d", step)
+	if step := linerprogress.Read(repairProject).Step; step != linerprogress.PhaseIndex(linerprogress.PhaseEvaluation) {
+		t.Fatalf("expected progress reset to evaluation, got %d", step)
+	}
+	rebuildMsg := rebuildCmd()
+	rebuildEvent, ok := rebuildMsg.(methodologyEventMsg)
+	if !ok {
+		t.Fatalf("expected source evaluation refresh event, got %#v", rebuildMsg)
+	}
+	if rebuildEvent.event.PhaseID != "evaluation" || rebuildEvent.event.Resume {
+		t.Fatalf("expected fresh evaluation refresh event, got %#v", rebuildEvent.event)
 	}
 
 	failedRepair := Model{

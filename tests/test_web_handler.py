@@ -176,6 +176,12 @@ def test_looks_like_bot_challenge_recognizes_vendor_signatures() -> None:
     assert looks_like_bot_challenge("<h1>Pardon Our Interruption</h1>")
     # PerimeterX press-and-hold challenge.
     assert looks_like_bot_challenge("<p>Please verify you are a human</p>")
+    # Vercel Security Checkpoint, seen on Brian Lovin article fetches.
+    assert looks_like_bot_challenge(
+        "<html><head><title>Vercel Security Checkpoint</title></head>"
+        "<body><p>We're verifying your browser</p>"
+        "<a>Website owner? Click here to fix</a></body></html>"
+    )
 
 
 def test_looks_like_bot_challenge_ignores_normal_content() -> None:
@@ -266,6 +272,41 @@ def test_web_handler_raises_js_required_for_cloudflare_403() -> None:
     handler.close()
 
 
+def test_web_handler_raises_js_required_for_vercel_429() -> None:
+    vercel_html = (
+        '<!DOCTYPE html><html lang="en" data-astro-cid-nbv56vs3>'
+        "<head><title>Vercel Security Checkpoint</title></head>"
+        "<body><p>We're verifying your browser</p>"
+        "<a>Website owner? Click here to fix</a></body></html>"
+    )
+
+    def fake_transport(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            headers={
+                "content-type": "text/html; charset=utf-8",
+                "x-vercel-mitigated": "challenge",
+            },
+            text=vercel_html,
+        )
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(fake_transport))
+
+    with pytest.raises(JsRenderingRequired) as exc_info:
+        handler.fetch(
+            SourceSpec(
+                type="web",
+                url="https://brianlovin.com/writing/the-meta-skills-of-product-design-dm5y2kl",
+            )
+        )
+    message = str(exc_info.value)
+    assert "category: js_required" in message
+    assert "HTTP 429" in message
+    assert "bot-detection" in message
+    handler.close()
+
+
 def test_web_handler_still_raises_hard_failure_for_plain_403() -> None:
     """A 403 without bot-challenge markers stays a hard failure — we don't
     want to fire up Playwright for legitimate access-denied responses where
@@ -286,6 +327,7 @@ def test_web_handler_still_raises_hard_failure_for_plain_403() -> None:
     def fake_transport_clean(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             403,
+            headers={"content-type": "text/html; charset=utf-8"},
             text="<html><body><h1>Forbidden</h1><p>You do not have permission.</p></body></html>",
         )
 
@@ -295,5 +337,68 @@ def test_web_handler_still_raises_hard_failure_for_plain_403() -> None:
         handler.fetch(SourceSpec(type="web", url="https://example.com/private"))
     # Specifically, not JsRenderingRequired (that's a subclass — check exact type).
     assert not isinstance(exc_info.value, JsRenderingRequired)
-    assert "HTTP 403" in str(exc_info.value)
+    message = str(exc_info.value)
+    assert "HTTP 403" in message
+    assert "category: forbidden" in message
+    assert "content-type: text/html" in message
+    assert "body preview:" in message
+    assert "You do not have permission" in message
+    handler.close()
+
+
+def test_web_handler_failure_detail_truncates_response_preview() -> None:
+    body = "<html><body>" + ("private failure detail " * 80) + "tail-marker</body></html>"
+
+    def fake_transport(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404,
+            headers={"content-type": "text/html"},
+            text=body,
+        )
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(fake_transport))
+
+    with pytest.raises(HandlerHardFailure) as exc_info:
+        handler.fetch(SourceSpec(type="web", url="https://example.com/missing"))
+    message = str(exc_info.value)
+    assert "category: not_found" in message
+    assert "status: HTTP 404" in message
+    assert "body preview:" in message
+    assert "... [truncated]" in message
+    assert "tail-marker" not in message
+    handler.close()
+
+
+def test_web_handler_failure_detail_classifies_paywall() -> None:
+    def fake_transport(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            headers={"content-type": "text/html"},
+            text="<html><body><h1>Subscribe to continue</h1><p>Sign in to read this story.</p></body></html>",
+        )
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(fake_transport))
+
+    with pytest.raises(HandlerHardFailure) as exc_info:
+        handler.fetch(SourceSpec(type="web", url="https://example.com/paywalled"))
+    message = str(exc_info.value)
+    assert "category: paywall" in message
+    assert "Subscribe to continue" in message
+    handler.close()
+
+
+def test_web_handler_network_errors_are_categorized() -> None:
+    def fake_transport(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("TLS certificate verify failed", request=request)
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(fake_transport))
+
+    with pytest.raises(HandlerHardFailure) as exc_info:
+        handler.fetch(SourceSpec(type="web", url="https://example.com/tls"))
+    message = str(exc_info.value)
+    assert "category: tls" in message
+    assert "ConnectError" in message
     handler.close()
