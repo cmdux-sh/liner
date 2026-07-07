@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -15,6 +15,9 @@ describe("liner npm shim", () => {
     const probe = join(dir, "liner-tui-probe");
     writeFileSync(probe, '#!/bin/sh\nprintf "%s\\n" "$LINER_HEADLESS_RUNNER"\n', "utf8");
     chmodSync(probe, 0o755);
+    const bundledRunner = join(packageRoot, "dist", "agents", "headless-runner.js");
+    mkdirSync(dirname(bundledRunner), { recursive: true });
+    writeFileSync(bundledRunner, "export {};\n", "utf8");
 
     const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js")], {
       cwd: packageRoot,
@@ -28,6 +31,6 @@ describe("liner npm shim", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout.trim()).toBe(join(packageRoot, "dist", "agents", "headless-runner.js"));
+    expect(result.stdout.trim()).toBe(bundledRunner);
   });
 });
