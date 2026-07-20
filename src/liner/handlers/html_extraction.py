@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from html import unescape
+from html.parser import HTMLParser
 
 import trafilatura
 
@@ -41,6 +44,8 @@ BOT_CHALLENGE_PATTERNS = (
     "vercel security checkpoint",  # Vercel bot mitigation
     "we're verifying your browser",  # Vercel challenge copy
     "website owner? click here to fix",  # Vercel challenge footer
+    "performing security verification",  # generic journal security interstitial
+    "security service to protect against malicious bots",  # generic bot service copy
 )
 
 # Signals that an HTML response is only the application shell for a client-side
@@ -70,6 +75,42 @@ COOKIE_NOTICE_ACTIONS = (
     "reject all",
     "manage options",
     "learn more",
+)
+
+DECLARED_TITLE_KEYS = (
+    "og:title",
+    "twitter:title",
+    "citation_title",
+    "dc.title",
+    "dcterms.title",
+)
+DECLARED_AUTHOR_KEYS = (
+    "citation_author",
+    "author",
+    "article:author",
+    "dc.creator",
+    "dcterms.creator",
+)
+DECLARED_PUBLISHED_KEYS = (
+    "article:published_time",
+    "citation_publication_date",
+    "citation_date",
+    "datepublished",
+    "dc.date.issued",
+    "dcterms.issued",
+)
+DECLARED_UPDATED_KEYS = (
+    "article:modified_time",
+    "datemodified",
+    "last-modified",
+    "dcterms.modified",
+)
+INVALID_TITLE_MARKERS = (
+    "references-details-empty",
+    "reference-details-empty",
+    "vercel security checkpoint",
+    "performing security verification",
+    "just a moment...",
 )
 
 
@@ -127,6 +168,8 @@ class HtmlExtraction:
     title: str | None
     author: str | None
     published_at: str | None
+    updated_at: str | None
+    metadata_source: str | None
     # The cleaned article body from trafilatura. May be None or below the
     # useful-length threshold; callers decide what to do with that.
     body: str | None
@@ -153,31 +196,113 @@ def extract_html_text(html: str) -> HtmlExtraction:
         extraction_error = f"{type(e).__name__}: {e}"
 
     title: str | None = None
-    author: str | None = None
-    published_at: str | None = None
+    extracted_title: str | None = None
     try:
         metadata_json = trafilatura.extract_metadata(html)
         if metadata_json is not None:
             md = metadata_json.as_dict() if hasattr(metadata_json, "as_dict") else {}
-            title = md.get("title") or None
-            author = md.get("author") or None
-            published_at = md.get("date") or None
+            extracted_title = md.get("title") or None
     except Exception as e:
         if extraction_error is None:
             extraction_error = f"{type(e).__name__}: {e}"
 
+    declared = _declared_metadata(html)
+    title = sanitize_source_title(declared.first(DECLARED_TITLE_KEYS))
     if title is None:
-        title = _fallback_title(html)
+        title = sanitize_source_title(extracted_title)
+    if title is None:
+        title = sanitize_source_title(_fallback_title(html))
+    author = _declared_authors(declared)
+    published_at = _sanitize_declared_date(declared.first(DECLARED_PUBLISHED_KEYS))
+    updated_at = _sanitize_declared_date(declared.first(DECLARED_UPDATED_KEYS))
+    metadata_source = "declared_html" if declared.values else None
 
     fallback = body or _html_fallback_text(html)
     return HtmlExtraction(
         title=title,
         author=author,
         published_at=published_at,
+        updated_at=updated_at,
+        metadata_source=metadata_source,
         body=body,
         fallback_body=fallback,
         extraction_error=extraction_error,
     )
+
+
+class _DeclaredMetadataParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.values: dict[str, list[str]] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = {key.lower(): value for key, value in attrs if value is not None}
+        if tag.lower() == "meta":
+            key = attributes.get("property") or attributes.get("name") or attributes.get("itemprop")
+            value = attributes.get("content")
+            self._record(key, value)
+            return
+        if tag.lower() == "time":
+            self._record(attributes.get("itemprop"), attributes.get("datetime"))
+
+    def _record(self, key: str | None, value: str | None) -> None:
+        normalized_key = str(key or "").strip().lower()
+        normalized_value = _clean_metadata_text(value)
+        if not normalized_key or not normalized_value:
+            return
+        self.values.setdefault(normalized_key, []).append(normalized_value)
+
+    def first(self, keys: tuple[str, ...]) -> str | None:
+        for key in keys:
+            values = self.values.get(key)
+            if values:
+                return values[0]
+        return None
+
+
+def _declared_metadata(html: str) -> _DeclaredMetadataParser:
+    parser = _DeclaredMetadataParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        return _DeclaredMetadataParser()
+    return parser
+
+
+def _declared_authors(metadata: _DeclaredMetadataParser) -> str | None:
+    authors: list[str] = []
+    for key in DECLARED_AUTHOR_KEYS:
+        for value in metadata.values.get(key, []):
+            if value not in authors:
+                authors.append(value)
+    return "; ".join(authors) or None
+
+
+def _clean_metadata_text(value: object) -> str:
+    return " ".join(unescape(str(value or "")).split()).strip()
+
+
+def sanitize_source_title(value: object) -> str | None:
+    cleaned = _clean_metadata_text(value)
+    lowered = cleaned.lower()
+    if not cleaned or any(marker in lowered for marker in INVALID_TITLE_MARKERS):
+        return None
+    if lowered in {"untitled", "document", "home", "loading"}:
+        return None
+    return cleaned
+
+
+def _sanitize_declared_date(value: object) -> str | None:
+    cleaned = _clean_metadata_text(value)
+    if not cleaned:
+        return None
+    year_match = re.search(r"(?<!\d)(\d{4})(?!\d)", cleaned)
+    if year_match is None:
+        return None
+    year = int(year_match.group(1))
+    if year < 1450 or year > datetime.now(UTC).year + 1:
+        return None
+    return cleaned
 
 
 def _fallback_title(html: str) -> str | None:
@@ -202,4 +327,5 @@ __all__ = [
     "looks_like_cookie_notice_only",
     "looks_like_js_stub",
     "looks_like_spa_shell",
+    "sanitize_source_title",
 ]

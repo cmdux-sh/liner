@@ -69,7 +69,7 @@ func reportBodyLines(current tape.Tape, items []source.StagedSource, styled bool
 	lines := []string{}
 	if hasSources {
 		lines = append(lines,
-			sectionLabel("Personal sources", styled),
+			sectionLabel("User-Provided Sources", styled),
 			fmt.Sprintf("Added: %d", sourceCount),
 			fmt.Sprintf("Active: %d", active),
 			fmt.Sprintf("Inactive: %d", sourceCount-active),
@@ -77,11 +77,11 @@ func reportBodyLines(current tape.Tape, items []source.StagedSource, styled bool
 		)
 	}
 	lines = append(lines,
-		sectionLabel("AI-agent goal", styled),
+		sectionLabel("Job to Be Done", styled),
 	)
 	lines = append(lines, reportParagraphLines(jtbd, styled, width)...)
 	if len(current.JTBDClarifications) > 0 {
-		lines = append(lines, "", sectionLabel("Clarifications", styled))
+		lines = append(lines, "", sectionLabel("Clarify Job", styled))
 		for _, item := range current.JTBDClarifications {
 			answer := strings.TrimSpace(item.Answer)
 			if answer == "" {
@@ -96,12 +96,12 @@ func reportBodyLines(current tape.Tape, items []source.StagedSource, styled bool
 	)
 	happened := []string{
 		"Setup context was loaded.",
-		"The AI-agent goal was translated into a capability brief and research plan.",
+		"The Job to Be Done was translated into a capability brief and research plan.",
 	}
 	if hasSources {
 		happened = append(happened,
-			"Personal sources were classified and stored locally.",
-			"Personal sources will be used as inputs during candidate discovery and evaluation.",
+			"User-Provided Sources were classified and stored locally.",
+			"User-Provided Sources will be used as inputs during candidate discovery and evaluation.",
 			"The corpus build still needs to run before compile.",
 		)
 	} else {

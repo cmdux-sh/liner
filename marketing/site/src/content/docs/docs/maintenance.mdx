@@ -1,0 +1,80 @@
+---
+title: Maintain a Project with an Agent
+description: Install Liner's optional Codex or Claude Maintenance Adapter and keep Project changes previewed, approved, and receipted.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+
+A completed Liner Project already carries a **Project Skill** that teaches an AI session how to use its saved research. Install the optional **Maintenance Adapter** when you also want Codex or Claude to update Project or Source state through Liner's safe maintenance workflow.
+
+The adapter is a thin routing skill. It reads the installed CLI's current guidance and never edits `liner.yaml`, `tape.yaml`, `LINER.md`, `SKILL.md`, or `MIXTAPE.md` directly.
+
+## Install The Optional Adapter
+
+Use a persistent Liner install so the agent can call the same compatible CLI later:
+
+<CommandSnippet command={`npm install -g linersh
+liner adapters inspect codex
+liner adapters install codex --yes`} />
+
+For Claude Code:
+
+<CommandSnippet command={`liner adapters inspect claude
+liner adapters install claude --yes`} />
+
+Installation is explicit. Liner reports the target environment, version, managed files, compatibility, and file effects before writing. It preserves user-authored files and text outside its managed content.
+
+## Ask For One Concrete Change
+
+Open Codex or Claude Code where it can read the Liner Project, then make a scoped request:
+
+> Inspect this Liner Project. Add the current Apple App Review Guidelines as a required Source, tell me which derived artifacts become stale, and show any approval-required plan before applying it.
+
+The Maintenance Adapter tells the agent to start with:
+
+<CommandSnippet command={`liner project guidance <project> --format markdown
+liner project inspect <project> --json`} />
+
+The running CLI—not the skill—defines the available operations, compatibility rules, and remediation.
+
+## Preview Before Apply
+
+Every supported change follows the same contract:
+
+1. A read-only Project Snapshot records identity, revision, compatibility, Sources, and lifecycle state.
+2. A write-free Project Change Set lists the exact operations, file effects, risk, and refresh consequences.
+3. When `approval_required` is `true`, the agent stops and waits for a fresh Curator response to that exact preview.
+4. Liner revalidates the Project and plan before applying it.
+5. A durable, redacted Change Receipt records what changed without copying Source bodies or private curator notes.
+
+Additive and metadata-only changes may continue after validation when Core says approval is not required. Remove, purge, semantic replacement, Project moves, and other higher-risk changes keep their explicit approval gates.
+
+## What The Agent Can Maintain
+
+The installed adapter can route supported requests to:
+
+- inspect Project identity, compatibility, lifecycle state, and Sources
+- add or update a Source while preserving Source identity
+- replace a Source with explicit predecessor and successor lineage
+- remove a Source into the Retention Vault or separately approve a destructive purge
+- rename or move a Project without changing Project identity
+- refresh stale corpus and Operating Layer state through review gates
+- update managed Project guidance or pointer blocks without overwriting user content
+
+## Three Different Skill Surfaces
+
+| Surface | Purpose | Can become active instructions? |
+| --- | --- | --- |
+| **Project Skill** | Lives at the Project root and teaches an AI how to use that Project's research and Operating Layer. | Yes, as the Project's canonical entrypoint. |
+| **Maintenance Adapter** | Installs explicitly into Codex or Claude and routes maintenance to `liner project guidance`. | Yes, after you install it. |
+| **`type: skill` Source** | Adds another skill's text to the Mixtape as evidence or an example. | No. It remains inert source material. |
+
+The Maintenance Adapter does not replace the Project Skill, and a `type: skill` Source never installs or activates instructions.
+
+## Inspect, Update, Or Remove The Adapter
+
+<CommandSnippet command={`liner adapters inspect codex
+liner adapters update codex --yes
+liner adapters remove codex --yes`} />
+
+Use `claude` for Claude Code. Update and removal touch only verified Liner-managed content. If compatibility or managed state is ambiguous, Liner fails closed and prints the exact remediation instead of overwriting the target.

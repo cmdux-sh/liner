@@ -184,6 +184,8 @@ function isPhaseComplete(
     }
     case "assembly":
       return tape.sources.length > 0;
+    case "improvement":
+      return artifactHasRealContent(join(folder, ".liner-runs/improvement/delta.yaml"));
     case "compile":
       return existsSync(project.mixtapePath);
   }

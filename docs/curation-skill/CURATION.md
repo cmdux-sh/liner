@@ -151,7 +151,7 @@ Run the quality tests deliberately. This phase checks whether the corpus can act
 
 The framing-gap and source-role fit tests are the ones most curators skip. They are also the highest-leverage. Single-pass curation tends to produce mixtapes that are well-covered within one narrow framing. These tests catch what the first pass could not see.
 
-If a mixtape fails any of these tests, fix it before moving on when the fix is small enough for the quality phase. If the failure points to a wider source-role gap, write `working/05-operating-fit-audit.md` with `status: improvement_recommended`: name the missing role, explain why it matters, suggest search lanes, and list concrete custom sources the user could add if public research remains thin. Do not call the corpus ready with a limitation when the right next step is to run a focused improvement pass.
+If a mixtape fails any of these tests, fix it before moving on when the fix is small enough for the quality phase. If the failure points to a wider source-role gap, write `working/05-operating-fit-audit.md` with `status: improvement_recommended`: name the missing role, explain why it matters, suggest search lanes, and list concrete user-provided Sources that could fill the gap if public research remains thin. Do not call the corpus ready with a limitation when the right next step is to run a focused improvement pass.
 
 ### Phase 6 — Synthesis
 

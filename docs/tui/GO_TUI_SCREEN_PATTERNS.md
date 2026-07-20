@@ -90,11 +90,34 @@ Anatomy:
 liner v1 ////// settings
 
 Settings
+Choose app-level preferences.
+
+> Projects folder
+  ~/liner/projects
+
+  AI runner
+  OpenAI · Auto · Auto by task
+
+footer help
+```
+
+Selecting AI runner opens the existing column chooser:
+
+```text
+AI runner
 Choose the AI runner Liner uses to research sources and create project files.
 
-Codex    Claude
+Provider          Model                 Thinking effort
 
-Codex CLI. Active runner.
+> OpenAI          > Auto                > Auto by task
+  Claude            OpenAI default        None
+                    GPT-5.6 Sol           Low
+                    GPT-5.6 Terra         Medium
+                    GPT-5.6 Luna          High
+                    Custom model ID       Extra high
+                                          Maximum
+
+Selected-choice detail and runtime diagnostics.
 
 footer help
 ```
@@ -102,9 +125,28 @@ footer help
 Rules:
 
 - Put the choices near the top.
+- Settings first shows two choices: Projects folder and AI runner. Enter opens
+  the selected choice; Escape returns to the previous screen.
+- Projects folder uses a focused path editor. The screen says that saving
+  creates the folder if needed and does not move existing project files.
+- Settings uses vertical preference columns: Provider, Model, and OpenAI-only
+  Thinking effort inside AI runner. Other compact choosers may keep a single
+  choice list.
+- Up and Down move only within the focused column. Left and Right move only
+  between columns. Enter saves the staged combination and returns to Settings;
+  Escape returns to Settings without writing it.
+- Claude stops at Model and does not render an empty Thinking effort column.
+- Auto is the recommended OpenAI model choice. Its default effort label is
+  `Auto by task`; selected-choice detail explains Luna + High for research-heavy
+  tasks and Sol + Medium for higher-judgment tasks.
+- Keep OpenAI default distinct from Auto. Persist the routing mode separately;
+  never pass `auto` to Codex CLI as though it were a model ID.
+- Keep the same interaction at narrow supported widths; truncate long custom
+  model labels instead of allowing adjacent columns to collide.
 - Use orange only for the selected choice.
 - Keep unselected choices gray.
 - Show details below the selector, not in a side pane.
+- Keep executable and configuration-home diagnostics below the choice task.
 - The selected choice detail is gray body text.
 - Do not repeat the selected option as a label in the detail line.
 - Do not use `Label: Value` rows for compact chooser details.
@@ -160,8 +202,8 @@ Rules:
 - Put descriptions inside the detail block.
 - Keep the default Projects detail to identity and decision context: `Name`,
   `Status`, `Description`, `Job`, and `Folder`.
-- Move source/skill/audit/impact/child counts to deeper workspace or capability
-  surfaces.
+- Move source, skill, audit, and child counts to deeper workspace or capability
+  surfaces. Internal Impact Tests are not a v1 navigation surface.
 - Hide empty default filter copy such as `Filter All projects`; show filter
   state only when the user is filtering or has a query.
 - Detail labels are gray. Detail values are white.
@@ -261,7 +303,7 @@ liner v1 ////// import
 Import Project
 Choose a .mixtape file to import as a Liner project.
 
-Folder:      /Users/arturo/Downloads
+Folder:      ~/Downloads
 Destination: ~/liner/projects
 Sources:     Use archived source files
 
@@ -380,6 +422,59 @@ Rules:
 
 Use this when a screen writes files, runs a multi-step process, or waits for a
 background task.
+
+## Pattern 7: Maintenance Preview
+
+Use for a supported Project or Source change after Core has inspected the
+Project and returned a versioned Change Set.
+
+Current screen:
+
+- Maintain project
+
+Code anchors:
+
+- `packages/go-tui/internal/app/maintenance.go`
+- `packages/go-tui/internal/core/maintenance.go`
+
+Anatomy:
+
+```text
+liner v1 ////// maintain project
+
+Replace Source
+Review the exact Core-issued change before applying it.
+
+Project ID:    prj_...
+Source ID:     src_...
+Risk:          approval required
+Writes:        mixtape/tape.yaml, retention metadata
+Invalidates:   Corpus, Operating Layer
+
+footer help
+```
+
+Rules:
+
+- Start from a read-only Project Snapshot and show immutable Project and Source
+  IDs when they identify the target.
+- Render Core's risk, file effects, lifecycle consequences, validation, and
+  approval requirement. Do not reconstruct them in the Go app.
+- Additive and metadata-only plans may continue after validation when Core says
+  approval is not required. Structural, destructive, and destination-sensitive
+  plans wait for explicit approval of that exact preview.
+- Revalidate the exact Change Set before apply. A changed, stale, malformed, or
+  crashed plan fails closed and returns the user to inspection or exact
+  remediation.
+- Completion shows the durable Change Receipt path, refreshed Project Snapshot,
+  stale derived artifacts, and next actions. A console success string is not a
+  receipt.
+- Source removal means retention. Purge is a distinct destructive operation and
+  must not share removal copy or approval semantics.
+- The Go app and optional Maintenance Adapters never write canonical Project
+  files directly for supported operations.
+
+Use this when review and approval must bind to one exact Core-issued plan.
 
 ## Adding A Pattern
 

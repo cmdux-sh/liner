@@ -11,13 +11,13 @@ around that corpus. After the corpus is ready, Create Operating Layer writes
 the resource is for, how to use the evidence, and where its boundaries are. Tape
 != Mixtape != Liner Project.
 
-The creation prompt is intentionally plain-language: **What do you want this
-Liner to help your AI agent do?** The answer should be narrow. "SEO" is too
-broad; "SEO keyword research for a mental-health startup specialized in brain
-surgery" gives Liner enough specificity to derive research lanes, find the right
-sources, and produce a resource a future agent can actually use. Internally,
-Liner still stores an inferred `jtbd` for compatibility, but the user does not
-need to write a formal Job Story.
+First-run setup creates a **Liner Project** around one narrow **Job to Be Done**.
+Liner captures that job in **Job Story** form, then **Clarify Job** makes the
+situation, motivation, expected outcome, and boundaries explicit before source
+work begins. "SEO" is too broad; "When I am preparing a launch for a
+mental-health startup, I want evidence-backed keyword direction, so I can focus
+the site on credible search intent" is narrow enough to derive research lanes,
+find the right sources, and produce a resource a future agent can use.
 
 This repo contains the **CLI**, the **Go TUI**, the **npm package shell**, and
 the project docs. The methodology lives in
@@ -60,7 +60,7 @@ liner setup-js              # installs Playwright + headless Chromium (~150MB)
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).
 
-**Platform support (1.0.3):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
+**Platform support (1.1.0):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
 
 Requires Node 18+.
 
@@ -69,8 +69,12 @@ Requires Node 18+.
 ```sh
 cd ~/projects/my-thing
 liner init mobile-design-foundations
-# edit mobile-design-foundations/mixtape/tape.yaml with your sources
-# write mobile-design-foundations/mixtape/synthesis.md (or let the skill/TUI draft it)
+liner sources add mobile-design-foundations \
+  --type web \
+  --url https://developer.apple.com/app-store/review/guidelines/ \
+  --note "Use the current review rules as primary evidence." \
+  --priority required
+# open `liner`, then build and review the corpus with the Curator workflow
 liner compile mobile-design-foundations
 ```
 
@@ -92,7 +96,7 @@ Or interactively:
 npx linersh
 ```
 
-When you create a new mixtape in the TUI, Liner asks whether you already have sources right after the project folder is created. You can paste a batch immediately, open the source editor, or skip and let the methodology discover sources later.
+When you create a new Liner Project in the TUI, Liner asks whether you already have sources after the Job Story and Clarify Job flow. You can paste a batch immediately, open the source editor, or skip and let the methodology discover sources later. The curated research packet inside the project is its Mixtape.
 
 In the TUI source editor, press `p` to paste a batch of sources. The inbox accepts web URLs, YouTube URLs, GitHub skill URLs, installed skill names, local file paths, existing `local-sources/...` paths, and pasted website/article text. Absolute local files are copied into the project’s `local-sources/` folder automatically. Pasted article text is saved under `local-sources/captured/` and added as a `local_file` source.
 
@@ -111,8 +115,29 @@ For authenticated or paid sources, use "capture yourself" for now: open the page
 | `liner clone <url-or-path> [dest]` | Fetch a remote tape file (raw URL) or copy a local one. Does not compile. |
 | `liner list` | List mixtape project folders in the current directory. `--json` for programmatic use, `--recursive` to descend one level. |
 | `liner cache {info,list,show,clear,purge}` | Inspect or wipe the URL-keyed source cache. |
+| `liner project inspect [path]` | Read a versioned Project Snapshot with immutable IDs, compatibility, lifecycle state, capabilities, and root-discovery evidence. |
+| `liner project guidance <folder> --format json\|markdown` | Print the installed CLI's versioned maintenance contract, compatibility state, instruction allowlist, and exact remediation. |
+| `liner project plan <folder> --request-json <json>` | Create a write-free Change Set from a versioned maintenance request. |
+| `liner project pointer <folder> --environment <codex\|claude> --action <install\|update\|remove>` | Create a Change Set for an opt-in managed `AGENTS.md` or `CLAUDE.md` pointer block. |
+| `liner project rename <folder> --name <name>` | Plan an identity-preserving Project display-name change. |
+| `liner project move <folder> --destination <path>` | Plan an atomic Project root move with destination and collision checks. |
+| `liner project apply <folder> --change-set-json <json>` | Apply one exact versioned Change Set atomically and write a durable receipt. |
+| `liner sources add <folder> --type <type> ...` | Plan an atomic Source addition with duplicate detection and provenance. |
+| `liner sources update <folder> --source-id <id> ...` | Update metadata or a locator while preserving the immutable Source ID. |
+| `liner sources replace <folder> --source-id <id> --type <type> ...` | Replace a Source semantically with successor identity and lineage. |
+| `liner sources remove <folder> --source-id <id>` | Detach a Source into the retention vault without destructive deletion. |
+| `liner sources purge <folder> --source-id <id>` | Plan a separately approved destructive purge of retained Source content. |
+| `liner adapters inspect <codex\|claude>` | Inspect an optional Maintenance Adapter without changing it. |
+| `liner adapters install <codex\|claude>` | Explicitly install the thin CLI-delegating Maintenance Adapter. |
+| `liner adapters update <codex\|claude>` | Update only content owned by the managed adapter. |
+| `liner adapters remove <codex\|claude>` | Remove only Liner-managed adapter content while preserving user content. |
 | `liner setup-js` | One-time: install Playwright and download the headless Chromium binary used by `render: js` web sources. Idempotent. |
 | `liner skills list` | Discover installed local skills that can be added as `skill` sources. |
+
+The maintenance skill ships with Liner but is never installed automatically. It delegates to
+the installed CLI's current guidance and does not replace the canonical Project Skill. Adapter
+removal deletes only Liner-managed content and preserves user-authored files and text outside
+managed markers.
 
 For the Go TUI package layout and developer commands see [packages/tui/README.md](packages/tui/README.md).
 
@@ -187,7 +212,11 @@ liner compile mobile-design-foundations --cookies ~/cookies.txt
 
 or set `cookies_file = "/path/to/cookies.txt"` under `[fetch]` in `~/.liner/config.toml`.
 
-When Build Corpus drops custom YouTube or web sources because a transcript/body was unavailable, the TUI surfaces them in Compile Console. Press `r` there to repair unavailable custom sources. Recovered content is saved under `local-sources/recovered/` as a `local_file` source, and Liner prompts you to run Build Corpus again so the AI can reconsider the new local material.
+When Build Corpus drops user-provided YouTube or web Sources because a
+transcript or body was unavailable, the TUI surfaces them in Compile Console as
+`custom sources`. Press `r` there to repair them. Recovered content is saved
+under `local-sources/recovered/` as a `local_file` Source, and Liner prompts you
+to run Build Corpus again so the AI can reconsider the new local material.
 
 ## Cache
 
@@ -197,12 +226,12 @@ URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 da
 
 - **No hosted compilation.** Everything runs on your machine.
 - **No accounts, no telemetry.** The tools don't phone home.
-- **No LLM calls in the core CLI.** The CLI does not call AI models. The TUI invokes your configured local Claude or Codex runner for methodology phases. Liner doesn't pay for inference.
+- **No LLM calls in the core CLI.** The CLI does not call AI models. The TUI invokes your configured OpenAI provider through Codex CLI or Claude provider through Claude Code for methodology phases. Liner doesn't pay for inference.
 - **No paywall bypass.** Gated content requires you to provide it from your own access.
 
 ## Status
 
-Active solo project. The current source targets **v1.0.3** for the Go TUI npm
+Active solo project. The current source targets **v1.1.0** for the Go TUI npm
 release. The CLI and Go TUI are functional. The TUI creates and manages local
 Liner Projects, builds the corpus through the configured local AI runner,
 treats partial compiles as usable when `MIXTAPE.md` is written, opens existing

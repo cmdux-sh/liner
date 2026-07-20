@@ -17,6 +17,9 @@ const (
 )
 
 func (m Model) viewResearch() string {
+	if m.methodologyPhaseID == "improvement" {
+		return m.viewImprovementProgress()
+	}
 	width := styles.ClampWidth(m.width - 4)
 	phaseTable := m.methodologyPhaseTable(width)
 	bar := newTaskProgressBar(taskProgressWidth(m.width)).ViewAs(m.researchPercent())
@@ -24,16 +27,19 @@ func (m Model) viewResearch() string {
 	parts := []string{
 		m.renderLoadingTitle("Build Corpus", !m.researchDone),
 		styles.Subtitle.Render(m.currentTape.Title),
+	}
+	parts = append(parts, m.methodologyOutcomeSections()...)
+	parts = append(parts,
 		"",
 		styles.ReportSection.Render("Progress"),
-		bar + "  " + styles.Subtitle.Render(fmt.Sprintf("%d/%d phases", min(m.researchStep, len(methodologyPhaseOrder)), len(methodologyPhaseOrder))),
+		bar+"  "+styles.Subtitle.Render(fmt.Sprintf("%d/%d phases", min(m.researchStep, len(methodologyPhaseOrder)), len(methodologyPhaseOrder))),
 		"",
 		styles.ReportSection.Render("Phases"),
 		phaseTable.View(),
 		"",
 		styles.ReportSection.Render("Log"),
 		logView.View(),
-	}
+	)
 	if quiet := m.methodologyQuietStatus(); quiet != "" {
 		parts = append(parts, quiet)
 	}
@@ -41,6 +47,65 @@ func (m Model) viewResearch() string {
 		parts = append(parts, "", cue)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+func (m Model) viewImprovementProgress() string {
+	width := styles.ClampWidth(m.width - 4)
+	logView := m.methodologyLogViewport(width, methodologyLogHeight(m.height))
+	status := "Finding focused additions in an isolated workspace."
+	if m.researchDone {
+		status = "Focused additions are staged for Liner Core review."
+	}
+	parts := []string{
+		m.renderLoadingTitle("Improve Corpus", !m.researchDone),
+		styles.Subtitle.Render(m.currentTape.Title),
+	}
+	parts = append(parts, m.methodologyOutcomeSections()...)
+	parts = append(parts,
+		"",
+		styles.ReportSection.Render("Focused pass"),
+		renderLabelValueBlock(width, []labelValueRow{
+			{Label: "Status", Value: status},
+			{Label: "Scope", Value: "Missing source roles identified after Compile"},
+			{Label: "Safety", Value: "Canonical Project unchanged until you review and accept the additions"},
+		}, 0, 0),
+		"",
+		styles.ReportSection.Render("Log"),
+		logView.View(),
+	)
+	if quiet := m.methodologyQuietStatus(); quiet != "" {
+		parts = append(parts, quiet)
+	}
+	if cue := m.methodologyCue(); cue != "" {
+		parts = append(parts, "", cue)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+func (m Model) methodologyOutcomeSections() []string {
+	if !m.methodologyFailed && !m.methodologyCancelled {
+		return nil
+	}
+	label := "Primary failure"
+	primaryStyle := styles.ErrorText
+	if m.methodologyCancelled {
+		label = "Cancelled"
+		primaryStyle = styles.NextActionText
+	}
+	parts := []string{"", styles.ReportSection.Render(label)}
+	if strings.TrimSpace(m.methodologyPrimaryFailure) != "" {
+		parts = append(parts, primaryStyle.Render(m.methodologyPrimaryFailure))
+	}
+	if recovery := m.methodologyRecoveryText(); recovery != "" {
+		parts = append(parts, styles.ReportSection.Render("Recovery"), styles.NextActionText.Render(recovery))
+	}
+	if len(m.methodologyDiagnostics) > 0 {
+		parts = append(parts, styles.ReportSection.Render("Diagnostics"))
+		for _, diagnostic := range m.methodologyDiagnostics {
+			parts = append(parts, styles.MutedText.Render("• "+diagnostic))
+		}
+	}
+	return parts
 }
 
 func configureMethodologyLogViewport(log *viewport.Model, width int, height int) {
@@ -102,6 +167,9 @@ func (m Model) methodologyPhaseTable(width int) table.Model {
 		if m.methodologyFailed && i == m.methodologyPhaseIndex {
 			status = "failed"
 		}
+		if m.methodologyCancelled && i == m.methodologyPhaseIndex {
+			status = "cancelled"
+		}
 		if m.researchDone && m.researchStep >= len(labels) {
 			status = "done"
 		}
@@ -125,11 +193,27 @@ func (m Model) methodologyPhaseTable(width int) table.Model {
 }
 
 func (m Model) methodologyCue() string {
+	if m.methodologyCancelled {
+		return styles.NextCueTitle.Render("Cancelled. ") + styles.NextActionText.Render(m.methodologyRecoveryText()+" Press v for the full log.")
+	}
 	if m.methodologyFailed {
-		return styles.ErrorText.Render("Paused on error.") + " " + styles.NextActionText.Render("Retry this phase, or return to the project.")
+		return styles.ErrorText.Render("Paused on error.") + " " + styles.NextActionText.Render(m.methodologyRecoveryText()+" Press v for the full log.")
 	}
 	if m.researchDone && strings.TrimSpace(m.note) != "" {
 		return styles.NextCueTitle.Render("Next: ") + styles.NextActionText.Render(m.note)
+	}
+	return ""
+}
+
+func (m Model) methodologyRecoveryText() string {
+	if recovery := strings.TrimSpace(m.methodologyRecovery); recovery != "" {
+		return recovery
+	}
+	if m.methodologyCancelled {
+		return "Retry this phase when ready, or return to the project."
+	}
+	if m.methodologyFailed {
+		return "Retry this phase, or return to the project."
 	}
 	return ""
 }

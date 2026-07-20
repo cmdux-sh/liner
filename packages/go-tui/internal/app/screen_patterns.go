@@ -11,8 +11,9 @@ import (
 )
 
 type labelValueRow struct {
-	Label string
-	Value string
+	Label    string
+	Value    string
+	MaxLines int
 }
 
 type choiceOption struct {
@@ -138,6 +139,10 @@ func renderProgressStatusBlock(width int, bar progress.Model, percent float64, s
 }
 
 func renderWaitStatusBlock(width int, status string, detail string, count string) string {
+	return renderActiveWaitStatusBlock(width, status, detail, count, "")
+}
+
+func renderActiveWaitStatusBlock(width int, status string, detail string, count string, spinnerView string) string {
 	if strings.TrimSpace(status) == "" {
 		status = "Working"
 	}
@@ -147,7 +152,11 @@ func renderWaitStatusBlock(width int, status string, detail string, count string
 	}
 	lines := []string{statusLine}
 	if strings.TrimSpace(count) != "" {
-		lines = append(lines, styles.Subtitle.Render(count))
+		countLine := styles.Subtitle.Render(count)
+		if activity := cleanSpinnerView(spinnerView); activity != "" {
+			countLine = activity + " " + countLine
+		}
+		lines = append(lines, countLine)
 	}
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 }
@@ -190,6 +199,7 @@ func renderLabelValueRow(width int, labelWidth int, row labelValueRow) []string 
 	}
 	valueWidth := max(10, width-labelWidth-1)
 	valueLines := wrapLabelValue(row.Value, valueWidth)
+	valueLines = clampWrappedLines(valueLines, valueWidth, row.MaxLines)
 	if len(valueLines) == 0 {
 		valueLines = []string{""}
 	}
@@ -201,6 +211,25 @@ func renderLabelValueRow(width int, labelWidth int, row labelValueRow) []string 
 		out = append(out, indent+styles.PrimaryText.Render(line))
 	}
 	return out
+}
+
+func clampWrappedLines(lines []string, width int, maxLines int) []string {
+	if maxLines <= 0 || len(lines) <= maxLines {
+		return lines
+	}
+	clamped := append([]string(nil), lines[:maxLines]...)
+	last := strings.TrimSpace(clamped[len(clamped)-1])
+	if width <= 1 {
+		clamped[len(clamped)-1] = "…"
+		return clamped
+	}
+	if lipgloss.Width(last)+lipgloss.Width("…") <= width {
+		clamped[len(clamped)-1] = last + "…"
+		return clamped
+	}
+	prefix, _ := splitDisplayWidth(last, width-lipgloss.Width("…"))
+	clamped[len(clamped)-1] = strings.TrimRight(prefix, " ") + "…"
+	return clamped
 }
 
 func wrapLabelValue(value string, width int) []string {

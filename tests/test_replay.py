@@ -68,6 +68,10 @@ def test_replay_clones_inputs_into_default_destination(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["replay", str(src)])
     assert result.exit_code == 0, result.stdout
+    assert "Phase 8" not in result.output
+    assert "Internal Impact Test" not in result.output
+    assert "lineage" in result.output.lower()
+    assert "compare" in result.output.lower()
 
     dest = tmp_path / "original-replay"
     assert dest.exists(), "default destination should be <source>-replay"
@@ -77,10 +81,20 @@ def test_replay_clones_inputs_into_default_destination(tmp_path: Path) -> None:
     assert tape["jtbd"] == "Write good CLI prose."
     assert tape["mode"] == "quick"
     assert tape["curator"] == "tester"
-    # Parent is recorded so Phase 8 can run a comparison test.
+    # Parent is recorded so later lineage comparison can use the original.
     assert tape["parent"] == str(src.resolve())
     # Sources reset — the replay regenerates the pipeline from scratch.
     assert tape["sources"] == []
+
+
+def test_replay_help_describes_lineage_without_obsolete_promises() -> None:
+    result = runner.invoke(app, ["replay", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "Phase 8" not in result.output
+    assert "Internal Impact Test" not in result.output
+    assert "lineage" in result.output.lower()
+    assert "comparison" in result.output.lower()
 
 
 def test_replay_carries_jtbd_clarifications(tmp_path: Path) -> None:

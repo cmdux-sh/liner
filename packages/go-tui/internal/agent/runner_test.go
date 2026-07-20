@@ -68,6 +68,18 @@ func TestDecodeEventKeepsRawAndKnownFields(t *testing.T) {
 	}
 }
 
+func TestDecodeEventKeepsStructuredRunnerFailureFields(t *testing.T) {
+	line := []byte(`{"kind":"runner_failure","failureKind":"runtime","message":"CLI version unsupported","recovery":"Upgrade the CLI.","category":"version","outcome":"failed","logPath":"/tmp/run.jsonl"}`)
+
+	got, err := DecodeEvent(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FailureKind != "runtime" || got.Message != "CLI version unsupported" || got.Recovery != "Upgrade the CLI." || got.Category != "version" || got.Outcome != "failed" || got.LogPath != "/tmp/run.jsonl" {
+		t.Fatalf("decoded wrong structured failure fields: %#v", got)
+	}
+}
+
 func TestScanEventsStreamsNDJSON(t *testing.T) {
 	input := strings.NewReader(strings.Join([]string{
 		`{"kind":"runner_start","phaseId":"framing","agent":"codex"}`,
@@ -104,7 +116,7 @@ func TestStartInterruptsRunnerOnContextCancel(t *testing.T) {
 	script := filepath.Join(dir, "runner.sh")
 	body := strings.Join([]string{
 		"#!/bin/sh",
-		"trap 'echo interrupted > " + shellQuote(marker) + "; echo \"{\\\"kind\\\":\\\"runner_error\\\",\\\"message\\\":\\\"cancelled\\\"}\"; exit 130' INT TERM",
+		"trap 'echo interrupted > " + shellQuote(marker) + "; echo \"{\\\"kind\\\":\\\"runner_cancelled\\\",\\\"message\\\":\\\"AI run cancelled.\\\",\\\"recovery\\\":\\\"Retry this phase.\\\"}\"; exit 130' INT TERM",
 		"echo '{\"kind\":\"runner_start\",\"phaseId\":\"framing\",\"agent\":\"fake\"}'",
 		"while :; do sleep 1; done",
 		"",
@@ -131,6 +143,12 @@ func TestStartInterruptsRunnerOnContextCancel(t *testing.T) {
 	}
 
 	cancel()
+	var cancelled bool
+	for event := range run.Events {
+		if event.Kind == "runner_cancelled" {
+			cancelled = true
+		}
+	}
 
 	select {
 	case <-run.Done:
@@ -139,6 +157,37 @@ func TestStartInterruptsRunnerOnContextCancel(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("runner was not interrupted before hard kill: %v", err)
+	}
+	if !cancelled {
+		t.Fatal("structured runner_cancelled outcome was dropped during bridge shutdown")
+	}
+}
+
+func TestScanEventsPreservesTerminalOutcomeAcrossCancelledBacklog(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	lines := make([]string, 0, 23)
+	for i := 0; i < 20; i++ {
+		lines = append(lines, `{"kind":"text","text":"queued"}`)
+	}
+	lines = append(lines,
+		`{"kind":"runner_cancelled","message":"AI run cancelled."}`,
+		`{"kind":"runner_done","outcome":"cancelled","code":130}`,
+		"",
+	)
+	events := make(chan Event, 16)
+
+	if err := scanEvents(ctx, strings.NewReader(strings.Join(lines, "\n")), events); err != nil {
+		t.Fatal(err)
+	}
+	close(events)
+	var cancelled, done bool
+	for event := range events {
+		cancelled = cancelled || event.Kind == "runner_cancelled"
+		done = done || event.Kind == "runner_done"
+	}
+	if !cancelled || !done {
+		t.Fatalf("terminal outcomes should survive a cancelled backlog: cancelled=%v done=%v", cancelled, done)
 	}
 }
 

@@ -70,6 +70,100 @@ private, local, captured, skill-based, or agent-discovered, but each one needs a
 clear role in the corpus.
 _Avoid_: Resource, link dump, content item
 
+**AI Runner**:
+The resolved provider, runtime executable, runtime configuration home, model,
+and provider-specific execution preferences used for an AI-assisted Liner run.
+_Avoid_: Model, provider, hidden subprocess configuration
+
+**OpenAI**:
+The user-facing AI provider whose Liner runtime is Codex CLI. OpenAI names the
+provider; it does not rename the `codex` executable, Codex sessions, or native
+`CODEX_HOME` configuration.
+_Avoid_: Codex provider, OpenAI CLI
+
+**Codex CLI**:
+The command-line runtime Liner invokes for the OpenAI provider. Technical
+installation, authentication, executable, session, and configuration-home copy
+uses this runtime name.
+_Avoid_: OpenAI provider choice, Codex as a separate provider
+
+**Provider Preference**:
+A durable, provider-specific model choice or Auto model policy and, for OpenAI,
+optional Thinking effort. OpenAI and Claude preferences persist independently
+of the active provider.
+_Avoid_: Per-phase override, credential, active-provider-only setting
+
+**Auto model policy**:
+The recommended OpenAI model choice that resolves each fresh Liner AI task to a
+curated model and Thinking effort. Clarify Job, Candidate discovery, and
+Evaluation use Luna with High effort; Framing, Quality, Synthesis, Improvement,
+and Assembly use Sol with Medium effort. Explicit phase, model, or effort
+preferences remain authoritative, and resumed sessions keep their starting
+profile.
+_Avoid_: OpenAI default, automatic provider selection, literal `auto` model ID
+
+**Thinking effort**:
+The OpenAI-only Settings control backed by Codex CLI reasoning-effort values.
+Auto by task follows the Auto model policy, Model default omits the override,
+and explicit values apply to fresh runs without retargeting resumed sessions.
+_Avoid_: Claude thinking budget, portable provider setting, model
+
+**Isolated Development Root**:
+The temporary parent directory containing a development Liner home, Project
+library, empty provider homes, run logs, and generated artifacts. Existing
+provider homes may be referenced only through an explicit launch option and are
+never copied into this root.
+_Avoid_: Production Project library, credential fixture, test-only application
+
+**Project ID**:
+The immutable identifier assigned to a Liner Project. It survives display-name
+changes and root moves, and lets Core reject ambiguous or incorrect roots.
+_Avoid_: Folder name, path identity, mutable project key
+
+**Source ID**:
+The immutable identifier assigned to one semantic Source. Metadata and locator
+updates preserve it; semantic replacement creates a new successor Source ID and
+records lineage from the predecessor.
+_Avoid_: Source index, filename identity, mutable locator ID
+
+**Project Snapshot**:
+The versioned, read-only Core description of Project identity, revision,
+compatibility, lifecycle state, Sources, capabilities, and root-discovery
+evidence. It is the input to maintenance planning, not the same as the Status
+Snapshot stored in `liner.yaml`.
+_Avoid_: Status Snapshot, cached project object, mutable session state
+
+**Project Change Set**:
+The versioned, write-free maintenance plan produced from an exact Project
+Snapshot. It records operations, file effects, lifecycle consequences, risk,
+required approval, and stale-plan guards before any write occurs.
+_Avoid_: Patch request, direct edit, implicit approval
+
+**Change Receipt**:
+The durable, redacted Core record of an applied Project Change Set. It proves
+which exact plan was applied and its effects without copying Source bodies or
+sensitive curator notes.
+_Avoid_: Console success message, transcript dump, unredacted log
+
+**Compatibility State**:
+The Project Snapshot result that says whether the running Liner Core can safely
+mutate the Project format and identities. Incompatible or ambiguous Projects
+remain inspectable where possible but fail closed for mutation with exact
+remediation.
+_Avoid_: Best-effort write, silent migration, assumed compatibility
+
+**Retention Vault**:
+The Project-owned location for Source content detached from the active corpus.
+Remove preserves content and provenance there by default; purge is a distinct,
+destructive, separately approved operation.
+_Avoid_: Trash, automatic deletion, purge queue
+
+**Maintenance Adapter**:
+An optional, thin Codex or Claude integration that routes maintenance through
+the installed CLI's current guidance. It does not replace the canonical Project
+Skill and owns only explicitly marked adapter content.
+_Avoid_: Project Skill, autonomous writer, required installation
+
 **Source Inbox**:
 The user-provided source entry surface in a Liner Project. It accepts known
 material the user already has, then stages it for review before it becomes part

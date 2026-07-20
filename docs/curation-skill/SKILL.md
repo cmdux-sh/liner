@@ -9,6 +9,11 @@ This skill implements the Liner curation methodology (CURATION.md v2.0). A mixta
 
 The output of this skill is a project folder ready for `liner compile`. The skill does not compile.
 
+This is an initial curation surface, not a maintenance writer. After a Liner
+Project has identity-bearing Project or Source state, supported changes must go
+through the installed CLI's current `liner project guidance` contract. Do not
+use this skill to edit canonical Project files as a maintenance shortcut.
+
 **Runtime requirement:** this skill assumes filesystem access. It reads companion files from its own directory at specific phases and writes artifacts to a project folder. Designed for execution inside Claude Code or as a subprocess driven by the Liner TUI. Not designed for pure-chat use.
 
 ## Terminology — get these right
@@ -82,6 +87,8 @@ Your job in Phase 1 is to translate that plain-language goal into a Capability B
 - research lanes inferred from the goal,
 - source requirements and exclusions,
 - runtime behavior for the future agent, including when it should ask the user clarifying questions.
+
+Use these exact level-three headings inside the Capability Brief so the Operating Layer can promote the contract reliably: `### Reusable AI capability`, `### Exact runtime output contract`, `### Internal job-to-be-done`, `### Inferred research lanes`, `### Required source roles`, `### Source exclusions`, and `### Runtime autonomy, abstention, and escalation`.
 
 The internal JTBD should be hyper-specific. "SEO" is a topic. "SEO keyword research for a mental-health startup specialized in brain surgery" is a capability narrow enough to research. If the user's goal is still broad, ask targeted questions and descend until the capability is specific enough that a corpus built for it could outperform generic model knowledge.
 
@@ -202,9 +209,12 @@ Order sources within each section by importance (most important first). Order se
 - `version: 1`
 - `mode` is `quick` or `methodology`
 - `sources` is non-empty
-- Every source has `type` and `url`
-- Every `type` is `youtube` or `web`
-- Every `url` parses
+- Every source has `type`, `note`, and `section`
+- Every `type` is `youtube`, `web`, `local_file`, or `skill`
+- Every `youtube` or `web` source has a parseable `url`
+- Every `local_file` source has `path` and `citation`
+- Every local or installed `skill` Source has `path`; a remote skill Source has
+  a parseable `url`
 
 If validation fails, fix and re-check before showing the user.
 
@@ -261,6 +271,9 @@ Tell the user the folder is ready to compile with `liner compile <topic-slug>`. 
 - **Does not run `liner compile`.** That's the user's call, with the user's tools.
 - **Does not fetch from gated accounts or private systems.** v1 supports public `youtube` and `web` URLs plus curator-supplied `local_file` and `skill` sources. The skill may reference local files the curator supplied, but it must not invent private paths or bypass access controls.
 - **Does not maintain the shared content cache.** That's the CLI's job.
+- **Does not maintain an existing Liner Project.** Use Liner Core directly or
+  install the optional Maintenance Adapter, which delegates to
+  `liner project guidance`.
 - **Does not publish to the library.** Library contributions happen via PR to the Liner repo, in methodology mode, after passing the empirical test.
 
 ## Common failure modes

@@ -1,4 +1,6 @@
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { detectAgents, resolveSkillPathWithDiagnostics } from "./detect.js";
@@ -16,6 +18,7 @@ const AGENT_PHASES = new Set<PhaseId>([
   "quality",
   "synthesis",
   "assembly",
+  "improvement",
 ]);
 
 type AgentChoice = AgentId | "auto";
@@ -36,6 +39,10 @@ type AgentSelection =
   | { ok: true; agent: AgentDescriptor }
   | { ok: false; code: number; message: string };
 
+export type RunnerPreflight = { ok: true } | { ok: false; message: string };
+
+type RunnerOutcome = "success" | "failed" | "cancelled";
+
 type HeadlessEvent =
   | AgentEvent
   | {
@@ -47,7 +54,15 @@ type HeadlessEvent =
       resume: boolean;
     }
   | { kind: "runner_error"; message: string }
-  | { kind: "runner_done"; code: number | null; stderr?: string };
+  | {
+      kind: "runner_failure";
+      failureKind: "preflight" | "runtime";
+      message: string;
+      recovery: string;
+    }
+  | { kind: "runner_diagnostic"; category: string; message: string }
+  | { kind: "runner_cancelled"; message: string; recovery: string }
+  | { kind: "runner_done"; outcome: RunnerOutcome; code: number | null; logPath?: string };
 
 let stdoutBroken = false;
 
@@ -103,6 +118,14 @@ export function parseHeadlessArgs(argv: string[]): ParseResult {
     return { ok: false, code: 2, message: "--agent must be auto, claude, or codex" };
   }
 
+  if (rawPhase === "improvement" && resume) {
+    return {
+      ok: false,
+      code: 2,
+      message: "Improve Corpus retries must start a fresh isolated agent session; --resume is not supported",
+    };
+  }
+
   const skillPath = values.get("skill-path")?.trim();
   return {
     ok: true,
@@ -122,6 +145,21 @@ export function selectHeadlessAgent(
   config: UserConfig = readConfig(),
 ): AgentSelection {
   if (choice !== "auto") {
+    const envBin = process.env[choice === "claude" ? "LINER_CLAUDE_BIN" : "LINER_CODEX_BIN"]?.trim();
+    if (!envBin && config.runner?.agent === choice) {
+      const envHome =
+        process.env[choice === "claude" ? "LINER_CLAUDE_HOME" : "LINER_CODEX_HOME"]?.trim() ||
+        process.env[choice === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]?.trim();
+      return {
+        ok: true,
+        agent: {
+          id: choice,
+          name: choice === "claude" ? "Claude" : "OpenAI",
+          bin: config.runner.executable,
+          configHome: envHome || config.runner.configHome,
+        },
+      };
+    }
     const agent = installed.find((candidate) => candidate.id === choice);
     if (agent) return { ok: true, agent };
     return {
@@ -131,13 +169,21 @@ export function selectHeadlessAgent(
     };
   }
 
+  const envChoice = process.env["LINER_AGENT"]?.trim().toLowerCase();
   const configured = resolveConfiguredAgent(installed, config);
   if (configured) return { ok: true, agent: configured };
+  if (envChoice === "claude" || envChoice === "codex") {
+    return {
+      ok: false,
+      code: 2,
+      message: `${envChoice} is selected by LINER_AGENT, but its executable is unavailable. Set ${envChoice === "claude" ? "LINER_CLAUDE_BIN" : "LINER_CODEX_BIN"} or update LINER_AGENT.`,
+    };
+  }
   if (installed.length === 0) {
     return {
       ok: false,
       code: 2,
-      message: "No supported agent found on PATH. Install Claude Code or Codex.",
+      message: "No supported agent found on PATH. Install the Claude Code or Codex CLI.",
     };
   }
   return {
@@ -149,13 +195,72 @@ export function selectHeadlessAgent(
   };
 }
 
+export function preflightAgent(agent: AgentDescriptor): RunnerPreflight {
+  const providerLabel = agent.id === "claude" ? "Claude" : "OpenAI";
+  const cliLabel = agent.id === "claude" ? "Claude Code" : "Codex CLI";
+  const homeEnv = agent.id === "claude" ? "LINER_CLAUDE_HOME" : "LINER_CODEX_HOME";
+  const configHome = agent.configHome;
+  if (!configHome || !directoryReadable(configHome)) {
+    return {
+      ok: false,
+      message: `${providerLabel} config home is not accessible: ${configHome || "(not configured)"}. Update Settings or ${homeEnv}.`,
+    };
+  }
+
+  const env = agentEnvironment(agent);
+  const version = spawnSync(agent.bin, ["--version"], { encoding: "utf8", env, timeout: 10_000 });
+  const identity = `${version.stdout || ""}\n${version.stderr || ""}`.toLowerCase();
+  if (version.status !== 0 || !identity.includes(agent.id === "claude" ? "claude" : "codex")) {
+    return {
+      ok: false,
+      message: `${cliLabel} executable identity check failed: ${agent.bin}. Update Settings or ${agent.id === "claude" ? "LINER_CLAUDE_BIN" : "LINER_CODEX_BIN"}.`,
+    };
+  }
+  const capability = spawnSync(agent.bin, ["--help"], { encoding: "utf8", env, timeout: 10_000 });
+  const help = `${capability.stdout || ""}\n${capability.stderr || ""}`.toLowerCase();
+  const supportsHeadless = agent.id === "codex" ? /\bexec\b/.test(help) : /(?:^|\s)(?:-p|--print)(?:\s|,|$)/m.test(help);
+  if (capability.status !== 0 || !supportsHeadless) {
+    return {
+      ok: false,
+      message: `${cliLabel} is not a supported headless runner: ${agent.bin}. Upgrade the CLI and retry.`,
+    };
+  }
+  const authArgs = agent.id === "claude" ? ["auth", "status"] : ["login", "status"];
+  const auth = spawnSync(agent.bin, authArgs, { encoding: "utf8", env, timeout: 10_000 });
+  if (auth.status !== 0) {
+    return {
+      ok: false,
+      message: `${providerLabel} authentication is not ready. Run: ${agent.bin} ${agent.id === "claude" ? "auth login" : "login"}`,
+    };
+  }
+  return { ok: true };
+}
+
+function directoryReadable(path: string): boolean {
+  try {
+    if (!statSync(path).isDirectory()) return false;
+    accessSync(path, constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function agentEnvironment(agent: AgentDescriptor): NodeJS.ProcessEnv {
+  if (!agent.configHome) return process.env;
+  return {
+    ...process.env,
+    [agent.id === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]: agent.configHome,
+  };
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const parsed = parseHeadlessArgs(argv);
   if (!parsed.ok) {
     if (parsed.code === 0) {
       process.stdout.write(parsed.message + "\n");
     } else {
-      emit({ kind: "runner_error", message: parsed.message });
+      emitRunnerFailure("preflight", parsed.message);
     }
     return parsed.code;
   }
@@ -164,17 +269,20 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     const args = parsed.args;
     const skillPath = resolveHeadlessSkillPath(args.skillPath);
     if (!skillPath) {
-      emit({
-        kind: "runner_error",
-        message: "Could not find the curating-mixtapes skill bundle. Pass --skill-path.",
-      });
+      emitRunnerFailure("preflight", "Could not find the curating-mixtapes skill bundle. Pass --skill-path.");
       return 2;
     }
 
     const selection = selectHeadlessAgent(args.agent, detectAgents());
     if (!selection.ok) {
-      emit({ kind: "runner_error", message: selection.message });
+      emitRunnerFailure("preflight", selection.message);
       return selection.code;
+    }
+
+    const preflight = preflightAgent(selection.agent);
+    if (!preflight.ok) {
+      emitRunnerFailure("preflight", preflight.message);
+      return 2;
     }
 
     const folder = projectFolder(args.project);
@@ -198,25 +306,142 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       resume: args.resume,
     });
 
-    const cancel = (): void => handle.cancel();
+    let cancelled = false;
+    const cancel = (): void => {
+      cancelled = true;
+      handle.cancel();
+    };
     process.once("SIGINT", cancel);
     process.once("SIGTERM", cancel);
     const result = await handle.done;
     process.off("SIGINT", cancel);
     process.off("SIGTERM", cancel);
+    const failure = classifyRunnerFailure(result.stderr, result.code !== 0);
+    for (const diagnostic of failure.diagnostics) {
+      emit({
+        kind: "runner_diagnostic",
+        category: runnerDiagnosticCategory(diagnostic),
+        message: diagnostic,
+      });
+    }
+    if (cancelled) {
+      emit({
+        kind: "runner_cancelled",
+        message: "AI run cancelled.",
+        recovery: "Retry this phase when ready, or return to the project.",
+      });
+    } else if (result.code !== 0 && failure.message) {
+      emit({
+        kind: "runner_failure",
+        failureKind: "runtime",
+        message: failure.message,
+        recovery: failure.recovery,
+      });
+    }
     emit({
       kind: "runner_done",
+      outcome: cancelled ? "cancelled" : result.code === 0 ? "success" : "failed",
       code: result.code,
-      stderr: result.stderr || undefined,
+      logPath: result.logPath,
     });
     return result.code ?? 1;
   } catch (error) {
-    emit({
-      kind: "runner_error",
-      message: error instanceof Error ? error.message : String(error),
-    });
+    emitRunnerFailure("runtime", error instanceof Error ? error.message : String(error));
     return 1;
   }
+}
+
+function emitRunnerFailure(failureKind: "preflight" | "runtime", message: string): void {
+  emit({
+    kind: "runner_failure",
+    failureKind,
+    message,
+    recovery: runnerRecovery(message),
+  });
+}
+
+export function classifyRunnerFailure(stderr: string, failed = true): {
+  message: string;
+  recovery: string;
+  diagnostics: string[];
+} {
+  const lines = stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!failed) {
+    return {
+      message: "",
+      recovery: "",
+      diagnostics: lines.filter(isRunnerDiagnostic),
+    };
+  }
+  const candidates = lines.filter((line) =>
+    !isNonfatalRunnerDiagnostic(line) && runnerFailureScore(line) > 0);
+  const primary = candidates.reduce((best, line) =>
+    runnerFailureScore(line) > runnerFailureScore(best) ? line : best, "");
+  const diagnostics = lines.filter((line) => isRunnerDiagnostic(line) && line !== primary);
+  const message = primary.replace(/^(?:fatal|error)(?:\s*:\s*|\s+)/i, "").trim();
+  return {
+    message,
+    recovery: message ? runnerRecovery(message) : "",
+    diagnostics,
+  };
+}
+
+function isRunnerDiagnostic(line: string): boolean {
+  const value = line.toLowerCase();
+  return (
+    /(?:^|\s)warn(?:ing)?(?:\s|:)/i.test(line) ||
+    value.includes("failed to load skill") ||
+    value.includes("codex_core_skills::loader") ||
+    value.includes("rmcp::") ||
+    value.includes("mcp connector") ||
+    value.includes("optional connector") ||
+    value.includes("integration:")
+  );
+}
+
+function isNonfatalRunnerDiagnostic(line: string): boolean {
+  const value = line.toLowerCase();
+  return /(?:^|\s)warn(?:ing)?(?:\s|:)/i.test(line) || value.includes("optional connector");
+}
+
+function runnerFailureScore(line: string): number {
+  const value = line.toLowerCase();
+  if (!value) return -1;
+  if (/\b(?:auth(?:entication)?|login|token expired|logged in)\b/.test(value)) return 100;
+  if (/\b(?:version|unsupported|upgrade)\b/.test(value)) return 90;
+  if (value.includes("required") && isRunnerDiagnostic(line)) return 85;
+  if (/\b(?:config home|executable|not found|missing|denied|invalid|timed? out)\b/.test(value)) return 80;
+  if (/\bfatal\b/.test(value)) return 70;
+  if (/\b(?:error|failed|failure)\b/.test(value)) return 40;
+  return 0;
+}
+
+function runnerDiagnosticCategory(line: string): string {
+  const value = line.toLowerCase();
+  if (value.includes("skill")) return "skill";
+  if (value.includes("mcp") || value.includes("connector")) return "mcp";
+  if (value.includes("integration")) return "integration";
+  return "warning";
+}
+
+function runnerRecovery(message: string): string {
+  const value = message.toLowerCase();
+  if (value.includes("version") || value.includes("unsupported") || value.includes("upgrade")) {
+    return "Upgrade the configured AI runner, then retry this phase.";
+  }
+  if (value.includes("auth") || value.includes("login") || value.includes("logged in")) {
+    return "Authenticate the configured AI runner, then retry this phase.";
+  }
+  if (value.includes("config home") || value.includes("settings") || value.includes("executable")) {
+    return "Update the AI runner profile in Settings, then retry this phase.";
+  }
+  if (value.includes("required") && (value.includes("mcp") || value.includes("connector") || value.includes("integration"))) {
+    return "Repair the required AI runner integration, then retry this phase.";
+  }
+  return "Retry this phase. If it fails again, inspect the full runner log.";
 }
 
 export function resolveHeadlessSkillPath(explicit?: string): string | null {

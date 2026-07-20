@@ -50,6 +50,7 @@ def _result() -> CompileResult:
         fetched_at="2026-05-16T00:00:00+00:00",
         author="Writer",
         published_at="2026-05-01",
+        updated_at="2026-05-12",
         metadata={},
     )
     return CompileResult(
@@ -94,6 +95,8 @@ def test_master_file_has_synthesis_and_index(tmp_path: Path) -> None:
     assert "### Ungrouped" in text
     assert "#### Source 1: Vid 1" in text
     assert "#### Source 2: Article A" in text
+    assert "- **Published:** 2026-05-01" in text
+    assert "- **Updated:** 2026-05-12" in text
     assert "[./sources/01-vid-1.md]" in text
     # Sections rendered in first-appearance order.
     assert text.index("### intro") < text.index("### Ungrouped")
@@ -120,6 +123,15 @@ def test_source_file_format(tmp_path: Path) -> None:
     assert "**Fetched:** 2026-05-16" in body
     assert "> **Curator note:** **[principle]** watch first" in body
     assert "A short transcript." in body
+
+    article = (project.sources_dir / "02-article-a.md").read_text(encoding="utf-8")
+    assert "**Published:** 2026-05-01" in article
+    assert "**Updated:** 2026-05-12" in article
+    assert (
+        article.index("**Published:**")
+        < article.index("**Updated:**")
+        < article.index("**Fetched:**")
+    )
 
 
 def test_curator_note_kind_chip_is_rendered_in_index_and_source_file(tmp_path: Path) -> None:

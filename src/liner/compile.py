@@ -19,9 +19,11 @@ from liner.handlers.base import (
 from liner.handlers.html_extraction import (
     MIN_USEFUL_BODY_CHARS,
     looks_like_cookie_notice_only,
+    sanitize_source_title,
 )
+from liner.maintenance import inspect_project, publish_compiled_refresh
 from liner.output.mixtape import write_mixtape, written_source_paths
-from liner.project import ProjectFolder, mark_corpus_ready
+from liner.project import ProjectFolder, ensure_compile_review_approved, mark_corpus_ready
 from liner.tape import load_tape
 from liner.types import (
     CompiledSource,
@@ -130,7 +132,8 @@ def compile_tape(
                 cached_content = None
 
         if cached_content is not None:
-            content = _maybe_truncate(cached_content, max_transcript_length)
+            content = _sanitize_source_metadata(spec, cached_content)
+            content = _maybe_truncate(content, max_transcript_length)
             item = CompiledSource(spec=spec, content=content, cached=True)
             results.append(item)
             reporter.on_source_done(item)
@@ -178,18 +181,6 @@ def compile_tape(
                 results.append(item_failed)
                 reporter.on_source_failed(spec, w)
                 continue
-            # Auto-fallback: emit a soft warning so the curator sees the cost
-            # and can decide to declare `render: js` explicitly if they want.
-            warnings.append(
-                CompileWarning(
-                    url=identifier,
-                    message=(
-                        "Recovered this source with JS rendering after the first fetch "
-                        "returned a JavaScript-only stub. The rendered content was included "
-                        "in MIXTAPE.md."
-                    ),
-                )
-            )
             try:
                 content = fallback_handler.fetch(spec)
             except HandlerSoftFailure as soft:
@@ -205,6 +196,20 @@ def compile_tape(
                 results.append(item_failed)
                 reporter.on_source_failed(spec, w)
                 continue
+            else:
+                # Only call this a recovery after browser rendering actually
+                # returned usable content. A failed fallback is an error, not
+                # a successful recovery plus an error.
+                warnings.append(
+                    CompileWarning(
+                        url=identifier,
+                        message=(
+                            "Recovered this source with JS rendering after the first fetch "
+                            "returned a JavaScript-only stub. The rendered content was included "
+                            "in MIXTAPE.md."
+                        ),
+                    )
+                )
         except HandlerHardFailure as hard:
             if try_summary_fallback(spec, identifier, str(hard)):
                 continue
@@ -225,6 +230,8 @@ def compile_tape(
             results.append(item_failed)
             reporter.on_source_failed(spec, w)
             continue
+
+        content = _sanitize_source_metadata(spec, content)
 
         if cacheable and cache is not None and not no_cache and not is_soft_failure:
             ttl = (
@@ -274,6 +281,8 @@ def compile_project(
             f"synthesis.md not found in {project.path}. "
             "Every mixtape requires a synthesis — write one or run the curating-mixtapes skill."
         )
+    ensure_compile_review_approved(project)
+    before = inspect_project(project.path)
 
     tape = load_tape(project.tape_path)
 
@@ -337,8 +346,17 @@ def compile_project(
                 with contextlib.suppress(Exception):
                     close()
 
-    write_mixtape(project, result)
-    mark_corpus_ready(project)
+    refresh = before.lifecycle.get("refresh")
+    if isinstance(refresh, dict) and refresh.get("state") == "required":
+        publish_compiled_refresh(
+            project.path,
+            result,
+            expected_revision=before.revision,
+            expected_content_hash=before.content_hash,
+        )
+    else:
+        write_mixtape(project, result)
+        mark_corpus_ready(project)
     return result
 
 
@@ -417,6 +435,27 @@ def _cached_content_is_usable(spec: SourceSpec, content: SourceContent) -> bool:
             "soft-fallback",
             "playwright-fallback",
         }
+    )
+
+
+def _sanitize_source_metadata(spec: SourceSpec, content: SourceContent) -> SourceContent:
+    if spec.type != "web":
+        return content
+
+    title = sanitize_source_title(content.title) or spec.url or content.url
+    metadata = dict(content.metadata)
+    if metadata.get("metadata_source") == "declared_html":
+        return replace(content, title=title)
+
+    if content.author or content.published_at or content.updated_at:
+        metadata["metadata_omitted"] = "untrusted_legacy_extraction"
+    return replace(
+        content,
+        title=title,
+        author=None,
+        published_at=None,
+        updated_at=None,
+        metadata=metadata,
     )
 
 

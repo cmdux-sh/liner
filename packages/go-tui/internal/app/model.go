@@ -54,6 +54,8 @@ const (
 	screenImport
 	screenSettings
 	screenOnboarding
+	screenMaintenance
+	screenSynthesisReview
 )
 
 type Model struct {
@@ -76,10 +78,17 @@ type Model struct {
 	commands      list.Model
 	help          help.Model
 
-	importPicker   filepicker.Model
-	importBusy     bool
-	settings       settingsInfo
-	settingsCursor int
+	importPicker          filepicker.Model
+	importBusy            bool
+	settings              settingsInfo
+	settingsPane          settingsPane
+	settingsMenuCursor    int
+	settingsCursor        int
+	settingsRow           int
+	settingsModelCursor   int
+	settingsEffortCursor  int
+	settingsCustomEditing bool
+	settingsInput         textinput.Model
 
 	onboardingStep           int
 	onboardingDirInput       textinput.Model
@@ -90,17 +99,26 @@ type Model struct {
 	jsSetupRetryCompile      bool
 	jsSetupFromOnboarding    bool
 
-	currentPath string
-	currentTape tape.Tape
-	statusPath  string
-	status      *core.ProjectStatus
-	statusErr   string
-	projectPane int
+	currentPath               string
+	currentTape               tape.Tape
+	statusPath                string
+	status                    *core.ProjectStatus
+	statusErr                 string
+	projectSnapshotPath       string
+	projectSnapshot           *core.MaintenanceProjectSnapshot
+	projectSnapshotErr        string
+	projectSnapshotAttempted  bool
+	projectSnapshotLoading    bool
+	projectSnapshotRefreshing bool
+	projectPane               int
 
-	createStep  int
-	createInput textinput.Model
-	createArea  textarea.Model
-	createDraft createDraft
+	createStep          int
+	createInput         textinput.Model
+	createArea          textarea.Model
+	createDraft         createDraft
+	createRunning       bool
+	createError         string
+	createOpenRetryPath string
 
 	clarifyStep      int
 	clarifyArea      textarea.Model
@@ -109,19 +127,63 @@ type Model struct {
 	clarifyLoading   bool
 	clarifyError     string
 
-	sourceInput      textinput.Model
-	sourcePlan       source.Preview
-	sourceItems      []source.StagedSource
-	sourceWarnings   []string
-	sourceTable      table.Model
-	skillItems       []skillFile
-	skillTable       table.Model
-	auditItems       []auditFile
-	auditTable       table.Model
-	evalItems        []evalFile
-	evalTable        table.Model
-	compositionItems []compositionFile
-	compositionTable table.Model
+	sourceInput                          textinput.Model
+	sourcePlan                           source.Preview
+	sourceItems                          []source.StagedSource
+	sourceWarnings                       []string
+	sourceTable                          table.Model
+	sourceMaintenancePlan                *core.ProjectChangeSet
+	sourceBatchRunning                   bool
+	sourceBatchPhase                     string
+	sourceBatchTotal                     int
+	sourceBatchPrepared                  int
+	sourceBatchCancelRequested           bool
+	sourceBatchRunID                     uint64
+	sourceBatchPlanValidated             bool
+	sourceBatchApprovalCaptured          bool
+	assemblyAwaitingSnapshot             bool
+	assemblyReceipt                      *core.ChangeReceipt
+	maintenanceInput                     textinput.Model
+	maintenanceSnapshot                  *core.MaintenanceProjectSnapshot
+	maintenancePlan                      *core.ProjectChangeSet
+	maintenanceReceipt                   *core.ChangeReceipt
+	maintenanceLoading                   bool
+	maintenanceSnapshotPending           bool
+	maintenanceStage                     maintenanceStage
+	maintenancePlanView                  viewport.Model
+	maintenanceApplying                  bool
+	maintenanceReconcile                 bool
+	maintenanceReplayPath                string
+	maintenanceOperation                 int
+	maintenanceSourceCursor              int
+	maintenanceFieldCursor               int
+	maintenanceEditing                   bool
+	maintenanceFieldValues               map[string]string
+	maintenanceTouched                   map[string]bool
+	synthesisReviewCurrent               viewport.Model
+	synthesisReviewCurrentText           string
+	synthesisReviewKind                  semanticReviewKind
+	synthesisReviewPlanView              viewport.Model
+	synthesisReviewArea                  textarea.Model
+	operatingLayerReviewSkillArea        textarea.Model
+	operatingLayerReviewSkillCurrentText string
+	operatingLayerReviewSkillPath        string
+	operatingLayerReviewArtifact         int
+	synthesisReviewChoice                int
+	synthesisReviewEditing               bool
+	synthesisReviewPlan                  *core.ProjectChangeSet
+	synthesisReviewLoading               bool
+	synthesisReviewApplying              bool
+	synthesisReviewReconcile             bool
+	synthesisReviewAwaitingCompile       bool
+	skillItems                           []skillFile
+	skillTable                           table.Model
+	auditItems                           []auditFile
+	auditTable                           table.Model
+	evalItems                            []evalFile
+	evalTable                            table.Model
+	compositionItems                     []compositionFile
+	compositionTable                     table.Model
 
 	researchLines             []string
 	researchLog               viewport.Model
@@ -136,7 +198,15 @@ type Model struct {
 	methodologyEventCount     int
 	methodologyLastEventFrame int
 	methodologyFailed         bool
+	methodologyCancelled      bool
 	methodologyLastErr        string
+	methodologyFailureKind    string
+	methodologyPrimaryFailure string
+	methodologyRecovery       string
+	methodologyDiagnostics    []string
+	methodologyRawLog         []string
+	methodologyLogPath        string
+	methodologyRunID          uint64
 	boardIndex                int
 	clarifySpin               spinner.Model
 
@@ -159,6 +229,7 @@ type Model struct {
 	compileRepairRebuildCorpusAfterRecovery bool
 	compileErr                              string
 	compileRows                             []compileSourceRow
+	compileMaintenancePlan                  *core.ProjectChangeSet
 	sourceEntryReturnScreen                 screen
 	sourceEntryReturnSet                    bool
 	sourceRecovery                          *sourceRecoveryResult
@@ -166,6 +237,13 @@ type Model struct {
 	sourceRecoveryRunning                   bool
 	sourceRecoveryReview                    bool
 	improvementCursor                       int
+	improvementDelta                        *improvementDelta
+	improvementBaseline                     *core.MaintenanceProjectSnapshot
+	improvementPlan                         *core.ProjectChangeSet
+	improvementReceipt                      *core.ChangeReceipt
+	improvementLoading                      bool
+	improvementApplying                     bool
+	improvementReconcile                    bool
 
 	operatingLayerRunning   bool
 	operatingLayerComplete  bool
@@ -215,9 +293,10 @@ type projectOpenedMsg struct {
 }
 
 type projectCreatedMsg struct {
-	path string
-	tape tape.Tape
-	err  error
+	path    string
+	tape    tape.Tape
+	created bool
+	err     error
 }
 
 type projectStatusLoadedMsg struct {
@@ -253,7 +332,25 @@ type sourcePreviewMsg struct {
 
 type sourceSavedMsg struct {
 	preview source.Preview
+	plan    *core.ProjectChangeSet
+	receipt *core.ChangeReceipt
 	err     error
+	batch   bool
+	runID   uint64
+}
+
+type sourceBatchPlannedMsg struct {
+	preview source.Preview
+	plan    core.ProjectChangeSet
+	err     error
+	runID   uint64
+}
+
+type sourceBatchValidatedMsg struct {
+	preview source.Preview
+	plan    core.ProjectChangeSet
+	err     error
+	runID   uint64
 }
 
 type sourceIngestedMsg struct {
@@ -264,6 +361,50 @@ type sourceIngestedMsg struct {
 
 type sourceManifestSavedMsg struct {
 	err error
+}
+
+type maintenanceSnapshotMsg struct {
+	snapshot core.MaintenanceProjectSnapshot
+	err      error
+}
+
+type projectSnapshotMsg struct {
+	path     string
+	snapshot core.MaintenanceProjectSnapshot
+	err      error
+}
+
+type projectStatusRefreshedMsg struct {
+	path   string
+	status core.ProjectStatus
+	err    error
+}
+
+type maintenancePlanMsg struct {
+	plan core.ProjectChangeSet
+	err  error
+}
+
+type maintenanceAppliedMsg struct {
+	receipt core.ChangeReceipt
+	path    string
+	err     error
+}
+
+type maintenanceReconciledMsg struct {
+	snapshot core.MaintenanceProjectSnapshot
+	path     string
+	err      error
+}
+
+type synthesisReviewPlannedMsg struct {
+	plan core.ProjectChangeSet
+	err  error
+}
+
+type synthesisReviewAppliedMsg struct {
+	receipt core.ChangeReceipt
+	err     error
 }
 
 type pathOpenedMsg struct {
@@ -289,10 +430,30 @@ type operatingLayerStepMsg struct {
 
 type methodologyEventMsg struct {
 	event agent.Event
+	runID uint64
 }
 
 type methodologyDoneMsg struct {
-	err error
+	err   error
+	runID uint64
+}
+
+type improvementDeltaPlannedMsg struct {
+	delta improvementDelta
+	plan  core.ProjectChangeSet
+	err   error
+}
+
+type improvementAppliedMsg struct {
+	receipt     core.ChangeReceipt
+	snapshot    core.MaintenanceProjectSnapshot
+	snapshotErr error
+	err         error
+}
+
+type improvementSnapshotMsg struct {
+	snapshot core.MaintenanceProjectSnapshot
+	err      error
 }
 
 type compileEventMsg struct {

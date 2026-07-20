@@ -7,10 +7,10 @@ import { ensureEvaluationArtifact, validateEvaluationFragment } from "./evaluati
 import { buildEvaluationSectionPrompt, buildPhasePrompt, WORKSPACE_DISCIPLINE } from "./prompts.js";
 import { LineBuffer, parseLine } from "./parsers.js";
 import { closeRunLog, openRunLog } from "./run-log.js";
-import { modelForPhase } from "./models.js";
+import { resolveRunProfile } from "./models.js";
 import { readConfig } from "../config.js";
 import type { AgentEvent } from "./events.js";
-import type { AgentDescriptor, AgentId, AgentRunHandle } from "./types.js";
+import type { AgentDescriptor, AgentId, AgentRunHandle, AgentRunResult } from "./types.js";
 import type { PhaseId } from "../phases.js";
 import type { Tape } from "../types.js";
 
@@ -50,6 +50,12 @@ export type AgentTaskArgs = {
    * keeps the model it started with.
    */
   model?: string;
+  /** OpenAI-only native Codex reasoning effort for fresh runs. */
+  reasoningEffort?: string;
+  /** Identifies a Liner-owned model choice that may retry on provider default. */
+  modelFallbackSource?: "builtin" | "auto";
+  /** The Auto model policy may retry without a rejected native reasoning effort. */
+  allowEffortFallback?: boolean;
   /**
    * Short identifier used for the audit-log bucket directory under
    * `.liner-runs/<taskLabel>/`. Methodology phases pass their `PhaseId`; one-off
@@ -94,14 +100,24 @@ export function runPhaseWithAgent(args: AgentRunArgs): AgentRunHandle {
   // Per-phase model: the built-in map downgrades the heavy phases, with the
   // user's config.yaml overrides winning. The compile phase isn't an agent
   // run; gates don't reach here either.
-  const overrides = readConfig().models?.[args.agent.id];
-  const model = modelForPhase(args.agent.id, args.phaseId, overrides);
+  const config = readConfig();
+  const overrides = config.models?.[args.agent.id];
+  const profile = resolveRunProfile(
+    args.agent.id,
+    args.phaseId,
+    overrides,
+    config.providerPreferences?.[args.agent.id],
+  );
   const handle = runAgentTask({
     agent: args.agent,
     project: args.project,
     skillPath: args.skillPath,
     prompt,
-    model,
+    model: profile.model,
+    reasoningEffort: profile.reasoningEffort,
+    modelFallbackSource:
+      profile.modelSource === "builtin" || profile.modelSource === "auto" ? profile.modelSource : undefined,
+    allowEffortFallback: profile.effortSource === "auto",
     taskLabel: args.phaseId,
     resume: args.resume,
     onEvent: args.onEvent,
@@ -121,6 +137,7 @@ export function runPhaseWithAgent(args: AgentRunArgs): AgentRunHandle {
       const message = `[liner] Artifact validation failed after ${args.phaseId}: ${validation.message}`;
       args.onEvent({ kind: "text", text: message });
       return {
+        ...result,
         code: 1,
         stderr: result.stderr ? `${result.stderr}\n${message}` : message,
       };
@@ -147,12 +164,19 @@ function runEvaluationSectionsWithAgent(args: AgentRunArgs): AgentRunHandle {
     return { cancel: () => {}, done: Promise.resolve({ code: 1, stderr: message }) };
   }
 
-  const overrides = readConfig().models?.[args.agent.id];
-  const model = modelForPhase(args.agent.id, "evaluation", overrides);
+  const config = readConfig();
+  const overrides = config.models?.[args.agent.id];
+  const profile = resolveRunProfile(
+    args.agent.id,
+    "evaluation",
+    overrides,
+    config.providerPreferences?.[args.agent.id],
+  );
   let cancelCurrent: () => void = () => {};
   let cancelled = false;
+  let lastLogPath: string | undefined;
 
-  const done = (async (): Promise<{ code: number | null; stderr: string }> => {
+  const done = (async (): Promise<AgentRunResult> => {
     markSectionedEvaluationStarted(args.project, groups.length);
     args.onEvent({
       kind: "raw",
@@ -187,12 +211,17 @@ function runEvaluationSectionsWithAgent(args: AgentRunArgs): AgentRunHandle {
           tape: args.tape,
           group,
         }),
-        model,
+        model: profile.model,
+        reasoningEffort: profile.reasoningEffort,
+        modelFallbackSource:
+          profile.modelSource === "builtin" || profile.modelSource === "auto" ? profile.modelSource : undefined,
+        allowEffortFallback: profile.effortSource === "auto",
         taskLabel: "evaluation",
         onEvent: args.onEvent,
       });
       cancelCurrent = handle.cancel;
       const result = await handle.done;
+      lastLogPath = result.logPath;
       if (result.code !== 0) return result;
     }
 
@@ -200,12 +229,12 @@ function runEvaluationSectionsWithAgent(args: AgentRunArgs): AgentRunHandle {
     if (!validation.ok) {
       const message = `[liner] Artifact validation failed after evaluation: ${validation.message}`;
       args.onEvent({ kind: "text", text: message });
-      return { code: 1, stderr: message };
+      return { code: 1, stderr: message, logPath: lastLogPath };
     }
     if (validation.message) {
       args.onEvent({ kind: "raw", text: `[liner] ${validation.message}` });
     }
-    return { code: 0, stderr: "" };
+    return { code: 0, stderr: "", logPath: lastLogPath };
   })();
 
   return {
@@ -278,18 +307,46 @@ const CLAUDE_METHOD_TOOLS = "Read Write Edit Glob Grep WebFetch";
 const CLAUDE_METHOD_BUILTIN_TOOLS = "Read,Write,Edit,Glob,Grep,WebFetch";
 const CLAUDE_HARD_DENIED_TOOLS = "Bash Task WebSearch ToolSearch";
 
+function isolatedImprovementDeniedTools(workspace: string): string {
+  const corpus = portableDirname(portableDirname(portableDirname(workspace)));
+  return [
+    CLAUDE_HARD_DENIED_TOOLS,
+    `Edit(${claudeAbsolutePermissionPath(portableJoin(corpus, "tape.yaml"))})`,
+    `Edit(${claudeAbsolutePermissionPath(portableJoin(corpus, "synthesis.md"))})`,
+    `Edit(${claudeAbsolutePermissionPath(portableJoin(corpus, "working"))}/**)`,
+  ].join(" ");
+}
+
+function portableDirname(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  const index = normalized.lastIndexOf("/");
+  if (index < 0) return ".";
+  if (index === 0) return "/";
+  return normalized.slice(0, index);
+}
+
+function portableJoin(parent: string, child: string): string {
+  return `${parent.replace(/\\/g, "/").replace(/\/+$/, "")}/${child}`;
+}
+
+function claudeAbsolutePermissionPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  if (/^[A-Za-z]:\//.test(normalized)) return `//${normalized}`;
+  if (normalized.startsWith("/")) return `/${normalized}`;
+  return `//${normalized}`;
+}
+
 /**
- * One spawn attempt. On a model-rejection failure — and only on a fresh,
- * model-pinned run — it warns the curator with the exact fix and retries once
- * on the agent's default model, so a renamed/retired/mistyped model id
- * degrades to "ran on the default" instead of a hard failure. `registerCancel`
- * is re-invoked per attempt so the caller's cancel always hits the live child.
+ * One spawn attempt. Built-in choices and the Auto model policy may retry once on the provider
+ * default after an unsupported model or effort. User-selected options fail
+ * clearly without substitution. `registerCancel` is re-invoked per attempt so
+ * the caller's cancel always hits the live child.
  */
 function runAttempt(
   args: AgentTaskArgs,
   attempt: AttemptOptions,
   registerCancel: (cancel: () => void) => void,
-): Promise<{ code: number | null; stderr: string }> {
+): Promise<AgentRunResult> {
   const command = args.agent.bin;
   const resume = args.resume === true;
   const resumeSessionId = args.agent.id === "codex" && resume
@@ -297,7 +354,7 @@ function runAttempt(
     : undefined;
   if (args.agent.id === "codex" && resume && !resumeSessionId) {
     const message =
-      `[liner] Cannot resume Codex ${args.taskLabel}: no prior Codex session id was found ` +
+      `[liner] Cannot resume OpenAI ${args.taskLabel}: no prior Codex CLI session id was found ` +
       `in .liner-runs/${args.taskLabel}. Retry this phase from a fresh run instead.`;
     args.onEvent({ kind: "raw", text: message });
     const log = openRunLog(args.project, args.taskLabel, {
@@ -306,15 +363,30 @@ function runAttempt(
     });
     log.write(JSON.stringify({ type: "_liner_error", message }));
     closeRunLog(log, 1, message.length);
-    return Promise.resolve({ code: 1, stderr: message });
+    return Promise.resolve({ code: 1, stderr: message, logPath: log.path });
   }
-  const cliArgs = buildArgs(args.agent.id, args.project, args.skillPath, resume, args.model, resumeSessionId);
+  const cliArgs = buildArgs(
+    args.agent.id,
+    args.project,
+    args.skillPath,
+    resume,
+    args.model,
+    resumeSessionId,
+    args.taskLabel,
+    args.reasoningEffort,
+  );
 
   const child = spawn(command, cliArgs, {
     stdio: ["pipe", "pipe", "pipe"],
     cwd: args.project,
     env: {
       ...process.env,
+      ...(args.agent.configHome
+        ? {
+            [args.agent.id === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]:
+              args.agent.configHome,
+          }
+        : {}),
       // Disable extended/interleaved thinking for the spawned Claude Code.
       // A long multi-turn tool loop with thinking on hits a hard API 400 once
       // Claude Code auto-compacts the conversation: a prior `thinking` block
@@ -370,7 +442,7 @@ function runAttempt(
   let sawOutput = false;
   const watchdog = setTimeout(() => {
     if (sawOutput || child.killed) return;
-    const name = args.agent.id === "claude" ? "Claude Code" : "Codex";
+    const name = args.agent.id === "claude" ? "Claude" : "OpenAI";
     args.onEvent({
       kind: "raw",
       text:
@@ -549,7 +621,7 @@ function runAttempt(
     });
   }
 
-  return new Promise<{ code: number | null; stderr: string }>((resolve) => {
+  return new Promise<AgentRunResult>((resolve) => {
     child.on("close", (code) => {
       clearTimeout(watchdog);
       clearEvaluationClosureTimer();
@@ -572,6 +644,7 @@ function runAttempt(
             : stderr
               ? `${stderr}\n${forcedEvaluationResult.message}`
               : forcedEvaluationResult.message,
+          logPath: log.path,
         });
         return;
       }
@@ -595,36 +668,105 @@ function runAttempt(
         return;
       }
 
-      // Model-rejection fallback. If a fresh, model-pinned run failed because
-      // the agent didn't recognize the model (renamed / retired / mistyped in
-      // config), warn the curator with the exact fix, then retry once on the
-      // agent's default model. Resumes, cancellations, and already-fallen-back
-      // runs are exempt — and we only claim "model rejected" when the output
-      // plausibly says so, so a real auth/quota failure surfaces normally.
+      // Configured-option rejection. Auto-owned options may retry once on the
+      // provider default; user-owned options fail closed. Resumes and
+      // cancellations are exempt, and both classifiers require plausible
+      // provider rejection output so auth or quota failures surface normally.
+      if (
+        code !== 0 &&
+        !cancelled &&
+        !resume &&
+        args.reasoningEffort &&
+        looksLikeEffortRejection(outputTail, args.reasoningEffort)
+      ) {
+        if (!attempt.modelFallback && args.allowEffortFallback === true) {
+          args.onEvent({
+            kind: "raw",
+            text:
+              `[liner] ${args.agent.name} rejected the Auto model policy for ${args.taskLabel} — ` +
+              "retrying once on the provider default model and Thinking effort.",
+          });
+          log.write(
+            JSON.stringify({
+              type: "_liner_auto_model_policy_fallback",
+              model: args.model,
+              reasoningEffort: args.reasoningEffort,
+            }),
+          );
+          resolve(
+            runAttempt(
+              {
+                ...args,
+                model: args.modelFallbackSource === "auto" ? undefined : args.model,
+                reasoningEffort: undefined,
+              },
+              { modelFallback: true },
+              registerCancel,
+            ),
+          );
+          return;
+        }
+        const message =
+          `[liner] ${args.agent.name} rejected configured Thinking effort "${args.reasoningEffort}". ` +
+          "Choose another effort in Settings; Liner did not substitute another effort or model.";
+        args.onEvent({ kind: "raw", text: message });
+        resolve({ code, stderr: stderr ? `${message}\n${stderr}` : message, logPath: log.path });
+        return;
+      }
+
       if (
         code !== 0 &&
         !cancelled &&
         !resume &&
         !attempt.modelFallback &&
         args.model &&
+        args.modelFallbackSource !== undefined &&
         looksLikeModelRejection(outputTail, args.model)
       ) {
+        const fallbackMessage = args.modelFallbackSource === "auto"
+          ? `[liner] ${args.agent.name} rejected the Auto model policy model "${args.model}" for ${args.taskLabel} — ` +
+            "retrying once on the provider default. To change this choice, open Settings and select another OpenAI Model."
+          : `[liner] ${args.agent.name} rejected the built-in model "${args.model}" for ${args.taskLabel} — ` +
+            `retrying once on the provider default. To change this phase override, set ` +
+            `models.${args.agent.id}.${args.taskLabel} in ~/.liner/config.yaml.`;
         args.onEvent({
           kind: "raw",
-          text:
-            `[liner] ${args.agent.name} rejected the model "${args.model}" set for ` +
-            `this phase — retrying on the default model. To fix: set ` +
-            `models.${args.agent.id}.${args.taskLabel} to a valid model id in ` +
-            `~/.liner/config.yaml, or remove it to keep the default.`,
+          text: fallbackMessage,
         });
         log.write(
           JSON.stringify({ type: "_liner_model_fallback", model: args.model }),
         );
-        resolve(runAttempt({ ...args, model: undefined }, { modelFallback: true }, registerCancel));
+        resolve(
+          runAttempt(
+            {
+              ...args,
+              model: undefined,
+              reasoningEffort: args.allowEffortFallback === true ? undefined : args.reasoningEffort,
+            },
+            { modelFallback: true },
+            registerCancel,
+          ),
+        );
         return;
       }
 
-      resolve({ code, stderr });
+      if (
+        code !== 0 &&
+        !cancelled &&
+        !resume &&
+        args.model &&
+        args.modelFallbackSource === undefined &&
+        looksLikeModelRejection(outputTail, args.model)
+      ) {
+        const message =
+          `[liner] ${args.agent.name} rejected configured model "${args.model}". ` +
+          "Choose another model in Settings; Liner did not substitute another model.";
+        args.onEvent({ kind: "raw", text: message });
+        resolve({ code, stderr: stderr ? `${message}\n${stderr}` : message, logPath: log.path });
+        return;
+      }
+
+      resolve({ code, stderr, logPath: log.path });
     });
     child.on("error", (e) => {
       clearTimeout(watchdog);
@@ -632,7 +774,7 @@ function runAttempt(
       args.onEvent({ kind: "raw", text: `[runner error] ${e.message}` });
       log.write(JSON.stringify({ type: "_liner_error", message: e.message }));
       closeRunLog(log, 1, stderr.length);
-      resolve({ code: 1, stderr: e.message });
+      resolve({ code: 1, stderr: e.message, logPath: log.path });
     });
   });
 }
@@ -684,7 +826,10 @@ export function buildArgs(
   resume: boolean,
   model?: string,
   resumeSessionId?: string,
+  taskLabel?: string,
+  reasoningEffort?: string,
 ): string[] {
+  const isolatedImprovement = taskLabel === "improvement";
   if (id === "claude") {
     // Stream-json requires --verbose. --include-partial-messages would give
     // us mid-message chunking but the cost is ~10× more events; we let the
@@ -711,16 +856,18 @@ export function buildArgs(
       "--output-format",
       "stream-json",
       "--verbose",
-      "--add-dir",
-      skillPath,
+      ...(!isolatedImprovement ? ["--add-dir", skillPath] : []),
+      ...(isolatedImprovement ? ["--setting-sources", "", "--permission-mode", "default"] : []),
       "--strict-mcp-config",
-      "--dangerously-skip-permissions",
+      ...(!isolatedImprovement ? ["--dangerously-skip-permissions"] : []),
       "--tools",
       CLAUDE_METHOD_BUILTIN_TOOLS,
       "--allowedTools",
-      CLAUDE_METHOD_TOOLS,
+      isolatedImprovement
+        ? `Read Glob Grep WebFetch Edit(${claudeAbsolutePermissionPath(project)}/**)`
+        : CLAUDE_METHOD_TOOLS,
       "--disallowedTools",
-      CLAUDE_HARD_DENIED_TOOLS,
+      isolatedImprovement ? isolatedImprovementDeniedTools(project) : CLAUDE_HARD_DENIED_TOOLS,
       "--disable-slash-commands",
     ];
     // Apply the per-phase model on fresh runs only — a resumed session keeps
@@ -751,8 +898,8 @@ export function buildArgs(
       "--cd",
       project,
       ...(model ? ["--model", model] : []),
-      "--add-dir",
-      skillPath,
+      ...(reasoningEffort ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`] : []),
+      ...(!isolatedImprovement ? ["--add-dir", skillPath] : []),
       "--skip-git-repo-check",
       "-s",
       "workspace-write",
@@ -857,6 +1004,25 @@ export function looksLikeModelRejection(output: string, model: string): boolean 
     t.includes(m) &&
     (t.includes("error") || t.includes("invalid") || t.includes("unknown") || t.includes("not found"))
   );
+}
+
+export function looksLikeEffortRejection(output: string, _effort: string): boolean {
+  const value = output.toLowerCase();
+  if (!value.trim()) return false;
+  const mentionsEffort =
+    value.includes("reasoning effort") ||
+    value.includes("reasoning_effort") ||
+    value.includes("model_reasoning_effort");
+  if (!mentionsEffort) return false;
+  return [
+    "invalid",
+    "unsupported",
+    "unknown",
+    "not supported",
+    "does not support",
+    "not available",
+    "unrecognized",
+  ].some((token) => value.includes(token));
 }
 
 export function shouldSurfaceAgentStderr(agent: AgentId, line: string): boolean {

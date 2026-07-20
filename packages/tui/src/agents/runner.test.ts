@@ -7,8 +7,10 @@ import {
   evaluationArtifactClosurePrompt,
   evaluationClosureIdleMs,
   findLatestCodexSessionId,
+  looksLikeEffortRejection,
   looksLikeModelRejection,
   resumePromptForTask,
+  runAgentTask,
   runPhaseWithAgent,
   shouldSurfaceAgentStderr,
 } from "./runner.js";
@@ -33,8 +35,25 @@ describe("buildArgs", () => {
     ]);
   });
 
+  it("adds native OpenAI reasoning effort only to fresh Codex runs", () => {
+    const args = buildArgs(
+      "codex",
+      "/tmp/project",
+      "/repo/docs/curation-skill",
+      false,
+      "gpt-5.6-sol",
+      undefined,
+      "candidates",
+      "max",
+    );
+    expect(args.slice(args.indexOf("-c"), args.indexOf("-c") + 2)).toEqual([
+      "-c",
+      'model_reasoning_effort="max"',
+    ]);
+  });
+
   it("uses Codex resume options with a recorded session id", () => {
-    expect(buildArgs("codex", "/tmp/project", "/repo/docs/curation-skill", true, "gpt-5", "thread-123")).toEqual([
+    expect(buildArgs("codex", "/tmp/project", "/repo/docs/curation-skill", true, "gpt-5", "thread-123", "candidates", "max")).toEqual([
       "exec",
       "resume",
       "--skip-git-repo-check",
@@ -96,6 +115,72 @@ describe("buildArgs", () => {
       "--disable-slash-commands",
       "--continue",
     ]);
+  });
+
+  it("confines Claude improvement writes to the isolated workspace", () => {
+    const args = buildArgs(
+      "claude",
+      "/tmp/project/.liner-runs/improvement/workspace",
+      "/repo/docs/curation-skill",
+      false,
+      "sonnet",
+      undefined,
+      "improvement",
+    );
+
+    expect(args).not.toContain("--dangerously-skip-permissions");
+    expect(args).not.toContain("--add-dir");
+    expect(args.slice(args.indexOf("--setting-sources"), args.indexOf("--setting-sources") + 2)).toEqual([
+      "--setting-sources",
+      "",
+    ]);
+    expect(args.slice(args.indexOf("--permission-mode"), args.indexOf("--permission-mode") + 2)).toEqual([
+      "--permission-mode",
+      "default",
+    ]);
+    expect(args[args.indexOf("--allowedTools") + 1]).toBe(
+      "Read Glob Grep WebFetch Edit(//tmp/project/.liner-runs/improvement/workspace/**)",
+    );
+    expect(args[args.indexOf("--disallowedTools") + 1]).toContain("Edit(//tmp/project/tape.yaml)");
+    expect(args[args.indexOf("--disallowedTools") + 1]).toContain("Edit(//tmp/project/synthesis.md)");
+    expect(args[args.indexOf("--disallowedTools") + 1]).toContain("Edit(//tmp/project/working/**)");
+  });
+
+  it("keeps Codex improvement sandbox roots limited to the workspace", () => {
+    const args = buildArgs(
+      "codex",
+      "/tmp/improvement-workspace",
+      "/repo/docs/curation-skill",
+      false,
+      "gpt-5",
+      undefined,
+      "improvement",
+    );
+
+    expect(args).not.toContain("--add-dir");
+    expect(args).toContain("workspace-write");
+    expect(args).toContain("/tmp/improvement-workspace");
+  });
+
+  it("normalizes Windows improvement paths for Claude permission rules", () => {
+    const args = buildArgs(
+      "claude",
+      "C:\\Users\\example\\project\\.liner-runs\\improvement\\workspace",
+      "C:\\repo\\docs\\curation-skill",
+      false,
+      "sonnet",
+      undefined,
+      "improvement",
+    );
+
+    expect(args[args.indexOf("--allowedTools") + 1]).toBe(
+      "Read Glob Grep WebFetch Edit(//C:/Users/example/project/.liner-runs/improvement/workspace/**)",
+    );
+    const denied = args[args.indexOf("--disallowedTools") + 1];
+    expect(denied).toContain("Edit(//C:/Users/example/project/tape.yaml)");
+    expect(denied).toContain("Edit(//C:/Users/example/project/synthesis.md)");
+    expect(denied).toContain("Edit(//C:/Users/example/project/working/**)");
+    expect(denied).not.toContain("\\");
   });
 });
 
@@ -663,6 +748,133 @@ describe("looksLikeModelRejection", () => {
 
   it("is case-insensitive", () => {
     expect(looksLikeModelRejection("UNKNOWN MODEL", "x")).toBe(true);
+  });
+});
+
+describe("looksLikeEffortRejection", () => {
+  it("matches native reasoning-effort rejection messages", () => {
+    expect(looksLikeEffortRejection("invalid value for model_reasoning_effort: max", "max")).toBe(true);
+    expect(looksLikeEffortRejection("reasoning effort xhigh is not supported", "xhigh")).toBe(true);
+  });
+
+  it("does not confuse short effort names with unrelated words", () => {
+    expect(looksLikeEffortRejection("invalid output in the following step", "low")).toBe(false);
+    expect(looksLikeEffortRejection("authentication failed", "high")).toBe(false);
+    expect(looksLikeEffortRejection("invalid model gpt-5.6-high", "high")).toBe(false);
+  });
+});
+
+describe("explicit effort rejection", () => {
+  it("retries the Auto model policy once on the provider default", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-auto-effort-rejection-"));
+    const script = join(project, "fake-codex");
+    writeFileSync(
+      script,
+      [
+        "#!/bin/sh",
+        'printf "x" >> "$PWD/attempts"',
+        'case "$*" in *model_reasoning_effort*) echo "invalid value high for model_reasoning_effort" >&2; exit 1;; esac',
+        'printf \'{"type":"thread.started","thread_id":"auto-fallback"}\\n\'',
+        'printf \'{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\\n\'',
+        "",
+      ].join("\n"),
+    );
+    chmodSync(script, 0o755);
+    const events: AgentEvent[] = [];
+
+    const result = await runAgentTask({
+      agent: { id: "codex", name: "OpenAI", bin: script },
+      project,
+      skillPath: project,
+      prompt: "Return a result.",
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
+      modelFallbackSource: "auto",
+      allowEffortFallback: true,
+      taskLabel: "jtbd-clarify",
+      onEvent: (event) => events.push(event),
+    }).done;
+
+    expect(result.code).toBe(0);
+    expect(readFileSync(join(project, "attempts"), "utf8")).toBe("xx");
+    expect(
+      events.some(
+        (event) => event.kind === "raw" && event.text.includes("Auto model policy") && event.text.includes("provider default"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails once without substituting another effort or model", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-effort-rejection-"));
+    const script = join(project, "fake-codex");
+    writeFileSync(
+      script,
+      [
+        "#!/bin/sh",
+        'printf "x" >> "$PWD/attempts"',
+        'echo "invalid value max for model_reasoning_effort" >&2',
+        "exit 1",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(script, 0o755);
+    const events: AgentEvent[] = [];
+
+    const result = await runAgentTask({
+      agent: { id: "codex", name: "OpenAI", bin: script },
+      project,
+      skillPath: project,
+      prompt: "Return a result.",
+      model: "gpt-5.6-sol",
+      reasoningEffort: "max",
+      taskLabel: "jtbd-clarify",
+      onEvent: (event) => events.push(event),
+    }).done;
+
+    expect(result.code).toBe(1);
+    expect(readFileSync(join(project, "attempts"), "utf8")).toBe("x");
+    expect(result.stderr).toContain('rejected configured Thinking effort "max"');
+    expect(result.stderr).toContain("did not substitute another effort or model");
+    expect(events.some((event) => event.kind === "raw" && event.text.includes("Choose another effort in Settings"))).toBe(true);
+  });
+});
+
+describe("explicit model rejection", () => {
+  it("fails once without substituting the provider default", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-model-rejection-"));
+    const script = join(project, "fake-codex");
+    writeFileSync(
+      script,
+      [
+        "#!/bin/sh",
+        'printf "x" >> "$PWD/attempts"',
+        'echo "unknown model gpt-5.6-sol" >&2',
+        "exit 1",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(script, 0o755);
+    const events: AgentEvent[] = [];
+
+    const result = await runAgentTask({
+      agent: { id: "codex", name: "OpenAI", bin: script },
+      project,
+      skillPath: project,
+      prompt: "Return a result.",
+      model: "gpt-5.6-sol",
+      taskLabel: "jtbd-clarify",
+      onEvent: (event) => events.push(event),
+    }).done;
+
+    expect(result.code).toBe(1);
+    expect(readFileSync(join(project, "attempts"), "utf8")).toBe("x");
+    expect(result.stderr).toContain('rejected configured model "gpt-5.6-sol"');
+    expect(result.stderr).toContain("did not substitute another model");
+    expect(
+      events.some(
+        (event) => event.kind === "raw" && event.text.includes("Choose another model in Settings"),
+      ),
+    ).toBe(true);
   });
 });
 

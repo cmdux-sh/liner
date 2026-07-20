@@ -1,0 +1,107 @@
+---
+title: CLI Commands
+description: Command-line reference for creating, compiling, inspecting, and safely maintaining Liner Projects and Sources.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+
+Run `liner` with no arguments to open the terminal UI. Use subcommands when you want a scriptable workflow.
+
+If you are using the one-shot npm path instead of a global install, replace `liner <command>` with `npx --yes linersh@latest <command>`.
+
+## Project Commands
+
+| Command | What it does |
+| --- | --- |
+| `liner init <folder>` | Create a folder with starter research files. |
+| `liner compile <folder>` | Fetch sources and write `mixtape/MIXTAPE.md` plus `mixtape/sources/`. |
+| `liner share <folder>` | Zip the project into a `.mixtape` archive. |
+| `liner import <archive> [dest]` | Unzip a `.mixtape` archive and refetch uncached web and YouTube sources. |
+| `liner clone <url-or-path> [dest]` | Fetch a remote tape file or copy a local tape file. |
+| `liner list` | List saved folders in the current directory. |
+
+## Safe Project Maintenance
+
+Maintenance uses Liner Core's versioned Snapshot → Change Set → apply → Receipt
+contract. Inspection and planning are write-free. Apply validates the exact
+reviewed Change Set again, and operations marked approval-required stop until
+the curator approves that preview.
+
+| Command | What it does |
+| --- | --- |
+| `liner project inspect [path]` | Read Project identity, compatibility, lifecycle state, capabilities, and root-discovery evidence without writing. |
+| `liner project guidance <folder> --format json` | Print the installed CLI's current maintenance contract and remediation. Use `markdown` for human-readable guidance. |
+| `liner project plan <folder> --request-json <json>` | Create a write-free Change Set from a versioned maintenance request. |
+| `liner project pointer <folder> --environment <codex\|claude> --action <install\|update\|remove>` | Plan an opt-in managed `AGENTS.md` or `CLAUDE.md` pointer update. |
+| `liner project rename <folder> --name <name>` | Plan a Project display-name change without changing Project identity. |
+| `liner project move <folder> --destination <path>` | Plan an atomic, identity-preserving Project root move. |
+| `liner project apply <folder> --change-set-json <json>` | Apply one exact Change Set atomically and persist a redacted receipt. |
+
+## Source Maintenance
+
+Source operations use immutable Source IDs. Metadata updates preserve identity;
+semantic replacement creates successor identity and lineage. Remove is
+retention-first, while purge is separately approved and destructive.
+
+| Command | What it does |
+| --- | --- |
+| `liner sources add <folder> --type <type> ...` | Plan an atomic Source addition with duplicate and provenance checks. |
+| `liner sources update <folder> --source-id <id> ...` | Update metadata or a locator while preserving Source identity. |
+| `liner sources replace <folder> --source-id <id> --type <type> ...` | Create a successor Source with explicit lineage. |
+| `liner sources remove <folder> --source-id <id>` | Detach a Source into the retention vault. |
+| `liner sources purge <folder> --source-id <id>` | Plan separately approved deletion of retained Source content. |
+
+## Optional Maintenance Adapters
+
+The Maintenance Adapter is opt-in, delegates to the installed CLI, and never
+replaces the Project Skill. Managed operations preserve user-authored content.
+
+| Command | What it does |
+| --- | --- |
+| `liner adapters inspect <codex\|claude>` | Inspect adapter state without changing it. |
+| `liner adapters install <codex\|claude>` | Explicitly install the thin Maintenance Adapter. |
+| `liner adapters update <codex\|claude>` | Update only Liner-managed adapter content. |
+| `liner adapters remove <codex\|claude>` | Remove only managed content and preserve user-authored siblings and text. |
+
+## Process Commands
+
+| Command | What it does |
+| --- | --- |
+| `liner manifest <folder>` | Aggregate `.liner-runs/` into `process.json`. |
+| `liner status <folder>` | Show a summary of runs, tokens, tool calls, and fetched URLs. |
+
+## Cache Commands
+
+| Command | What it does |
+| --- | --- |
+| `liner cache info` | Show cache location and size. |
+| `liner cache list` | List cached source entries. |
+| `liner cache show <url>` | Inspect one cached source. |
+| `liner cache clear` | Clear cached source content. |
+| `liner cache purge <url>` | Remove one cached URL. |
+
+## Setup Commands
+
+| Command | What it does |
+| --- | --- |
+| `liner setup-js` | Download Playwright Chromium for JavaScript-rendered pages. |
+| `liner uninstall` | Remove local Liner state, browser cache, and npm's npx execution cache. |
+
+## Useful Flags
+
+<CommandSnippet command={`liner compile mobile-design-foundations --emit-events
+liner compile mobile-design-foundations --no-cache
+liner compile mobile-design-foundations --cookies ~/cookies.txt
+liner share mobile-design-foundations --no-personal
+liner list --json
+liner list --recursive
+liner cache clear --yes
+liner uninstall --dry-run`} />
+
+The CLI creates folders, compiles the research packet, and owns supported
+post-creation maintenance. The TUI runs Create Operating Layer after compile and
+uses the same Core authority for supported Project and Source changes.
+
+The terminal UI uses `--emit-events` to stream compile progress from the Python core.
+
+`liner list --recursive` searches one level below the directory you pass with `--dir`.

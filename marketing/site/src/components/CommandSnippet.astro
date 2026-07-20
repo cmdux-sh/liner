@@ -1,0 +1,156 @@
+---
+import Icon from "./Icon.astro";
+
+interface Props {
+  command: string;
+  prompt?: string;
+  label?: string;
+  tone?: "dark" | "accent";
+}
+
+const { command, prompt = "$", label = "Copy", tone = "dark" } = Astro.props;
+const lines = command.split("\n");
+const isMultiline = lines.length > 1;
+---
+
+<div class:list={["command-snippet", "not-content", `command-snippet--${tone}`, { "is-multiline": isMultiline }]}>
+  <pre aria-label="Command to run"><code>{lines.map((line, index) => <span class="command-line"><span class="command-prompt">{index === 0 ? prompt : ""}</span><span>{line}</span></span>)}</code></pre>
+  <button
+    type="button"
+    class="copy-install-cmd docs-copy-command"
+    data-command={command}
+    aria-label={`Copy command: ${command.replace(/\s+/g, " ")}`}
+  >
+    <span data-copy-icon>
+      <Icon name="copy" size={13} strokeWidth={2} aria-hidden="true" />
+      {label}
+    </span>
+    <span data-copy-done>
+      <Icon name="check" size={13} strokeWidth={2} aria-hidden="true" />
+      Copied
+    </span>
+  </button>
+</div>
+
+<script is:inline>
+  (function () {
+    document.querySelectorAll(".docs-copy-command").forEach(function (btn) {
+      if (btn.dataset.bound === "true") return;
+      btn.dataset.bound = "true";
+
+      const icon = btn.querySelector("[data-copy-icon]");
+      const done = btn.querySelector("[data-copy-done]");
+      let timer;
+
+      btn.addEventListener("click", function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(btn.dataset.command || "");
+        icon.style.display = "none";
+        done.style.display = "flex";
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          done.style.display = "none";
+          icon.style.display = "flex";
+        }, 2000);
+      });
+    });
+  })();
+</script>
+
+<style>
+  .command-snippet {
+    display: inline-flex;
+    align-items: stretch;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 2.125rem;
+    margin: 0.85rem 0 1.1rem;
+    overflow: hidden;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    background: var(--color-bg-deep);
+    border-color: rgb(255 255 255 / 0.16);
+  }
+
+  .command-snippet.is-multiline {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .command-snippet pre {
+    min-width: 0;
+    flex: 1;
+    margin: 0;
+    overflow-x: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  .command-snippet pre code {
+    display: grid;
+    gap: 0.16rem;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  .command-line {
+    display: grid;
+    grid-template-columns: 1.15rem minmax(0, 1fr);
+    align-items: center;
+    white-space: pre;
+  }
+
+  .command-prompt {
+    color: var(--color-text-dimmer);
+  }
+
+  .docs-copy-command {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 5.35rem;
+    border: 0;
+    border-left: 1px solid var(--color-line-medium);
+    background: rgb(255 255 255 / 0.05);
+    color: rgb(255 255 255 / 0.75);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .docs-copy-command:hover {
+    color: var(--color-text-primary);
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .docs-copy-command span {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .docs-copy-command [data-copy-done] {
+    display: none;
+    color: var(--color-accent-secondary);
+  }
+
+  .command-snippet--accent {
+    border-color: rgb(255 255 255 / 0.16);
+    background: var(--color-bg-deep);
+  }
+
+  @media (max-width: 36rem) {
+    .command-snippet pre code {
+      font-size: 0.875rem;
+    }
+  }
+</style>

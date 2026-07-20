@@ -10,11 +10,31 @@ This document assumes the reader has read [ABOUT.md](./ABOUT.md) (what Liner is)
 
 Liner is several tools sharing a methodology and a file format. Each surface exists for a specific moment in the workflow.
 
-**CLI** (bundled Python core behind the npm `liner` binary). Atomic operations on Liner projects — `liner init`, `liner compile`, `liner share`, `liner import`, `liner list`, `liner clone`, `liner cache {info,list,show,clear,purge}`, `liner setup-js` (one-shot JavaScript-rendering setup). The right tool for scripting, automation, and one-shot operations.
+**CLI** (bundled Python core behind the npm `liner` binary). Atomic creation,
+compilation, sharing, inspection, and maintenance operations. In addition to
+`init`, `compile`, `share`, `import`, `list`, `clone`, cache, and `setup-js`, it
+owns `project inspect|guidance|plan|pointer|rename|move|apply`, Source lifecycle
+commands, and optional adapter management. The right tool for scripting,
+automation, and one-shot operations.
 
-**Go TUI** (Charm Bubble Tea, launched with `npx linersh`). Interactive multi-step lifecycle runner. Drives the methodology with sensible defaults, calls the bundled Python core for setup and compilation, and invokes the configured AI runner for research phases. The right tool for authoring new Liner projects. Features a projects browser, guided agent phases, structured review gates, optional JS-rendering setup, source-warning recovery paths, import file picker, and progress views for long-running work.
+**Go TUI** (Charm Bubble Tea, launched with `npx linersh`). Interactive
+multi-step lifecycle and Project-management surface. It drives the methodology,
+calls Core for setup, compilation, and supported maintenance, and invokes the
+configured AI runner for research phases. `Maintain project` renders
+Core-issued Change Sets and Change Receipts rather than writing canonical files
+itself.
 
-**Skill** (`curating-mixtapes`). A portable methodology document Claude reads when invoked. Drops into `~/.claude/skills/`. Works without the CLI for users who prefer chat-native authoring.
+**Curation skill** (`curating-mixtapes`). A portable initial-authoring
+methodology that Claude or Codex reads when invoked. It produces corpus inputs
+for compile; it does not maintain an existing Project.
+
+**Project Skill** (root `SKILL.md`). The canonical entrypoint created by the
+Operating Layer so future AI sessions can load one completed Project.
+
+**Maintenance Adapter** (optional Codex or Claude installation). A thin router
+to the installed CLI's current `liner project guidance`. It is explicit,
+managed, removable, and never a second writer. A `type: skill` Source is a
+fourth, inert use of skill text as evidence and is never installed.
 
 **MCP server** (planned). Will expose Liner's functions as tools any MCP-compatible host can call (Claude Code, Codex, Cursor, others). Local install, stdio transport. The right tool for agent-driven workflows.
 
@@ -55,6 +75,21 @@ Three natural human-in-the-loop gates: framing confirmation before source search
 
 The TUI also enforces a Phase 1 artifact contract. Framing is not complete until `working/01-jtbd-and-knowledge-map.md` contains a capability brief and required source roles with why/evidence/minimum coverage. If the agent exits cleanly but misses the contract, the TUI keeps the project on Phase 1 and resumes the agent with the validation issue.
 
+After initial creation, supported maintenance follows a separate safety
+contract:
+
+1. Inspect a versioned, read-only Project Snapshot.
+2. Produce a write-free Project Change Set with exact file effects, lifecycle
+   consequences, risk, and approval requirements.
+3. Apply only that exact plan after Project identity, revision, compatibility,
+   content, paths, and required curator approval are revalidated.
+4. Persist a durable, redacted Change Receipt or return structured remediation.
+
+Project and Source IDs are immutable. Remove retains Source content in the
+Retention Vault; purge is a separate destructive operation. Source changes
+invalidate dependent corpus and Operating Layer state, which must move through
+the implemented refresh review gates.
+
 ---
 
 ## The artifacts
@@ -65,9 +100,9 @@ A Liner project is a folder, not a file. The project folder is the canonical uni
 mobile-design-foundations/
 ├── liner.yaml            # v2 project marker and metadata
 ├── LINER.md              # operating instructions for future agents
-├── SKILL.md              # optional project skill entry point
+├── SKILL.md              # default Project Skill entrypoint
 ├── skills/               # reusable project capabilities
-├── working/              # audits, impact tests, composition drafts
+├── working/              # audits, external-use evidence, composition drafts
 └── mixtape/
     ├── MIXTAPE.md        # the consumable corpus artifact
     ├── tape.yaml         # the recipe — kept sources, sections, notes

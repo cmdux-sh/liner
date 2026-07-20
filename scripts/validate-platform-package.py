@@ -10,9 +10,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_GLOB = ROOT / "packages" / "platform"
+CANONICAL_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def main() -> int:
@@ -46,6 +46,11 @@ def validate_package(package_dir: Path, *, pack_dry_run: bool) -> None:
         raise SystemExit(f"{package_dir}: package name must start with linersh-")
     if package_dir.name != name:
         raise SystemExit(f"{package_dir}: directory name must match package name {name}")
+    if data.get("version") != CANONICAL_VERSION:
+        raise SystemExit(
+            f"{package_dir}: package version must be {CANONICAL_VERSION}, "
+            f"found {data.get('version')}"
+        )
 
     os_values = data.get("os")
     cpu_values = data.get("cpu")
@@ -70,9 +75,31 @@ def validate_package(package_dir: Path, *, pack_dry_run: bool) -> None:
     if not internal.is_dir():
         raise SystemExit(f"{package_dir}: missing PyInstaller _internal directory")
 
-    subprocess.run([str(exe), "--version"], cwd=package_dir, check=True)
+    core_version = subprocess.run(
+        [str(exe), "--version"],
+        cwd=package_dir,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    if core_version != f"liner {CANONICAL_VERSION}":
+        raise SystemExit(
+            f"{package_dir}: liner --version reported {core_version!r}, "
+            f"expected 'liner {CANONICAL_VERSION}'"
+        )
     subprocess.run([str(exe), "setup-js", "--help"], cwd=package_dir, check=True)
-    subprocess.run([str(tui), "--version"], cwd=package_dir, check=True)
+    tui_version = subprocess.run(
+        [str(tui), "--version"],
+        cwd=package_dir,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    if tui_version != f"liner-tui {CANONICAL_VERSION}":
+        raise SystemExit(
+            f"{package_dir}: liner-tui --version reported {tui_version!r}, "
+            f"expected 'liner-tui {CANONICAL_VERSION}'"
+        )
 
     if pack_dry_run:
         npm = shutil.which("npm")

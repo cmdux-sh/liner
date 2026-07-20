@@ -28,12 +28,13 @@ var methodologyPhaseOrder = []string{
 }
 
 var methodologyPhaseNames = map[string]string{
-	"framing":    "Framing",
-	"candidates": "Candidate discovery",
-	"evaluation": "Evaluation",
-	"quality":    "Quality checks",
-	"synthesis":  "Synthesis",
-	"assembly":   "Assembly",
+	"framing":     "Framing",
+	"candidates":  "Candidate discovery",
+	"evaluation":  "Evaluation",
+	"quality":     "Quality checks",
+	"synthesis":   "Synthesis",
+	"assembly":    "Assembly",
+	"improvement": "Improve Corpus",
 }
 
 var methodologyArtifacts = map[string]string{
@@ -50,7 +51,14 @@ func (m Model) startResearch() (Model, tea.Cmd) {
 	m.screen = screenResearch
 	m.researchDone = false
 	m.methodologyFailed = false
+	m.methodologyCancelled = false
 	m.methodologyLastErr = ""
+	m.methodologyFailureKind = ""
+	m.methodologyPrimaryFailure = ""
+	m.methodologyRecovery = ""
+	m.methodologyDiagnostics = nil
+	m.methodologyRawLog = nil
+	m.methodologyLogPath = ""
 	m.methodologyPhaseID = ""
 	m.methodologyEventCount = 0
 	m.methodologyLastEventFrame = m.fxFrame
@@ -130,20 +138,54 @@ func (m Model) startMethodologyPhase(index int, resume bool) (Model, tea.Cmd) {
 	m.methodologyEventCount = 0
 	m.methodologyLastEventFrame = m.fxFrame
 	m.methodologyFailed = false
+	m.methodologyCancelled = false
 	m.methodologyLastErr = ""
+	m.methodologyFailureKind = ""
+	m.methodologyPrimaryFailure = ""
+	m.methodologyRecovery = ""
+	m.methodologyDiagnostics = nil
+	m.methodologyLogPath = ""
 	m.researchDone = false
+	m.methodologyRunID++
+	runID := m.methodologyRunID
 	verb := "Starting"
 	if resume {
 		verb = "Resuming"
 	}
 	m.researchLines = append(m.researchLines, fmt.Sprintf("%s %s.", verb, methodologyPhaseLabel(phaseID)))
 	m.syncMethodologyLog(true)
-	return m, waitMethodologyEvent(run.Events, run.Done)
+	return m, waitMethodologyEvent(run.Events, run.Done, runID)
 }
 
 func (m *Model) applyMethodologyEvent(event agent.Event) {
 	m.methodologyEventCount++
 	m.methodologyLastEventFrame = m.fxFrame
+	if len(event.Raw) > 0 {
+		m.methodologyRawLog = append(m.methodologyRawLog, string(event.Raw))
+	}
+	switch event.Kind {
+	case "runner_failure":
+		if message := strings.TrimSpace(event.Message); message != "" {
+			m.methodologyFailureKind = strings.TrimSpace(event.FailureKind)
+			m.methodologyPrimaryFailure = message
+			m.methodologyRecovery = strings.TrimSpace(event.Recovery)
+		}
+	case "runner_diagnostic":
+		if message := strings.TrimSpace(event.Message); message != "" {
+			m.methodologyDiagnostics = append(m.methodologyDiagnostics, message)
+		}
+	case "runner_cancelled":
+		m.methodologyCancelled = true
+		m.methodologyPrimaryFailure = strings.TrimSpace(event.Message)
+		m.methodologyRecovery = strings.TrimSpace(event.Recovery)
+	case "runner_error":
+		if m.methodologyPrimaryFailure == "" {
+			m.methodologyPrimaryFailure = strings.TrimSpace(event.Message)
+			m.methodologyRecovery = "Retry this phase. If it fails again, inspect the full runner log."
+		}
+	case "runner_done":
+		m.methodologyLogPath = strings.TrimSpace(event.LogPath)
+	}
 	if line := methodologyEventLine(event); line != "" {
 		if event.Kind != "tool_done" || !m.replaceMethodologyToolStart(event, line) {
 			m.appendMethodologyLine(line)
@@ -197,20 +239,57 @@ func (m *Model) replaceMethodologyToolStart(event agent.Event, line string) bool
 
 func (m Model) finishMethodologyPhase(err error) (Model, tea.Cmd) {
 	m.methodologyCancel = nil
+	m.methodologyEvents = nil
+	m.methodologyDone = nil
 	if err != nil {
 		m.researchDone = true
-		m.methodologyFailed = true
 		m.methodologyLastErr = err.Error()
-		m.err = "Corpus Builder failed: " + err.Error()
-		m.note = "Retry this phase, or return to the project."
-		m.researchLines = append(m.researchLines, "Corpus Builder paused on error. Retry this phase or return to the project.")
+		m.methodologyRawLog = append(m.methodologyRawLog, "[runner process] "+err.Error())
+		if m.methodologyCancelled {
+			m.methodologyFailed = false
+			m.err = ""
+			if m.methodologyPrimaryFailure == "" {
+				m.methodologyPrimaryFailure = "AI run cancelled."
+			}
+			if m.methodologyRecovery == "" {
+				m.methodologyRecovery = "Retry this phase when ready, or return to the project."
+			}
+			m.note = "The project is unchanged. Retry this phase when ready."
+			m.appendMethodologyLine("AI run cancelled. Project state was preserved.")
+			m.syncMethodologyLog(true)
+			return m, nil
+		}
+		m.methodologyFailed = true
+		if m.methodologyPrimaryFailure == "" {
+			m.methodologyPrimaryFailure = err.Error()
+		}
+		if m.methodologyRecovery == "" {
+			m.methodologyRecovery = "Retry this phase. If it fails again, inspect the full runner log."
+		}
+		m.err = ""
+		m.note = m.methodologyRecovery
+		m.appendMethodologyLine("Corpus Builder paused on error. " + m.methodologyRecovery)
 		m.syncMethodologyLog(true)
 		return m, nil
 	}
 
 	phaseID := m.methodologyPhaseID
 	m.methodologyFailed = false
+	m.methodologyCancelled = false
 	m.methodologyLastErr = ""
+	if phaseID == "improvement" {
+		m.researchDone = true
+		m.researchLines = append(m.researchLines, "Completed Improve Corpus staging.")
+		m.syncMethodologyLog(true)
+		m.improvementLoading = true
+		m.note = "Asking Liner Core to classify the staged Source delta."
+		if m.improvementBaseline == nil {
+			return m, func() tea.Msg {
+				return improvementDeltaPlannedMsg{err: fmt.Errorf("Improve Corpus lost its fixed Core Snapshot; refresh and retry")}
+			}
+		}
+		return m, planImprovementDeltaFromBaselineCommand(m.runner, m.currentPath, *m.improvementBaseline)
+	}
 	m.researchStep = max(m.researchStep, m.methodologyPhaseIndex+1)
 	m.researchLines = append(m.researchLines, fmt.Sprintf("Completed %s.", methodologyPhaseLabel(phaseID)))
 	m.recordMethodologyProgress(phaseID)
@@ -227,12 +306,34 @@ func (m Model) finishMethodologyPhase(err error) (Model, tea.Cmd) {
 	m.researchDone = true
 	m.methodologyEvents = nil
 	m.methodologyDone = nil
-	return m.startAssemblyReview()
+	return m.startPreparedAssemblyReview()
 }
 
 func (m Model) retryMethodologyPhase() (Model, tea.Cmd) {
-	if !m.methodologyFailed {
+	if !m.methodologyFailed && !m.methodologyCancelled {
 		return m, nil
+	}
+	if m.methodologyPhaseID == "improvement" {
+		if m.improvementBaseline == nil {
+			m.err = "Improve Corpus lost its fixed Core Snapshot. Refresh Project Flow, then retry."
+			return m, nil
+		}
+		if err := prepareImprovementWorkspace(m.currentPath, *m.improvementBaseline); err != nil {
+			m.err = "Could not rebuild the isolated improvement workspace: " + err.Error()
+			return m, nil
+		}
+		m.err = ""
+		m.note = ""
+		m.researchDone = false
+		m.methodologyFailed = false
+		m.methodologyCancelled = false
+		m.methodologyFailureKind = ""
+		m.methodologyPrimaryFailure = ""
+		m.methodologyRecovery = ""
+		m.methodologyDiagnostics = nil
+		m.researchLines = append(m.researchLines, "Retrying Improve Corpus in a fresh isolated agent session.")
+		m.syncMethodologyLog(true)
+		return m.startImprovementAgent(false)
 	}
 	index := m.methodologyPhaseIndex
 	if index < 0 || index >= len(methodologyPhaseOrder) {
@@ -246,6 +347,11 @@ func (m Model) retryMethodologyPhase() (Model, tea.Cmd) {
 	m.note = ""
 	m.researchDone = false
 	m.methodologyFailed = false
+	m.methodologyCancelled = false
+	m.methodologyFailureKind = ""
+	m.methodologyPrimaryFailure = ""
+	m.methodologyRecovery = ""
+	m.methodologyDiagnostics = nil
 	m.methodologyPhaseID = methodologyPhaseOrder[index]
 	m.researchLines = append(m.researchLines, fmt.Sprintf("Retrying %s from the saved agent session.", methodologyPhaseLabel(m.methodologyPhaseID)))
 	m.syncMethodologyLog(true)
@@ -273,7 +379,14 @@ func (m Model) retrySourceEvaluation() (Model, tea.Cmd) {
 	m.screen = screenResearch
 	m.researchDone = false
 	m.methodologyFailed = false
+	m.methodologyCancelled = false
 	m.methodologyLastErr = ""
+	m.methodologyFailureKind = ""
+	m.methodologyPrimaryFailure = ""
+	m.methodologyRecovery = ""
+	m.methodologyDiagnostics = nil
+	m.methodologyRawLog = nil
+	m.methodologyLogPath = ""
 	m.methodologyPhaseID = ""
 	m.methodologyEventCount = 0
 	m.methodologyLastEventFrame = m.fxFrame
@@ -324,6 +437,7 @@ func (m *Model) recordMethodologyProgress(phaseID string) {
 }
 
 func (m *Model) stopMethodology(reason string) {
+	m.methodologyRunID++
 	if m.methodologyCancel != nil {
 		m.methodologyCancel()
 		m.methodologyCancel = nil
@@ -331,28 +445,35 @@ func (m *Model) stopMethodology(reason string) {
 	m.methodologyEvents = nil
 	m.methodologyDone = nil
 	if strings.TrimSpace(reason) != "" {
+		m.researchDone = true
+		m.methodologyFailed = false
+		m.methodologyCancelled = true
+		m.methodologyPrimaryFailure = "AI run cancelled."
+		m.methodologyRecovery = "Retry this phase when ready, or return to the project."
+		m.err = ""
+		m.note = "AI run cancelled. Project state was preserved."
 		m.researchLines = append(m.researchLines, reason)
 		m.syncMethodologyLog(true)
 	}
 }
 
-func waitMethodologyEvent(events <-chan agent.Event, done <-chan error) tea.Cmd {
+func waitMethodologyEvent(events <-chan agent.Event, done <-chan error, runID uint64) tea.Cmd {
 	return func() tea.Msg {
 		select {
 		case event, ok := <-events:
 			if ok {
-				return methodologyEventMsg{event: event}
+				return methodologyEventMsg{event: event, runID: runID}
 			}
 			if done == nil {
-				return methodologyDoneMsg{}
+				return methodologyDoneMsg{runID: runID}
 			}
 			err, _ := <-done
-			return methodologyDoneMsg{err: err}
+			return methodologyDoneMsg{err: err, runID: runID}
 		case err, ok := <-done:
 			if !ok {
-				return methodologyDoneMsg{}
+				return methodologyDoneMsg{runID: runID}
 			}
-			return methodologyDoneMsg{err: err}
+			return methodologyDoneMsg{err: err, runID: runID}
 		}
 	}
 }
@@ -367,6 +488,12 @@ func methodologyEventLine(event agent.Event) string {
 		return fmt.Sprintf("%s %s with %s.", verb, methodologyPhaseLabel(event.PhaseID), event.Agent)
 	case "runner_error":
 		return "Runner error: " + firstNonEmptyLine(event.Message)
+	case "runner_failure":
+		return "Runner failed: " + firstNonEmptyLine(event.Message)
+	case "runner_diagnostic":
+		return "Diagnostic: " + firstNonEmptyLine(event.Message)
+	case "runner_cancelled":
+		return "AI run cancelled."
 	case "runner_done":
 		if event.Code != nil && *event.Code != 0 {
 			return fmt.Sprintf("Runner exited with code %d.", *event.Code)
@@ -400,6 +527,38 @@ func methodologyEventLine(event agent.Event) string {
 	default:
 		return ""
 	}
+}
+
+func (m Model) openMethodologyFullLog() (Model, tea.Cmd) {
+	lines := m.methodologyRawLog
+	if path := m.safeMethodologyLogPath(); path != "" {
+		if data, err := os.ReadFile(path); err == nil {
+			lines = strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+		}
+	}
+	if len(lines) == 0 {
+		lines = m.researchLines
+	}
+	m.previewBack = m.screen
+	m.hasPreviewBack = true
+	m.previewRel = "Corpus Builder full log"
+	m.preview.SetContent(strings.Join(lines, "\n"))
+	m.preview.GotoTop()
+	m.screen = screenPreview
+	return m, nil
+}
+
+func (m Model) safeMethodologyLogPath() string {
+	path := filepath.Clean(strings.TrimSpace(m.methodologyLogPath))
+	if path == "." || path == "" || strings.TrimSpace(m.currentPath) == "" {
+		return ""
+	}
+	root := filepath.Clean(projectCorpusPath(m.currentPath))
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return path
 }
 
 func isNoisyAgentStderr(line string) bool {

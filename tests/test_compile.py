@@ -106,6 +106,72 @@ def test_cache_hit_skips_handler(tmp_path: Path) -> None:
     assert handler.calls == ["https://a"], "second call should hit cache"
 
 
+def test_compile_omits_untrusted_legacy_web_metadata_from_cache(tmp_path: Path) -> None:
+    url = "https://example.com/article"
+    tape = _tape([SourceSpec(type="web", url=url)])
+    cache = SourceCache(tmp_path / "c.db")
+    cache.put(
+        SourceContent(
+            title="references-details-empty",
+            url=url,
+            body="Useful cached article body. " * 20,
+            fetched_at="2026-07-18T12:00:00Z",
+            author="Authorization Server Discovery",
+            published_at="1997-03-18",
+            metadata={"extraction": "trafilatura"},
+        ),
+        source_type="web",
+        ttl_days=30,
+    )
+
+    result = compile_tape(
+        tape,
+        cache=cache,
+        handlers={"web": StubHandler()},
+        config=Config(),
+    )
+
+    content = result.sources[0].content
+    assert content is not None
+    assert content.title == url
+    assert content.author is None
+    assert content.published_at is None
+    assert content.metadata["metadata_omitted"] == "untrusted_legacy_extraction"
+
+
+def test_compile_preserves_declared_html_metadata() -> None:
+    url = "https://example.com/article"
+
+    class DeclaredMetadataHandler:
+        def fetch(self, spec: SourceSpec) -> SourceContent:
+            return SourceContent(
+                title="Reliable title",
+                url=spec.url,
+                body="Useful article body. " * 20,
+                fetched_at="2026-07-18T12:00:00Z",
+                author="Ada Lovelace",
+                published_at="2022-06-01",
+                updated_at="2024-04-12",
+                metadata={
+                    "extraction": "trafilatura",
+                    "metadata_source": "declared_html",
+                },
+            )
+
+    result = compile_tape(
+        _tape([SourceSpec(type="web", url=url)]),
+        cache=None,
+        handlers={"web": DeclaredMetadataHandler()},
+        config=Config(),
+    )
+
+    content = result.sources[0].content
+    assert content is not None
+    assert content.author == "Ada Lovelace"
+    assert content.published_at == "2022-06-01"
+    assert content.updated_at == "2024-04-12"
+
+
 def test_bad_cached_web_pdf_is_refetched(tmp_path: Path) -> None:
     tape = _tape([SourceSpec(type="web", url="https://example.com/report.pdf")])
     cache = SourceCache(tmp_path / "c.db")
@@ -259,6 +325,31 @@ def test_js_required_auto_falls_back_to_web_js(tmp_path: Path) -> None:
     assert "rendered via playwright" in (result.sources[0].content.body or "")
     # The fallback emits a notice as a warning so the curator sees what happened.
     assert any("Recovered this source with JS rendering" in w.message for w in result.warnings)
+
+
+def test_failed_js_fallback_does_not_claim_recovery(tmp_path: Path) -> None:
+    """A browser retry is only recovered after it returns usable content."""
+
+    class BlockedBrowserHandler:
+        def fetch(self, spec: SourceSpec) -> SourceContent:
+            raise HandlerHardFailure(
+                "The source still returned a security challenge after JS rendering.",
+                spec.url,
+            )
+
+    result = compile_tape(
+        _tape([SourceSpec(type="web", url="https://blocked.example.com")]),
+        cache=None,
+        handlers={"web": JsStubHandler(), "web_js": BlockedBrowserHandler()},
+        config=Config(),
+    )
+
+    assert result.total_succeeded == 0
+    assert any("security challenge" in warning.message for warning in result.warnings)
+    assert not any(
+        "Recovered this source with JS rendering" in warning.message
+        for warning in result.warnings
+    )
 
 
 def test_js_required_without_web_js_handler_surfaces_setup_hint(tmp_path: Path) -> None:

@@ -100,3 +100,23 @@ func TestProjectAtKeepsLegacyRootLayoutAfterLinerMetadata(t *testing.T) {
 		t.Fatalf("expected legacy project with liner.yaml to read: %v", err)
 	}
 }
+
+func TestSourceIdentitySurvivesGoTapeRoundTrip(t *testing.T) {
+	id := "11111111-1111-4111-8111-111111111111"
+	contentHash := "sha256:" + strings.Repeat("a", 64)
+	project := t.TempDir()
+	want := Tape{Title: "Identity", Sources: []Source{{ID: &id, Type: "web", URL: "https://example.test", Priority: "required", ContentHash: &contentHash}}}
+	if err := WriteProject(project, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Sources) != 1 || got.Sources[0].ID == nil || *got.Sources[0].ID != id {
+		t.Fatalf("immutable Source identity was stripped: %#v", got.Sources)
+	}
+	if got.Sources[0].ContentHash == nil || *got.Sources[0].ContentHash != contentHash {
+		t.Fatalf("Source content hash was stripped: %#v", got.Sources)
+	}
+}

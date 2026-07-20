@@ -399,7 +399,7 @@ Don't paper over failures. The point of running the tests is to find problems wh
 - **Disagreement fails:** find one strong dissenting source. Fetch it. Evaluate it. Add it to the keep-list with a note that names its role as counterpoint.
 - **Framing-gap fails:** this is the expensive one. Expand the knowledge map. Return to Phase 2. Find candidates for the new sections. Fetch, evaluate. Come back to Phase 5 with a substantially revised keep-list and re-run all eight tests.
 - **Note-quality fails:** rewrite weak notes in `working/03-evaluation.yaml` so each one carries a use cue, value/bar, and boundary. Do this from existing evidence; do not open a new search loop.
-- **Source-role fit fails / Operating-fit fails:** write `working/05-operating-fit-audit.md` with the missing source role, why it matters, concrete search lanes for an improvement pass, and a short list of custom sources the user could add if public research remains thin.
+- **Source-role fit fails / Operating-fit fails:** write `working/05-operating-fit-audit.md` with the missing source role, why it matters, concrete search lanes for an improvement pass, and a short list of user-provided Sources that could fill the gap if public research remains thin.
 
 Each backtrack is a sign the methodology is working, not failing. The first four phases produced a corpus that worked from one angle; Phase 5 found the angle that wasn't covered. Better to find it here than in the empirical test (Phase 8) or — worse — silently, when the mixtape is in use.
 

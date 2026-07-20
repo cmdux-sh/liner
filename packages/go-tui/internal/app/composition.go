@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
@@ -449,42 +448,8 @@ func (m Model) handleCompositionReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cm
 }
 
 func (m Model) acceptCompositionDraft() (Model, tea.Cmd) {
-	draftPath := filepath.Join(m.currentPath, compositionDraftRelPath)
-	draft, err := os.ReadFile(draftPath)
-	if err != nil {
-		m.err = "Could not read composition draft: " + err.Error()
-		return m, nil
-	}
-	linerPath := filepath.Join(m.currentPath, "LINER.md")
-	existing, err := os.ReadFile(linerPath)
-	if err != nil && !os.IsNotExist(err) {
-		m.err = "Could not read LINER.md: " + err.Error()
-		return m, nil
-	}
-	backupRel := ""
-	if err == nil {
-		backupRel = filepath.Join("working", "composition", time.Now().Format("2006-01-02-150405")+"-previous-LINER.md")
-		if err := os.MkdirAll(filepath.Join(m.currentPath, filepath.Dir(backupRel)), 0o755); err != nil {
-			m.err = "Could not create composition backup folder: " + err.Error()
-			return m, nil
-		}
-		if err := os.WriteFile(filepath.Join(m.currentPath, backupRel), existing, 0o644); err != nil {
-			m.err = "Could not back up LINER.md: " + err.Error()
-			return m, nil
-		}
-	}
-	updated := applyCompositionSection(string(existing), string(draft))
-	if err := os.WriteFile(linerPath, []byte(updated), 0o644); err != nil {
-		m.err = "Could not write LINER.md: " + err.Error()
-		return m, nil
-	}
-	if err := writeCompositionApplyAudit(m.currentPath, backupRel, len(draft)); err != nil {
-		m.err = "LINER.md was updated, but the composition apply audit could not be saved: " + err.Error()
-		return m, nil
-	}
-	_ = os.Remove(draftPath)
-	m.note = "Applied composition routing to LINER.md."
-	return m.openPreview("LINER.md")
+	m.err = legacyCoreWriterError("apply a composition draft").Error()
+	return m, nil
 }
 
 func (m Model) discardCompositionDraft() (Model, tea.Cmd) {

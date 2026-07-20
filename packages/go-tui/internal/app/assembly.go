@@ -3,11 +3,13 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/cmdux/liner/packages/go-tui/internal/core"
 	linerprogress "github.com/cmdux/liner/packages/go-tui/internal/progress"
 	"github.com/cmdux/liner/packages/go-tui/internal/source"
 	"github.com/cmdux/liner/packages/go-tui/internal/styles"
@@ -16,6 +18,7 @@ import (
 )
 
 const assemblyDraftRelPath = "working/07-tape-draft.yaml"
+const initialAssemblyMarkerRelPath = "working/.liner-initial-assembly"
 
 type assemblyDraft struct {
 	Sources []tape.Source `yaml:"sources"`
@@ -35,7 +38,37 @@ func (m Model) startAssemblyReview() (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) startPreparedAssemblyReview() (Model, tea.Cmd) {
+	m, _ = m.startAssemblyReview()
+	if m.screen != screenAssemblyReview || m.err != "" {
+		return m, nil
+	}
+	return m.startInitialSourceBatch()
+}
+
 func (m Model) handleAssemblyReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
+	if m.sourceBatchRunning || m.assemblyAwaitingSnapshot {
+		switch keyMsg.String() {
+		case "esc", "q", "ctrl+c":
+			if m.assemblyAwaitingSnapshot {
+				m.note = "Sources are saved. Waiting for Core to determine the required next step."
+				return m, nil
+			}
+			m.sourceBatchCancelRequested = true
+			if m.sourceBatchPhase == sourceBatchPhaseApply {
+				m.note = "Cancellation requested. Atomic apply cannot be interrupted; Liner will stop after Core finishes or rolls back."
+			} else {
+				m.note = "Cancellation requested. Liner will stop at the next safe boundary before atomic apply."
+			}
+		default:
+			if m.assemblyAwaitingSnapshot {
+				m.note = "Sources are saved. Waiting for Core to determine the required next step."
+			} else {
+				m.note = "The Source batch is still running. Press esc to cancel at the next safe boundary."
+			}
+		}
+		return m, nil
+	}
 	switch keyMsg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
@@ -47,6 +80,9 @@ func (m Model) handleAssemblyReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) 
 		if index >= 0 && index < len(m.sourceItems) {
 			m.sourceItems[index].Active = !m.sourceItems[index].Active
 			m.applySourceItems(m.sourceItems)
+			m.sourceMaintenancePlan = nil
+			m.sourceBatchPlanValidated = false
+			return m.startInitialSourceBatch()
 		}
 		return m, nil
 	case "o":
@@ -71,19 +107,42 @@ func (m Model) acceptAssemblyDraft() (Model, tea.Cmd) {
 		m.err = err.Error()
 		return m, nil
 	}
-	current.Sources = active
-	if err := tape.WriteProject(m.currentPath, current); err != nil {
+	if err := requireInitialAssemblyBoundary(m.currentPath, current); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}
-	if _, err := linerprogress.MarkPhaseComplete(projectCorpusPath(m.currentPath), linerprogress.PhaseAssembly); err != nil {
-		m.err = "Sources were written, but progress could not be updated: " + err.Error()
-		return m, nil
+	m.sourceBatchApprovalCaptured = true
+	return m.startInitialSourceBatch()
+}
+
+func (m Model) finalizeAssemblyAcceptance() (Model, error) {
+	current, err := tape.ReadProject(m.currentPath)
+	if err != nil {
+		return m, fmt.Errorf("Core applied initial Sources, but the Project tape could not be reloaded: %w", err)
 	}
-	_ = os.Remove(projectAbsPath(m.currentPath, assemblyDraftRelPath))
+	if err := os.Remove(filepath.Join(projectCorpusPath(m.currentPath), initialAssemblyMarkerRelPath)); err != nil {
+		return m, fmt.Errorf("Core applied initial Sources, but the one-shot assembly marker could not be retired: %w", err)
+	}
+	if _, err := linerprogress.MarkPhaseComplete(projectCorpusPath(m.currentPath), linerprogress.PhaseAssembly); err != nil {
+		return m, fmt.Errorf("Core applied initial Sources, but progress could not be updated: %w", err)
+	}
+	if err := os.Remove(projectAbsPath(m.currentPath, assemblyDraftRelPath)); err != nil && !os.IsNotExist(err) {
+		return m, fmt.Errorf("Core applied initial Sources, but the assembly draft could not be retired: %w", err)
+	}
 	m.currentTape = current
-	m.note = fmt.Sprintf("Saved %d source(s). Compiling MIXTAPE.md.", len(active))
-	return m.startCompile()
+	return m, nil
+}
+
+func requireInitialAssemblyBoundary(project string, current tape.Tape) error {
+	marker := filepath.Join(projectCorpusPath(project), initialAssemblyMarkerRelPath)
+	info, err := os.Lstat(marker)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return legacyCoreWriterError("replace Project Sources from an assembly draft")
+	}
+	if len(current.Sources) != 0 {
+		return legacyCoreWriterError("replace accepted Project Sources from an assembly draft")
+	}
+	return nil
 }
 
 func (m Model) discardAssemblyDraft() (Model, tea.Cmd) {
@@ -113,15 +172,51 @@ func (m Model) viewAssemblyReview() string {
 		len(m.sourceItems),
 		len(source.ActiveSources(m.sourceItems)),
 	)
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
+	sections := []string{
 		styles.Title.Render("Review Draft Sources"),
 		styles.Subtitle.Render("Assembly proposed the source list for MIXTAPE.md."),
 		styles.Section.Render(counts),
-		reviewTable.View(),
-		"",
-		styles.ReportSection.Render("Selected"),
-		m.assemblySelectedDetail(width),
+	}
+	if progress := m.sourceBatchProgressView(); progress != "" {
+		sections = append(sections, progress)
+	}
+	sections = append(sections, reviewTable.View())
+	if m.sourceMaintenancePlan != nil && !m.sourceBatchRunning {
+		sections = append(sections, "", assemblyApprovalView(width, *m.sourceMaintenancePlan, len(source.ActiveSources(m.sourceItems))))
+	} else {
+		sections = append(sections,
+			"",
+			styles.ReportSection.Render("Selected"),
+			m.assemblySelectedDetail(width),
+		)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func assemblyApprovalView(width int, plan core.ProjectChangeSet, checked int) string {
+	adds := 0
+	unchanged := 0
+	for _, operation := range plan.Operations {
+		switch operation["type"] {
+		case "source.add":
+			adds++
+		case "source.noop":
+			unchanged++
+		}
+	}
+	result := fmt.Sprintf("%d new Sources", adds)
+	if unchanged > 0 {
+		result = fmt.Sprintf("%d new · %d already present", adds, unchanged)
+	}
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Ready to accept Sources"),
+		styles.AccentText.Render(fmt.Sprintf("Press Enter to accept %d checked Sources for this Project.", checked)),
+		renderLabelValueBlock(width, []labelValueRow{
+			{Label: "Result", Value: result},
+			{Label: "Change", Value: "Additive only; existing Sources stay unchanged"},
+			{Label: "Next", Value: "Refresh the Project, then continue to its required next step"},
+		}, 0, 0),
 	)
 }
 

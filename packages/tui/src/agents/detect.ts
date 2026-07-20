@@ -54,18 +54,31 @@ export function envVarForAgent(id: AgentId): string {
   return id === "claude" ? "LINER_CLAUDE_BIN" : "LINER_CODEX_BIN";
 }
 
+export function configHomeForAgent(id: AgentId): string {
+  const linerOverride = process.env[id === "claude" ? "LINER_CLAUDE_HOME" : "LINER_CODEX_HOME"]?.trim();
+  if (linerOverride) return linerOverride;
+  const nativeOverride = process.env[id === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]?.trim();
+  if (nativeOverride) return nativeOverride;
+  return join(homedir(), id === "claude" ? ".claude" : ".codex");
+}
+
 /** Catalog of agents the TUI knows how to drive. Single source of truth so
  *  `detectAgents` and the "not detected" UI in AgentSetup stay in sync. */
 export const KNOWN_AGENTS: ReadonlyArray<{ id: AgentId; name: string; envVar: string }> = [
-  { id: "claude", name: "Claude Code", envVar: "LINER_CLAUDE_BIN" },
-  { id: "codex", name: "OpenAI Codex", envVar: "LINER_CODEX_BIN" },
+  { id: "claude", name: "Claude", envVar: "LINER_CLAUDE_BIN" },
+  { id: "codex", name: "OpenAI", envVar: "LINER_CODEX_BIN" },
 ];
 
 export function detectAgents(): AgentDescriptor[] {
   const found: AgentDescriptor[] = [];
   for (const meta of KNOWN_AGENTS) {
     const bin = resolveBin(meta.id, meta.envVar);
-    if (bin) found.push({ id: meta.id, name: meta.name, bin });
+    if (bin) found.push({
+      id: meta.id,
+      name: meta.name,
+      bin,
+      configHome: configHomeForAgent(meta.id),
+    });
   }
   return found;
 }

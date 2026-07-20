@@ -32,6 +32,8 @@ class SourceSpec:
     # Role this source plays in the corpus. Optional — None means "unspecified"
     # and renders without a kind label.
     kind: SourceKind | None = None
+    # Immutable identity when the Source belongs to an identity-bearing Project.
+    source_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +56,7 @@ class SourceContent:
     fetched_at: str
     author: str | None = None
     published_at: str | None = None
+    updated_at: str | None = None
     duration_seconds: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -78,7 +81,7 @@ class Tape:
     jtbd_clarifications: tuple[JtbdClarification, ...] = ()
     methodology_version: str | None = None
     # When this tape was created by `liner replay <other>`, the absolute path
-    # of the source folder it was cloned from. Phase 8 (empirical) uses this
+    # of the source folder it was cloned from. Later comparisons use this
     # to run a v1-vs-v2 comparison test instead of the default with-vs-without
     # test.
     parent: str | None = None

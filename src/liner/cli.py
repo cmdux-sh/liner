@@ -10,6 +10,12 @@ import typer
 from rich.console import Console
 
 from liner import __version__
+from liner.agent_adapters import (
+    AdapterError,
+    apply_agent_adapter_plan,
+    inspect_agent_adapter,
+    plan_agent_adapter,
+)
 from liner.cache import SourceCache
 from liner.cli_progress import RichProgressReporter
 from liner.compile import MissingSynthesisError, compile_project
@@ -22,9 +28,38 @@ from liner.json_events import (
     compile_result_to_payload,
     emit_result,
 )
+from liner.maintenance import (
+    MAINTENANCE_REQUEST_CONTRACT,
+    PROJECT_CHANGE_SET_VERSION,
+    FailureReport,
+    ProjectApplyError,
+    ProjectChangeSet,
+    ProjectInspectionError,
+    ProjectSnapshot,
+    apply_change_set,
+    inspect_project,
+    maintenance_guidance,
+    plan_operating_layer_review,
+    plan_pointer_adapter,
+    plan_project_guidance_upgrade,
+    plan_project_move,
+    plan_project_rename,
+    plan_source_add,
+    plan_source_add_batch,
+    plan_source_purge,
+    plan_source_remove,
+    plan_source_replace,
+    plan_source_update,
+    plan_synthesis_review,
+)
 from liner.manifest import build_manifest, read_manifest, write_manifest
 from liner.playwright_env import configure_frozen_playwright_cache
-from liner.project import ProjectFolder, init_project, refresh_status_snapshot
+from liner.project import (
+    ProjectFolder,
+    SynthesisReviewRequiredError,
+    init_project,
+    refresh_status_snapshot,
+)
 from liner.share import ShareOptions, pack, unpack
 from liner.status import build_status_payload
 from liner.tape import TapeValidationError, load_tape
@@ -37,8 +72,19 @@ app = typer.Typer(
 )
 cache_app = typer.Typer(help="Cache management commands.", no_args_is_help=True)
 app.add_typer(cache_app, name="cache")
-skills_app = typer.Typer(help="Find installed skills that can be used as sources.", no_args_is_help=True)
+skills_app = typer.Typer(
+    help="Find installed skills that can be used as sources.", no_args_is_help=True
+)
 app.add_typer(skills_app, name="skills")
+project_app = typer.Typer(help="Inspect Liner Project state safely.", no_args_is_help=True)
+app.add_typer(project_app, name="project")
+sources_app = typer.Typer(help="Plan and apply Source changes safely.", no_args_is_help=True)
+app.add_typer(sources_app, name="sources")
+adapters_app = typer.Typer(
+    help="Inspect and explicitly manage optional agent maintenance adapters.",
+    no_args_is_help=True,
+)
+app.add_typer(adapters_app, name="adapters")
 
 err_console = Console(stderr=True)
 
@@ -62,6 +108,86 @@ def _root(
             pass
 
 
+@adapters_app.command("inspect", help="Inspect an optional adapter without changing it.")
+def adapter_inspect(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to inspect."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        inspection = inspect_agent_adapter(environment, home)
+    except AdapterError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(inspection, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(
+            f"{inspection['environment']}: {inspection['status']} "
+            f"({inspection['compatibility']}) at {inspection['target']}"
+        )
+
+
+def _run_adapter_action(
+    action: str,
+    environment: str,
+    home: Path,
+    *,
+    approved: bool,
+    json_output: bool,
+) -> None:
+    import json as _json
+
+    try:
+        plan = plan_agent_adapter(action, environment, home)
+        if not approved and plan.approval_required:
+            typer.echo(_json.dumps(plan.to_dict(), ensure_ascii=False, indent=2))
+            raise typer.Exit(code=2)
+        receipt = apply_agent_adapter_plan(plan, approved=approved)
+    except AdapterError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        typer.echo(
+            f"{receipt.action} {receipt.environment} adapter at {receipt.target}; "
+            f"receipt: {receipt.receipt_path}"
+        )
+
+
+@adapters_app.command("install", help="Plan or explicitly install an optional adapter.")
+def adapter_install(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action("install", environment, home, approved=yes, json_output=json_output)
+
+
+@adapters_app.command("update", help="Plan or explicitly update a managed adapter.")
+def adapter_update(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action("update", environment, home, approved=yes, json_output=json_output)
+
+
+@adapters_app.command("remove", help="Plan or explicitly remove only Liner-managed content.")
+def adapter_remove(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action("remove", environment, home, approved=yes, json_output=json_output)
+
+
 @app.command(help="Scaffold a new Liner project folder.")
 def init(
     path: Path = typer.Argument(
@@ -76,8 +202,16 @@ def init(
     ),
     jtbd: str | None = typer.Option(None, "--jtbd", help="Set the job-to-be-done."),
     title: str | None = typer.Option(None, "--title", help="Set the mixtape title."),
-    description: str | None = typer.Option(None, "--description", help="Set the mixtape description."),
+    description: str | None = typer.Option(
+        None, "--description", help="Set the mixtape description."
+    ),
     curator: str | None = typer.Option(None, "--curator", help="Set the curator name."),
+    tui_construction: bool = typer.Option(
+        False,
+        "--tui-construction",
+        hidden=True,
+        help="Prepare an empty one-shot first-run assembly boundary for the Go TUI.",
+    ),
 ) -> None:
     try:
         mode_value = _normalize_init_mode(mode)
@@ -102,6 +236,8 @@ def init(
         _apply_init_metadata(project, metadata)
     if jtbd is not None and jtbd.strip():
         _prefill_jtbd(project, jtbd.strip())
+    if tui_construction:
+        _prepare_tui_construction(project)
 
     err_console.print(f"[green]Created Liner project[/] {project.path}")
     err_console.print("Next steps:")
@@ -157,6 +293,23 @@ def _apply_init_metadata(project: ProjectFolder, metadata: dict[str, str]) -> No
     )
 
 
+def _prepare_tui_construction(project: ProjectFolder) -> None:
+    import yaml
+
+    raw = yaml.safe_load(project.tape_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raw = {}
+    raw["sources"] = []
+    project.tape_path.write_text(
+        yaml.safe_dump(raw, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    (project.working_dir / ".liner-initial-assembly").write_text(
+        "Created by Liner Core for one first-run Go TUI assembly acceptance.\n",
+        encoding="utf-8",
+    )
+
+
 def _prefill_jtbd(project: ProjectFolder, jtbd: str) -> None:
     path = project.working_dir / "01-jtbd-and-knowledge-map.md"
     try:
@@ -178,8 +331,8 @@ def _prefill_jtbd(project: ProjectFolder, jtbd: str) -> None:
 
 @app.command(
     help=(
-        "Clone a project's JTBD into a fresh folder so the same input can be "
-        "run through a new pipeline. Used to A/B-test methodology changes."
+        "Clone a Liner Project's Job to Be Done and Clarify Job answers into a fresh "
+        "Liner Project. Retains lineage for later output comparison."
     ),
 )
 def replay(
@@ -189,7 +342,7 @@ def replay(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Existing project folder to clone the JTBD + clarifications from.",
+        help="Existing Liner Project to clone the Job to Be Done and Clarify Job answers from.",
     ),
     out: Path | None = typer.Option(
         None,
@@ -205,12 +358,11 @@ def replay(
         False, "--force", help="Overwrite the destination folder if it already exists."
     ),
 ) -> None:
-    """Selectively clone tape.yaml (JTBD + clarifications + meta) into a new
-    project folder so the curator can run the same input through a fresh
-    pipeline. Working artifacts, synthesis, and sources are NOT copied —
-    they regenerate from scratch. The new tape records `parent: <source>`
-    so Phase 8 (empirical) can run a v1-vs-v2 comparison test instead of
-    the default with-vs-without test.
+    """Selectively clone tape.yaml inputs into a new Liner Project so the
+    Curator can run the same Job to Be Done through fresh Corpus Creation.
+    Working artifacts, synthesis, and Sources are not copied. The new tape
+    records `parent: <source>` so later comparison can use the original
+    Liner Project as a lineage reference.
     """
     from liner.tape import load_tape
 
@@ -247,11 +399,11 @@ def replay(
     _replay_tape(project, src_tape, source.resolve())
 
     err_console.print(f"[green]Replay folder ready:[/] {project.path}")
-    err_console.print(f"  parent: [dim]{source.resolve()}[/] (Phase 8 will compare against this)")
+    err_console.print(f"  parent: [dim]{source.resolve()}[/] (lineage source for later comparison)")
     err_console.print("Next steps:")
-    err_console.print(f"  1. Open [bold]{project.path}[/] in the TUI (or run phases manually)")
-    err_console.print("  2. Run all phases; the cloned JTBD + clarifications are pre-filled")
-    err_console.print(f"  3. After compile, run Phase 8 to compare against {source.name}")
+    err_console.print(f"  1. Open [bold]{project.path}[/] in the TUI")
+    err_console.print("  2. Review the pre-filled Job to Be Done and Clarify Job answers")
+    err_console.print(f"  3. Build the Mixtape, then compare its outputs with {source.name}")
 
 
 def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> None:
@@ -288,7 +440,9 @@ def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> N
     tape_path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-@app.command(help="Compile a Liner project: fetch sources, write mixtape/MIXTAPE.md and mixtape/sources/.")
+@app.command(
+    help="Compile a Liner project: fetch sources, write mixtape/MIXTAPE.md and mixtape/sources/."
+)
 def compile(  # noqa: A001 - command name matches the v1 surface
     folder: Path = typer.Argument(
         ...,
@@ -331,7 +485,9 @@ def compile(  # noqa: A001 - command name matches the v1 surface
     project = ProjectFolder(folder)
 
     if not project.tape_path.exists():
-        err_console.print(f"[red]No tape.yaml in {project.corpus_path}.[/] Run `liner init {folder}` first.")
+        err_console.print(
+            f"[red]No tape.yaml in {project.corpus_path}.[/] Run `liner init {folder}` first."
+        )
         raise typer.Exit(code=1)
 
     try:
@@ -372,8 +528,13 @@ def compile(  # noqa: A001 - command name matches the v1 surface
                 no_cache=no_cache,
                 progress=progress,
             )
-        except MissingSynthesisError as e:
+        except (MissingSynthesisError, SynthesisReviewRequiredError) as e:
             err_console.print(f"[red]{e}[/]")
+            raise typer.Exit(code=1) from e
+        except ProjectApplyError as e:
+            err_console.print(f"[red]{e.report.message}[/]")
+            for action in e.report.recovery:
+                err_console.print(f"  {action}")
             raise typer.Exit(code=1) from e
     finally:
         if cache is not None:
@@ -811,6 +972,621 @@ def _is_liner_project_dir(path: Path) -> bool:
     return project.tape_path.exists()
 
 
+@project_app.command("inspect", help="Inspect a Liner Project without changing it.")
+def project_inspect(
+    path: Path | None = typer.Argument(
+        None,
+        help="Project root or a path inside it. Defaults to the current directory.",
+    ),
+    project_id: str | None = typer.Option(
+        None,
+        "--project-id",
+        help="Expected immutable Project ID. Inspection fails if it does not match.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        snapshot = inspect_project(path, expected_project_id=project_id)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_project_snapshot(snapshot)
+
+
+def _print_project_snapshot(snapshot: ProjectSnapshot) -> None:
+    typer.echo(f"Project ID: {snapshot.project_id or 'missing'}")
+    typer.echo(f"Name: {snapshot.name}")
+    typer.echo(f"Root: {snapshot.root}")
+    typer.echo(f"Format: {snapshot.artifact} v{snapshot.format_version} ({snapshot.layout})")
+    typer.echo(f"Revision: {snapshot.revision}")
+    typer.echo(f"Compatibility: {snapshot.compatibility_state}")
+    typer.echo(f"  {snapshot.compatibility_message}")
+    typer.echo(f"Milestone: {snapshot.lifecycle.get('milestone', 'unknown')}")
+    typer.echo(f"Inspect: {'available' if snapshot.capabilities['inspect'] else 'unavailable'}")
+    typer.echo(f"Plan: {'available' if snapshot.capabilities['plan'] else 'unavailable'}")
+    typer.echo(f"Apply: {'available' if snapshot.capabilities['apply'] else 'unavailable'}")
+    typer.echo(f"Sources: {len(snapshot.sources)}")
+    for source in snapshot.sources:
+        typer.echo(f"  {source.source_id or 'missing'}  {source.type}  {source.locator}")
+
+
+@project_app.command(
+    "guidance",
+    help="Publish the running CLI's versioned Project maintenance guidance.",
+)
+def project_guidance(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    output_format: str = typer.Option(
+        "markdown",
+        "--format",
+        help="Output format: json or markdown.",
+    ),
+) -> None:
+    import json as _json
+
+    if output_format not in {"json", "markdown"}:
+        err_console.print("[red]Guidance format must be json or markdown.[/]")
+        raise typer.Exit(code=1)
+    try:
+        guidance = maintenance_guidance(path)
+    except ProjectInspectionError as error:
+        report = FailureReport(
+            code="maintenance_unavailable",
+            message=str(error),
+            recovery=(
+                "Install or upgrade a compatible Liner CLI, then restart from "
+                "`liner project inspect`; do not edit Project YAML directly.",
+            ),
+        )
+        if output_format == "json":
+            typer.echo(_json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{report.message}[/]")
+            for action in report.recovery:
+                err_console.print(f"  {action}")
+        raise typer.Exit(code=1) from error
+    if output_format == "json":
+        typer.echo(_json.dumps(guidance.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        typer.echo(guidance.to_markdown(), nl=False)
+
+
+@project_app.command("plan", help="Plan a Project change without writing to it.")
+def project_plan(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    request_json: str = typer.Option(
+        ..., "--request-json", help="Versioned maintenance request JSON."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        request = _json.loads(request_json)
+        if not isinstance(request, dict):
+            raise ProjectInspectionError("Maintenance request must be a JSON object.")
+        if request.get("contract") != MAINTENANCE_REQUEST_CONTRACT:
+            raise ProjectInspectionError("Invalid maintenance request contract.")
+        request_version = request.get("version")
+        if type(request_version) is not int or request_version != PROJECT_CHANGE_SET_VERSION:
+            raise ProjectInspectionError(
+                "Unsupported maintenance request version; expected version 1."
+            )
+        operation = request.get("operation")
+        if not isinstance(operation, dict):
+            raise ProjectInspectionError("Maintenance operation must be a JSON object.")
+        operation_type = operation.get("type")
+        if operation_type == "project.guidance_upgrade":
+            change_set = plan_project_guidance_upgrade(path)
+        elif operation_type == "synthesis.review":
+            change_set = plan_synthesis_review(
+                path,
+                str(operation.get("disposition", "")),
+                content=operation.get("content"),
+            )
+        elif operation_type == "operating_layer.review":
+            change_set = plan_operating_layer_review(
+                path,
+                str(operation.get("disposition", "")),
+                liner_content=operation.get("liner_content"),
+                skill_content=operation.get("skill_content"),
+            )
+        elif operation_type == "project.rename":
+            name = operation.get("name")
+            if not isinstance(name, str):
+                raise ProjectInspectionError("project.rename requires a string name.")
+            change_set = plan_project_rename(path, name)
+        elif operation_type == "project.move":
+            destination = operation.get("destination")
+            if not isinstance(destination, str) or not destination.strip():
+                raise ProjectInspectionError("project.move requires a destination path.")
+            change_set = plan_project_move(path, Path(destination))
+        elif operation_type == "pointer.adapter":
+            change_set = plan_pointer_adapter(
+                path,
+                str(operation.get("environment", "")),
+                str(operation.get("action", "")),
+            )
+        elif operation_type == "source.add":
+            source = operation.get("source")
+            sources = operation.get("sources")
+            if source is not None and sources is not None:
+                raise ProjectInspectionError(
+                    "source.add accepts either source or sources, not both."
+                )
+            if sources is not None:
+                if not isinstance(sources, list) or not all(
+                    isinstance(item, dict) for item in sources
+                ):
+                    raise ProjectInspectionError(
+                        "source.add sources must be a list of Source mappings."
+                    )
+                change_set = plan_source_add_batch(path, sources)
+            else:
+                if not isinstance(source, dict):
+                    raise ProjectInspectionError("source.add requires a Source mapping.")
+                change_set = plan_source_add(path, source)
+        elif operation_type == "source.update":
+            changes = operation.get("changes")
+            if not isinstance(changes, dict):
+                raise ProjectInspectionError("source.update requires a changes mapping.")
+            change_set = plan_source_update(
+                path,
+                str(operation.get("source_id", "")),
+                changes,
+            )
+        elif operation_type == "source.replace":
+            source = operation.get("source")
+            if not isinstance(source, dict):
+                raise ProjectInspectionError("source.replace requires a Source mapping.")
+            change_set = plan_source_replace(
+                path,
+                str(operation.get("source_id", "")),
+                source,
+                provenance_intent=operation.get("provenance_intent"),
+                provenance_reason=operation.get("provenance_reason"),
+            )
+        elif operation_type == "source.remove":
+            change_set = plan_source_remove(
+                path,
+                str(operation.get("source_id", "")),
+            )
+        elif operation_type == "source.purge":
+            change_set = plan_source_purge(
+                path,
+                str(operation.get("source_id", "")),
+            )
+        else:
+            raise ProjectInspectionError(f"Unsupported maintenance operation {operation_type!r}.")
+    except (_json.JSONDecodeError, ProjectInspectionError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_change_set(change_set)
+
+
+@project_app.command(
+    "pointer",
+    help="Compile an opt-in managed AGENTS.md or CLAUDE.md pointer Change Set.",
+)
+def project_pointer(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    environment: str = typer.Option(
+        ..., "--environment", help="Supported pointer environment: codex or claude."
+    ),
+    action: str = typer.Option(
+        ..., "--action", help="Explicit pointer action: install, update, or remove."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        change_set = plan_pointer_adapter(path, environment, action)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _print_change_set(change_set)
+        typer.echo("Exact Change Set JSON:")
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+
+
+@project_app.command("rename", help="Compile a managed Project display-name Change Set.")
+def project_rename(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    name: str = typer.Option(..., "--name", help="New Project display name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        change_set = plan_project_rename(path, name)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _print_change_set(change_set)
+        typer.echo("Exact Change Set JSON:")
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+
+
+@project_app.command("move", help="Compile an identity-preserving Project root move.")
+def project_move(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    destination: Path = typer.Option(
+        ..., "--destination", help="Absent destination root on the same filesystem."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        change_set = plan_project_move(path, destination)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _print_change_set(change_set)
+        typer.echo("Exact Change Set JSON:")
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+    err_console.print(
+        "[yellow]Project move changes the authoritative root.[/] Review the exact Change Set, "
+        "then pass it to `liner project apply --change-set-json '<json>' --approve "
+        f"--approved-destination '{change_set.operations[0]['new_root']}'`."
+    )
+    raise typer.Exit(code=2)
+
+
+@project_app.command("apply", help="Atomically apply a versioned Project Change Set.")
+def project_apply(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    change_set_json: str = typer.Option(
+        ..., "--change-set-json", help="Versioned Change Set JSON."
+    ),
+    approve: bool = typer.Option(
+        False,
+        "--approve",
+        help="Approve a structural or semantic Change Set after reviewing its preview.",
+    ),
+    approved_destination: Path | None = typer.Option(
+        None,
+        "--approved-destination",
+        help="Repeat the exact reviewed destination for a Project move.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        raw = _json.loads(change_set_json)
+        if not isinstance(raw, dict):
+            raise ProjectInspectionError("Change Set must be a JSON object.")
+        receipt = apply_change_set(
+            path,
+            ProjectChangeSet.from_dict(raw),
+            approved=approve,
+            approved_destination=approved_destination,
+        )
+    except (_json.JSONDecodeError, ProjectInspectionError) as error:
+        report = FailureReport(
+            code="invalid_change_set",
+            message=f"Change Set validation failed: {error}",
+            recovery=("Discard this Change Set and create a fresh plan.",),
+        )
+        if json_output:
+            typer.echo(_json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{report.message}[/]")
+        raise typer.Exit(code=1) from error
+    except ProjectApplyError as error:
+        if json_output:
+            typer.echo(_json.dumps(error.report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{error.report.message}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_change_receipt(receipt)
+
+
+@sources_app.command("add", help="Add one Source through the canonical plan/apply path.")
+def sources_add(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    source_type: str = typer.Option(..., "--type", help="Source type."),
+    url: str | None = typer.Option(None, "--url", help="Remote Source URL."),
+    source_path: str | None = typer.Option(None, "--path", help="Local Source path."),
+    note: str | None = typer.Option(None, "--note", help="Source use note."),
+    section: str | None = typer.Option(None, "--section", help="Knowledge-map section."),
+    priority: str | None = typer.Option(None, "--priority", help="required or optional."),
+    render: str | None = typer.Option(None, "--render", help="server or js for web Sources."),
+    citation: str | None = typer.Option(None, "--citation", help="Local-file citation."),
+    kind: str | None = typer.Option(None, "--kind", help="Source role."),
+    content_hash: str | None = typer.Option(
+        None, "--content-hash", help="Known Source content hash (sha256:<hex>)."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    source: dict[str, object] = {"type": source_type}
+    for key, value in {
+        "url": url,
+        "path": source_path,
+        "note": note,
+        "section": section,
+        "priority": priority,
+        "render": render,
+        "citation": citation,
+        "kind": kind,
+        "content_hash": content_hash,
+    }.items():
+        if value is not None:
+            source[key] = value
+    try:
+        change_set = plan_source_add(path, source)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if change_set.approval_required:
+        if json_output:
+            typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            _print_change_set(change_set)
+        err_console.print(
+            "[yellow]Structural identity migration requires review.[/] "
+            "Apply this exact Change Set with `liner project apply --approve`."
+        )
+        raise typer.Exit(code=2)
+    try:
+        receipt = apply_change_set(path, change_set)
+    except ProjectApplyError as error:
+        if json_output:
+            typer.echo(_json.dumps(error.report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{error.report.message}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_change_receipt(receipt)
+
+
+@sources_app.command(
+    "update", help="Update Source metadata or locator while preserving its immutable ID."
+)
+def sources_update(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    source_id: str = typer.Option(..., "--source-id", help="Immutable Source ID."),
+    url: str | None = typer.Option(None, "--url", help="Remote Source URL."),
+    source_path: str | None = typer.Option(None, "--path", help="Local Source path."),
+    note: str | None = typer.Option(None, "--note", help="Source use note."),
+    section: str | None = typer.Option(None, "--section", help="Knowledge-map section."),
+    priority: str | None = typer.Option(None, "--priority", help="required or optional."),
+    render: str | None = typer.Option(None, "--render", help="server or js for web Sources."),
+    citation: str | None = typer.Option(None, "--citation", help="Local-file citation."),
+    kind: str | None = typer.Option(None, "--kind", help="Source role."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    changes = {
+        key: value
+        for key, value in {
+            "url": url,
+            "path": source_path,
+            "note": note,
+            "section": section,
+            "priority": priority,
+            "render": render,
+            "citation": citation,
+            "kind": kind,
+        }.items()
+        if value is not None
+    }
+    try:
+        change_set = plan_source_update(path, source_id, changes)
+        receipt = apply_change_set(path, change_set)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    except ProjectApplyError as error:
+        if json_output:
+            typer.echo(_json.dumps(error.report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{error.report.message}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_change_receipt(receipt)
+
+
+@sources_app.command("replace", help="Preview a semantic Source replacement with explicit lineage.")
+def sources_replace(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    source_id: str = typer.Option(..., "--source-id", help="Predecessor Source ID."),
+    source_type: str = typer.Option(..., "--type", help="Replacement Source type."),
+    url: str | None = typer.Option(None, "--url", help="Remote Source URL."),
+    source_path: str | None = typer.Option(None, "--path", help="Local Source path."),
+    note: str | None = typer.Option(None, "--note", help="Source use note."),
+    section: str | None = typer.Option(None, "--section", help="Knowledge-map section."),
+    priority: str | None = typer.Option(None, "--priority", help="required or optional."),
+    render: str | None = typer.Option(None, "--render", help="server or js for web Sources."),
+    citation: str | None = typer.Option(None, "--citation", help="Local-file citation."),
+    kind: str | None = typer.Option(None, "--kind", help="Source role."),
+    content_hash: str | None = typer.Option(
+        None, "--content-hash", help="Known Source content hash (sha256:<hex>)."
+    ),
+    provenance_intent: str | None = typer.Option(
+        None, "--provenance-intent", help="Use distinct for same-content provenance."
+    ),
+    provenance_reason: str | None = typer.Option(
+        None, "--provenance-reason", help="Private reason for distinct provenance."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    source: dict[str, object] = {"type": source_type}
+    for key, value in {
+        "url": url,
+        "path": source_path,
+        "note": note,
+        "section": section,
+        "priority": priority,
+        "render": render,
+        "citation": citation,
+        "kind": kind,
+        "content_hash": content_hash,
+    }.items():
+        if value is not None:
+            source[key] = value
+    try:
+        change_set = plan_source_replace(
+            path,
+            source_id,
+            source,
+            provenance_intent=provenance_intent,
+            provenance_reason=provenance_reason,
+        )
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if change_set.approval_required:
+        if json_output:
+            typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            _print_change_set(change_set)
+            typer.echo("Exact Change Set JSON:")
+            typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+        err_console.print(
+            "[yellow]Semantic Source replacement requires review.[/] "
+            "Pass the exact JSON above to `liner project apply --change-set-json "
+            "'<json>' --approve`."
+        )
+        raise typer.Exit(code=2)
+    try:
+        receipt = apply_change_set(path, change_set)
+    except ProjectApplyError as error:
+        if json_output:
+            typer.echo(_json.dumps(error.report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            err_console.print(f"[red]{error.report.message}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _print_change_receipt(receipt)
+
+
+@sources_app.command(
+    "remove", help="Preview retention-first Source detachment from the active corpus."
+)
+def sources_remove(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    source_id: str = typer.Option(..., "--source-id", help="Active Source ID."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        change_set = plan_source_remove(path, source_id)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _print_change_set(change_set)
+        typer.echo("Exact Change Set JSON:")
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+    err_console.print(
+        "[yellow]Source removal retains captures but changes the active corpus.[/] "
+        "Pass the exact JSON to `liner project apply --change-set-json '<json>' --approve`."
+    )
+    raise typer.Exit(code=2)
+
+
+@sources_app.command(
+    "purge", help="Preview irreversible deletion of one retained Source and its captures."
+)
+def sources_purge(
+    path: Path = typer.Argument(..., help="Project root or a path inside it."),
+    source_id: str = typer.Option(..., "--source-id", help="Detached Source ID."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    try:
+        change_set = plan_source_purge(path, source_id)
+    except ProjectInspectionError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _print_change_set(change_set)
+        typer.echo("Exact Change Set JSON:")
+        typer.echo(_json.dumps(change_set.to_dict(), ensure_ascii=False))
+    err_console.print(
+        "[red]Source purge permanently deletes every listed retained artifact.[/] "
+        "Pass the exact JSON to `liner project apply --change-set-json '<json>' --approve`."
+    )
+    raise typer.Exit(code=2)
+
+
+def _print_change_set(change_set: ProjectChangeSet) -> None:
+    import json as _json
+
+    typer.echo("Project Change Set")
+    typer.echo(f"ID: {change_set.change_set_id}")
+    typer.echo(f"Project ID: {change_set.project_id}")
+    typer.echo(f"Expected revision: {change_set.expected_revision}")
+    typer.echo(f"Expected content hash: {change_set.expected_content_hash}")
+    typer.echo(f"Risk: {change_set.risk}")
+    typer.echo(f"Approval required: {'yes' if change_set.approval_required else 'no'}")
+    typer.echo("Operations:")
+    for operation in change_set.operations:
+        detail = ""
+        source = operation.get("source")
+        if isinstance(source, dict):
+            detail = f" {_json.dumps(source, ensure_ascii=False, sort_keys=True)}"
+        elif operation.get("source_id"):
+            detail = f" source_id={operation['source_id']}"
+        typer.echo(f"  - {operation.get('type', 'unknown')}{detail}")
+    typer.echo("File effects:")
+    for effect, paths in change_set.file_effects.items():
+        for path in paths:
+            typer.echo(f"  - {effect}: {path}")
+    typer.echo("Validation:")
+    for validation in change_set.validation:
+        typer.echo(f"  - {validation}")
+
+
+def _print_change_receipt(receipt: object) -> None:
+    payload = receipt.to_dict()  # type: ignore[attr-defined]
+    typer.echo("Project Change Receipt")
+    typer.echo(f"Receipt ID: {payload['receipt_id']}")
+    typer.echo(f"Project ID: {payload['project_id']}")
+    typer.echo(f"Revision: {payload['after']['revision']}")
+    typer.echo(f"Synthesis: {payload['synthesis_disposition']}")
+
+
 @skills_app.command("list", help="List locally installed skills Liner can import as sources.")
 def skills_list(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON for programmatic use."),
@@ -957,6 +1733,11 @@ def status_cmd(
         "--no-write",
         help="When refreshing, skip writing process.json; useful with --json for TUI/status consumers.",
     ),
+    status_only: bool = typer.Option(
+        False,
+        "--status-only",
+        help="Refresh only the Status Snapshot in liner.yaml; do not write process.json.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of a table."),
 ) -> None:
     """Pretty-print the manifest. Regenerates by default so totals are fresh."""
@@ -971,17 +1752,18 @@ def status_cmd(
 
     if refresh:
         manifest = build_manifest(corpus)
-        if not no_write:
+        if not no_write and not status_only:
             write_manifest(corpus, manifest)
         payload = manifest.to_dict()
     else:
-        payload = read_manifest(corpus)
-        if payload is None:
+        stored_payload = read_manifest(corpus)
+        if stored_payload is None:
             err_console.print(
                 f"[yellow]No process.json in[/] {corpus} — run `liner manifest {folder}` first, "
                 "or rerun this command without --no-refresh."
             )
             raise typer.Exit(code=1)
+        payload = stored_payload
 
     status_payload = build_status_payload(project, payload)
     if not no_write:

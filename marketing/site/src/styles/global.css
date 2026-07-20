@@ -1,0 +1,316 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Liner marketing site — design tokens (Aether-adapted)
+
+   Pivoted 2026-05-26 from the Amplemarket-flavored direction to a full
+   Aether System Terminal aesthetic. See liner/marketing/art-direction.md.
+
+   Roles:
+     - Outer shell:   ivory #F4F3ED device chrome with corner markers
+     - Workspace:     dark #0F0F0F interior, gradient-bordered
+     - Accent:        TUI purple #af47ff (replacing Aether's #FF4500)
+
+   Typography: local Inter for display + body, local JetBrains Mono for metadata.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-v20.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC,
+    U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-v24.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC,
+    U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@theme {
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  /* Shell (ivory device chrome) */
+  --color-shell: #f4f3ed;
+  --color-shell-line: #0a0a0a;
+
+  /* Workspace (dark interior) */
+  --color-bg-void: #0a0a0a;       /* outermost: body, marquee */
+  --color-bg-workspace: #0f0f0f;  /* main interior */
+  --color-bg-deep: #050505;       /* embedded panels, terminal surface */
+
+  /* Workspace lines */
+  --color-line-soft: rgb(255 255 255 / 0.05);
+  --color-line-medium: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.2);
+
+  /* Text on dark */
+  --color-text-primary: #ffffff;
+  --color-text-bright: #f4f3ed;
+  --color-text-secondary: #d4d4d8;
+  --color-text-muted: #a1a1aa;
+  --color-text-dim: #8a8a93;     /* WCAG AA ≥4.5:1 on the dark surfaces */
+  --color-text-dimmer: #7a7a83;  /* WCAG AA ≥4.5:1 on the dark surfaces */
+
+  /* Aether accents — unchanged from the reference */
+  --color-accent: #ff4500;            /* hot orange, primary */
+  --color-accent-secondary: #ffb800;  /* gold, bloom */
+  --color-accent-tertiary: #9a00ff;   /* deep magenta, gradient depth */
+
+  /* TUI palette — the exact accents the liner TUI ships. Used sparingly,
+     as accents only, to keep the marketing site in the product's family. */
+  --color-tui-orange: #ff4500;  /* primary (matches --color-accent) */
+  --color-tui-green: #00ac11;   /* success / done */
+  --color-tui-gold: #b68800;    /* goldenrod */
+  --color-tui-purple: #ab65ff;  /* labels / headings */
+  --color-tui-pink: #ff0086;    /* rare emphasis */
+  --color-tui-blue: #daf1fd;    /* pale info */
+  --color-tui-grey: #9a9a9a;    /* dim text */
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-bg-void);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  overflow-x: clip;
+  overscroll-behavior: none;
+  width: 100%;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: white;
+}
+
+/* ---------------------------------------------------------------------------
+   Typography primitives
+   --------------------------------------------------------------------------- */
+
+.display {
+  font-family: var(--font-sans);
+  font-weight: 300;                          /* Inter Light */
+  font-size: clamp(2.5rem, 6vw, 4.75rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+  color: var(--color-text-primary);
+}
+
+.h1 {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--color-text-primary);
+}
+
+.h2 {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+  color: var(--color-text-primary);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.eyebrow--accent {
+  color: var(--color-accent);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.hero-title {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.hero-title-break {
+  display: none;
+}
+
+.webgl-canvas {
+  contain: strict;
+}
+
+.record-dot {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 0 rgb(255 69 0 / 0.65);
+  animation: record-pulse 1.45s ease-out infinite;
+}
+
+@keyframes record-pulse {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(255 69 0 / 0.65);
+  }
+  70% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 7px rgb(255 69 0 / 0);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(255 69 0 / 0);
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-shell {
+    min-height: auto !important;
+  }
+
+  .hero-copy {
+    min-height: auto;
+    padding-top: 6.25rem;
+    padding-bottom: 2.5rem;
+  }
+
+  .hero-copy > div:first-child {
+    margin-bottom: 2.5rem;
+  }
+
+  .hero-title {
+    font-size: clamp(2.55rem, 11vw, 3.35rem);
+    line-height: 1;
+  }
+
+  .hero-title-break {
+    display: block;
+  }
+
+  .hero-product {
+    min-height: auto !important;
+  }
+
+  .hero-product-visual {
+    flex: none;
+    height: 14rem;
+    min-height: 14rem;
+  }
+
+  .hero-product > div:last-child {
+    padding: 1.75rem 1.5rem 2.5rem !important;
+  }
+
+  .hero-marquee {
+    position: static;
+  }
+
+  body > section {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+
+  .h1 {
+    font-size: clamp(1.9rem, 9vw, 2.7rem) !important;
+  }
+
+}
+
+/* ---------------------------------------------------------------------------
+   Animation: masked-reveal headline
+   Each .reveal-word starts hidden below its clip-mask container and slides
+   up into place when its .reveal-container scrolls into view.
+   --------------------------------------------------------------------------- */
+
+.reveal-line {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.reveal-word {
+  display: block;
+  transform: translateY(110%);
+  transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-container.is-visible .reveal-word {
+  transform: translateY(0);
+}
+
+.reveal-container.is-visible .reveal-word:nth-child(1) { transition-delay: 0.05s; }
+.reveal-container.is-visible .reveal-word:nth-child(2) { transition-delay: 0.15s; }
+.reveal-container.is-visible .reveal-word:nth-child(3) { transition-delay: 0.25s; }
+.reveal-container.is-visible .reveal-word:nth-child(4) { transition-delay: 0.35s; }
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-word {
+    transition: none;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Animation: infinite marquee
+   The track contains the content duplicated inline so a -50% translation
+   loops seamlessly. Pure CSS.
+   --------------------------------------------------------------------------- */
+
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.marquee-track {
+  display: flex;
+  gap: 3rem;
+  align-items: center;
+  white-space: nowrap;
+  animation: marquee-scroll var(--marquee-duration, 30s) linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Animation: pulse dot (live status indicator)
+   --------------------------------------------------------------------------- */
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.pulse-dot {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

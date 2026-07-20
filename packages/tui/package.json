@@ -1,6 +1,6 @@
 {
   "name": "linersh",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Liner — npm shim, Go TUI launcher, and headless methodology runner.",
   "type": "module",
   "license": "MIT",
@@ -19,17 +19,23 @@
   "files": [
     "bin/liner.js",
     "dist/",
-    "cli-update-docs/"
+    "cli-update-docs/",
+    "maintenance-skill/"
   ],
   "scripts": {
     "build": "tsc",
-    "build:go": "cd ../go-tui && go build -o ../tui/bin/liner-tui ./cmd/liner-tui",
+    "build:go": "node scripts/build-go-tui.mjs",
     "build:package": "npm run build && npm run build:go",
     "acceptance:go": "node scripts/go-tui-acceptance.mjs",
     "predev:go": "node scripts/unhide-venv.mjs && npm run build:go",
     "dev:go": "node bin/liner.js",
-    "prepack": "node scripts/copy-skill-bundle.mjs && npm run build:package",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build:package",
+    "predev:isolated": "node scripts/unhide-venv.mjs && npm run build:package",
+    "dev:isolated": "node scripts/dev-isolated.mjs",
+    "smoke:runner-preferences": "node scripts/runner-preferences-smoke.mjs",
+    "prepack": "npm run release:check && node scripts/copy-skill-bundle.mjs && npm run build:package",
+    "release:check": "uv run python ../../scripts/release-version.py --check",
+    "release:check:publish": "uv run python ../../scripts/release-version.py --check --check-registry --registry-package linersh",
+    "prepublishOnly": "npm run release:check:publish && npm run typecheck && npm test && npm run build:package",
     "predev": "node scripts/unhide-venv.mjs && npm run build:go",
     "dev": "node bin/liner.js",
     "predev:built": "node scripts/unhide-venv.mjs",
@@ -42,11 +48,11 @@
     "yaml": "^2.6.1"
   },
   "optionalDependencies": {
-    "linersh-darwin-arm64": "^0.5.7 || ^1.0.0",
-    "linersh-darwin-x64": "^0.5.7 || ^1.0.0",
-    "linersh-linux-arm64": "^0.5.7 || ^1.0.0",
-    "linersh-linux-x64": "^0.5.7 || ^1.0.0",
-    "linersh-win32-x64": "^0.5.7 || ^1.0.0"
+    "linersh-darwin-arm64": "1.1.0",
+    "linersh-darwin-x64": "1.1.0",
+    "linersh-linux-arm64": "1.1.0",
+    "linersh-linux-x64": "1.1.0",
+    "linersh-win32-x64": "1.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

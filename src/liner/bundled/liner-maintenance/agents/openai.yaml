@@ -1,0 +1,4 @@
+interface:
+  display_name: "Liner Maintenance"
+  short_description: "Maintain Liner Projects through the installed CLI"
+  default_prompt: "Use $liner-maintenance to inspect and safely maintain this Liner Project."

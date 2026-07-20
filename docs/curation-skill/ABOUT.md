@@ -62,7 +62,16 @@ A curator who learns the methodology can apply it with or without Liner's tools.
 
 ## Project status
 
-Active development. The CLI and Go TUI are both functional and published on npm (current release v1.0.2, Mac, Linux, and Windows x64). They support the current tape format — `youtube`, `web`, `local_file`, and `skill` sources, with optional Playwright-backed JavaScript rendering for sites that need it (`liner setup-js`, surfaced by the TUI during onboarding and compile warnings). The TUI treats compilation as the corpus-ready milestone, opens existing compile results instead of rerunning by default, validates Phase 1 framing before source discovery can proceed, repairs unavailable custom sources from Compile, and creates an Operating Layer with `LINER.md`, root `SKILL.md`, and `liner.yaml`. The public library and MCP server are planned. The `curating-mixtapes` skill ships inside the TUI package. Maintained as a side project — see [PLATFORM.md](./PLATFORM.md) for the maintenance contract.
+Active development. Published releases are available on npm; the current source targets v1.1.0, with macOS, Linux, and Windows x64 packages, and remains a local release candidate until publish succeeds.
+The CLI and Go TUI support `youtube`, `web`, `local_file`, and inert `skill`
+Sources, plus opt-in Playwright rendering. Compilation marks Corpus Ready;
+Create Operating Layer writes `LINER.md`, root `SKILL.md`, and `liner.yaml` to
+mark Project Complete. Supported Project and Source maintenance uses Liner
+Core's versioned inspect, plan, apply, refresh, retention, and Change Receipt
+contract. The shipped `curating-mixtapes` skill authors the initial corpus; the
+optional Codex and Claude Maintenance Adapters delegate to the installed CLI
+and do not replace the Project Skill. The public library and MCP server remain
+planned. Maintained as a side project — see [PLATFORM.md](./PLATFORM.md).
 
 ## License
 

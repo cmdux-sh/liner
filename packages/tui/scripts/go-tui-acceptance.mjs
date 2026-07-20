@@ -8,16 +8,22 @@
 // `verify-project`, it audits artifacts produced by a live/manual run.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import * as YAML from "yaml";
+import {
+  expectedGoVersion,
+  expectedShimVersion,
+  matchesCanonicalVersion,
+} from "./release-version-contract.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packageDir = resolve(here, "..");
 const repoRoot = resolve(packageDir, "..", "..");
+const canonicalVersion = readFileSync(join(repoRoot, "VERSION"), "utf8").trim();
 const goTuiDir = join(repoRoot, "packages", "go-tui");
 const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
 const goCmd = process.platform === "win32" ? "go.exe" : "go";
@@ -192,7 +198,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
     commandLabel: `python3 scripts/build-platform-package.py --out-dir ${platformOutDir}`,
     args: ["scripts/build-platform-package.py", "--out-dir", platformOutDir],
   };
-  console.log(`[go-tui-acceptance] 1/8 ${platformBuildStep.name}`);
+  console.log(`[go-tui-acceptance] 1/12 ${platformBuildStep.name}`);
   const platformBuildResult = await runStep(platformBuildStep, args.verbose);
   commandResults.push({ ...platformBuildStep, ...platformBuildResult });
   logStepResult(platformBuildStep.name, platformBuildResult);
@@ -206,7 +212,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
       commandLabel: `npm pack --json --pack-destination ${packDir}`,
       args: ["pack", "--json", "--pack-destination", packDir],
     };
-    console.log(`[go-tui-acceptance] 2/8 ${platformPackStep.name}`);
+    console.log(`[go-tui-acceptance] 2/12 ${platformPackStep.name}`);
     const platformPackResult = await runStep(platformPackStep, args.verbose);
     commandResults.push({ ...platformPackStep, ...platformPackResult });
     logStepResult(platformPackStep.name, platformPackResult);
@@ -217,6 +223,11 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
       if (parsed.ok) {
         platformTarballPath = resolve(packDir, parsed.value.filename);
         addCheck(existsSync(platformTarballPath), "packed platform tarball exists", platformTarballPath);
+        addCheck(
+          matchesCanonicalVersion(canonicalVersion, parsed.value.version),
+          "platform package version matches canonical release",
+          `${parsed.value.version || "missing"} vs ${canonicalVersion}`,
+        );
         addPlatformPackFileChecks(parsed.value, addCheck);
       }
     } else {
@@ -233,7 +244,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
     commandLabel: `npm pack --json --pack-destination ${packDir}`,
     args: ["pack", "--json", "--pack-destination", packDir],
   };
-  console.log(`[go-tui-acceptance] 3/8 ${packStep.name}`);
+  console.log(`[go-tui-acceptance] 3/12 ${packStep.name}`);
   const packResult = await runStep(packStep, args.verbose);
   commandResults.push({ ...packStep, ...packResult });
   logStepResult(packStep.name, packResult);
@@ -247,6 +258,11 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
       packSummary = parsed.value;
       tarballPath = resolve(packDir, packSummary.filename);
       addCheck(existsSync(tarballPath), "packed tarball exists", tarballPath);
+      addCheck(
+        matchesCanonicalVersion(canonicalVersion, packSummary.version),
+        "main package version matches canonical release",
+        `${packSummary.version || "missing"} vs ${canonicalVersion}`,
+      );
       addPackFileChecks(packSummary, addCheck);
     }
   } else {
@@ -261,7 +277,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
       commandLabel: "npm init -y",
       args: ["init", "-y"],
     };
-    console.log(`[go-tui-acceptance] 4/8 ${initStep.name}`);
+    console.log(`[go-tui-acceptance] 4/12 ${initStep.name}`);
     const initResult = await runStep(initStep, args.verbose);
     commandResults.push({ ...initStep, ...initResult });
     logStepResult(initStep.name, initResult);
@@ -273,7 +289,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
       commandLabel: `npm install ${platformTarballPath} ${tarballPath} --ignore-scripts --no-audit --no-fund`,
       args: ["install", platformTarballPath, tarballPath, "--ignore-scripts", "--no-audit", "--no-fund"],
     };
-    console.log(`[go-tui-acceptance] 5/8 ${installStep.name}`);
+    console.log(`[go-tui-acceptance] 5/12 ${installStep.name}`);
     const installResult = await runStep(installStep, args.verbose);
     commandResults.push({ ...installStep, ...installResult });
     logStepResult(installStep.name, installResult);
@@ -281,11 +297,13 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
     const installedPackageDir = join(consumerDir, "node_modules", packageName);
     const installedPlatformDir = join(consumerDir, "node_modules", platformPackageName);
     const installedShimPath = join(installedPackageDir, "bin", "liner.js");
+    const installedCorePath = join(installedPlatformDir, process.platform === "win32" ? "liner.exe" : "liner");
     const installedGoPath = join(installedPlatformDir, packagedGoTuiBin);
     const installedBinPath = join(consumerDir, "node_modules", ".bin", installedLinerBin);
     addCheck(existsSync(installedPackageDir), "installed package directory exists", installedPackageDir);
     addCheck(existsSync(installedPlatformDir), "installed platform package directory exists", installedPlatformDir);
     addCheck(existsSync(installedShimPath), "installed npm shim exists", installedShimPath);
+    addCheck(existsSync(installedCorePath), "installed platform Core binary exists", installedCorePath);
     addCheck(existsSync(installedGoPath), "installed platform Go TUI binary exists", installedGoPath);
     addCheck(existsSync(installedBinPath), "installed liner bin link exists", installedBinPath);
 
@@ -297,10 +315,16 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
         commandLabel: "node_modules/.bin/liner --version",
         args: ["--version"],
       };
-      console.log(`[go-tui-acceptance] 6/8 ${shimStep.name}`);
+      console.log(`[go-tui-acceptance] 6/12 ${shimStep.name}`);
       const shimResult = await runStep(shimStep, args.verbose);
       commandResults.push({ ...shimStep, ...shimResult });
       logStepResult(shimStep.name, shimResult);
+      const expectedShimOutput = expectedShimVersion(canonicalVersion);
+      addCheck(
+        shimResult.ok && matchesCanonicalVersion(expectedShimOutput, shimResult.stdout.trim()),
+        "installed launcher and core versions match canonical release",
+        `${shimResult.stdout.trim() || "missing"} vs ${expectedShimOutput}`,
+      );
 
       const defaultStep = {
         name: "Installed liner shim defaults to Go TUI",
@@ -311,7 +335,7 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
         env: { LINER_GO_TUI_BIN: shimProbeBin, LINER_TUI: "" },
         expectStdoutIncludes: shimProbeMarker,
       };
-      console.log(`[go-tui-acceptance] 7/8 ${defaultStep.name}`);
+      console.log(`[go-tui-acceptance] 7/12 ${defaultStep.name}`);
       const defaultResult = applyStepAssertions(defaultStep, await runStep(defaultStep, args.verbose));
       commandResults.push({ ...defaultStep, ...defaultResult });
       logStepResult(defaultStep.name, defaultResult);
@@ -323,10 +347,81 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
         commandLabel: `node_modules/${platformPackageName}/${packagedGoTuiBin} --version`,
         args: ["--version"],
       };
-      console.log(`[go-tui-acceptance] 8/8 ${goStep.name}`);
+      console.log(`[go-tui-acceptance] 8/12 ${goStep.name}`);
       const goResult = await runStep(goStep, args.verbose);
       commandResults.push({ ...goStep, ...goResult });
       logStepResult(goStep.name, goResult);
+      const expectedGoOutput = expectedGoVersion(canonicalVersion);
+      addCheck(
+        goResult.ok && matchesCanonicalVersion(expectedGoOutput, goResult.stdout.trim()),
+        "installed Go TUI version matches canonical release",
+        `${goResult.stdout.trim() || "missing"} vs ${expectedGoOutput}`,
+      );
+
+      await runInstalledMaintenanceSmoke({
+        installedBinPath,
+        installedCorePath,
+        installedGoPath,
+        consumerDir,
+        workDir,
+        args,
+        commandResults,
+        addCheck,
+      });
+
+      const adapterHome = join(workDir, "adapter-home");
+      const adapterSkillDir = join(adapterHome, ".codex", "skills", "liner-maintenance");
+      const adapterUserNote = join(adapterSkillDir, "NOTES.md");
+      await mkdir(adapterSkillDir, { recursive: true });
+      await writeFile(adapterUserNote, "User-owned adapter note.\n", "utf8");
+      const adapterSteps = [
+        {
+          name: "Installed CLI installs optional maintenance adapter",
+          args: ["adapters", "install", "codex", "--home", adapterHome, "--yes", "--json"],
+          expectStdoutIncludes: '"action": "install"',
+        },
+        {
+          name: "Installed CLI inspects optional maintenance adapter",
+          args: ["adapters", "inspect", "codex", "--home", adapterHome, "--json"],
+          expectStdoutIncludes: '"status": "current"',
+        },
+        {
+          name: "Installed CLI replays current adapter update",
+          args: ["adapters", "update", "codex", "--home", adapterHome, "--json"],
+          expectStdoutIncludes: '"replayed": true',
+        },
+        {
+          name: "Installed CLI removes optional maintenance adapter",
+          args: ["adapters", "remove", "codex", "--home", adapterHome, "--yes", "--json"],
+          expectStdoutIncludes: '"action": "remove"',
+        },
+      ];
+      for (const [index, adapterStep] of adapterSteps.entries()) {
+        const step = {
+          ...adapterStep,
+          cwd: consumerDir,
+          command: installedBinPath,
+          commandLabel: `node_modules/.bin/liner ${adapterStep.args.join(" ")}`,
+        };
+        console.log(`[go-tui-acceptance] ${index + 9}/12 ${step.name}`);
+        const result = applyStepAssertions(step, await runStep(step, args.verbose));
+        commandResults.push({ ...step, ...result });
+        logStepResult(step.name, result);
+        if (index === 0) {
+          const installedSkillPath = join(adapterSkillDir, "SKILL.md");
+          const installedSkillBody = existsSync(installedSkillPath) ? readFileSync(installedSkillPath, "utf8") : "";
+          addCheck(
+            installedSkillBody.includes("liner project guidance"),
+            "installed optional skill routes to CLI guidance",
+            installedSkillBody.includes("liner project guidance") ? "routing present" : "routing missing",
+          );
+        }
+      }
+      addCheck(
+        existsSync(adapterUserNote) && readFileSync(adapterUserNote, "utf8") === "User-owned adapter note.\n",
+        "optional skill update/remove preserves user-owned sibling content",
+        existsSync(adapterUserNote) ? "preserved" : "removed",
+      );
     }
   }
 
@@ -342,6 +437,276 @@ async function runReleaseSmoke(args, evidenceDir, stamp) {
   }
 
   console.log("[go-tui-acceptance] release smoke passed");
+}
+
+async function runInstalledMaintenanceSmoke({ installedBinPath, installedCorePath, installedGoPath, consumerDir, workDir, args, commandResults, addCheck }) {
+  const isolatedHome = join(workDir, "isolated-home");
+  const project = join(workDir, "installed-maintenance-project");
+  const legacyProject = join(workDir, "legacy-maintenance-project");
+  const incompatibleProject = join(workDir, "incompatible-maintenance-project");
+  const env = { HOME: isolatedHome, LINER_DIR: join(isolatedHome, ".liner"), LINER_BIN: installedCorePath };
+  await mkdir(isolatedHome, { recursive: true });
+
+  const runInstalled = async (name, stepArgs, options = {}) => {
+    const step = {
+      name,
+      cwd: consumerDir,
+      command: installedBinPath,
+      commandLabel: `node_modules/.bin/liner ${stepArgs.join(" ")}`,
+      args: stepArgs,
+      env,
+      ...(options.expectStdoutIncludes ? { expectStdoutIncludes: options.expectStdoutIncludes } : {}),
+    };
+    console.log(`[go-tui-acceptance] installed maintenance: ${name}`);
+    let result = await runStep(step, args.verbose);
+    if (options.expectFailure) {
+      const combined = `${result.stdout}\n${result.stderr}`;
+      result = {
+        ...result,
+        ok: result.exitCode !== 0 && (!options.expectFailureIncludes || combined.includes(options.expectFailureIncludes)),
+        error: result.exitCode === 0
+          ? "command unexpectedly succeeded"
+          : options.expectFailureIncludes && !combined.includes(options.expectFailureIncludes)
+            ? `failure output did not include ${JSON.stringify(options.expectFailureIncludes)}`
+            : "",
+      };
+    } else {
+      result = applyStepAssertions(step, result);
+    }
+    commandResults.push({ ...step, ...result });
+    logStepResult(name, result);
+    return result;
+  };
+
+  const parseContract = (result, contract, label) => {
+    try {
+      const value = JSON.parse(result.stdout);
+      addCheck(value.contract === contract && value.version === 1, label, `${value.contract || "missing"} v${value.version || "missing"}`);
+      return value;
+    } catch (error) {
+      addCheck(false, label, `invalid JSON: ${error.message}`);
+      return null;
+    }
+  };
+
+  const plan = async (operation, label) => {
+    const request = JSON.stringify({ contract: "liner.maintenance_request", version: 1, operation });
+    const result = await runInstalled(`${label} plan`, ["project", "plan", project, "--request-json", request, "--json"]);
+    return parseContract(result, "liner.project_change_set", `${label} emits a versioned Change Set`);
+  };
+
+  const apply = async (changeSet, label) => {
+    if (!changeSet) return null;
+    const applyArgs = ["project", "apply", project, "--change-set-json", JSON.stringify(changeSet), "--json"];
+    if (changeSet.approval_required) applyArgs.push("--approve");
+    const result = await runInstalled(`${label} apply`, applyArgs);
+    return parseContract(result, "liner.change_receipt", `${label} emits a versioned Change Receipt`);
+  };
+
+  await runInstalled("Initialize isolated maintenance Project", [
+    "init", project,
+    "--title", "Installed Maintenance Smoke",
+    "--description", "Installed bundle verification.",
+    "--curator", "Acceptance",
+    "--jtbd", "When verifying a release, I want installed maintenance evidence, so I can trust the bundle.",
+  ]);
+  await runInstalled(
+    "Load CLI guidance without optional skill",
+    ["project", "guidance", project, "--format", "markdown"],
+    { expectStdoutIncludes: "# Liner Project Maintenance" },
+  );
+  const jsonGuidanceResult = await runInstalled(
+    "Load JSON CLI guidance without optional skill",
+    ["project", "guidance", project, "--format", "json"],
+  );
+  parseContract(jsonGuidanceResult, "liner.maintenance_guidance", "installed JSON guidance is versioned and readable");
+  const initialInspect = await runInstalled("Inspect installed Project", ["project", "inspect", project, "--json"]);
+  parseContract(initialInspect, "liner.project_snapshot", "installed Project emits a versioned Snapshot");
+  await runInstalled(
+    "Route Source maintenance help through installed launcher",
+    ["sources", "--help"],
+    { expectStdoutIncludes: "Plan and apply Source changes safely." },
+  );
+
+  const tuiOperation = JSON.stringify({
+    type: "source.add",
+    source: { type: "web", url: "https://example.com/installed-tui-adapter", priority: "required" },
+  });
+  const tuiStep = {
+    name: "Installed Go TUI drives Core maintenance",
+    cwd: consumerDir,
+    command: installedGoPath,
+    commandLabel: `node_modules/${platformPackageName}/${packagedGoTuiBin} --maintenance-smoke-project <project> --maintenance-smoke-operation <json>`,
+    args: ["--maintenance-smoke-project", project, "--maintenance-smoke-operation", tuiOperation],
+    env,
+  };
+  const tuiResult = await runStep(tuiStep, args.verbose);
+  commandResults.push({ ...tuiStep, ...tuiResult });
+  logStepResult(tuiStep.name, tuiResult);
+  const tuiEnvelope = parseContract(tuiResult, "liner.tui_maintenance_smoke", "installed Go TUI completes a Core maintenance round trip");
+  addCheck(
+    tuiEnvelope?.snapshot?.contract === "liner.project_snapshot" &&
+      tuiEnvelope?.change_set?.contract === "liner.project_change_set" &&
+      tuiEnvelope?.receipt?.contract === "liner.change_receipt",
+    "installed TUI envelope contains all three Core contracts",
+    tuiEnvelope ? "Snapshot, Change Set, and Receipt present" : "envelope missing",
+  );
+
+  const secretMarker = "installed-smoke-secret-body-marker";
+  const addPlan = await plan({
+    type: "source.add",
+    source: {
+      type: "web",
+      url: "https://example.com/installed-maintenance-source",
+      note: secretMarker,
+      section: "verification",
+      priority: "required",
+    },
+  }, "Source add");
+  const addReceipt = await apply(addPlan, "Source add");
+  addCheck(
+    addReceipt && !JSON.stringify(addReceipt).includes(secretMarker),
+    "receipts exclude Source bodies and sensitive notes",
+    addReceipt ? "marker absent" : "receipt missing",
+  );
+
+  const synthesisPlan = await plan({ type: "synthesis.review", disposition: "still_current" }, "Synthesis lifecycle review");
+  await apply(synthesisPlan, "Synthesis lifecycle review");
+
+  const afterAddResult = await runInstalled("Inspect Source identity after add", ["project", "inspect", project, "--json"]);
+  const afterAdd = parseContract(afterAddResult, "liner.project_snapshot", "post-add Snapshot remains versioned");
+  const addedSource = afterAdd?.sources?.find((source) => source.locator === "https://example.com/installed-maintenance-source");
+  addCheck(Boolean(addedSource?.source_id), "installed add assigns immutable Source ID", addedSource?.source_id || "missing");
+
+  if (addedSource?.source_id) {
+    const updatePlan = await plan({
+      type: "source.update",
+      source_id: addedSource.source_id,
+      changes: { note: "Installed metadata update." },
+    }, "Source update");
+    await apply(updatePlan, "Source update");
+
+    const replacePlan = await plan({
+      type: "source.replace",
+      source_id: addedSource.source_id,
+      source: {
+        type: "web",
+        url: "https://example.com/installed-maintenance-replacement",
+        note: "Installed replacement.",
+        section: "verification",
+        priority: "required",
+      },
+      provenance_intent: "distinct",
+      provenance_reason: "installed release smoke",
+    }, "Source replace");
+    await apply(replacePlan, "Source replace");
+
+    const afterReplaceResult = await runInstalled("Inspect replacement identity", ["project", "inspect", project, "--json"]);
+    const afterReplace = parseContract(afterReplaceResult, "liner.project_snapshot", "post-replace Snapshot remains versioned");
+    const replacement = afterReplace?.sources?.find((source) => source.locator === "https://example.com/installed-maintenance-replacement");
+    addCheck(
+      Boolean(replacement?.source_id && replacement.source_id !== addedSource.source_id),
+      "replacement mints a distinct Source ID",
+      `${addedSource.source_id} -> ${replacement?.source_id || "missing"}`,
+    );
+    if (replacement?.source_id) {
+      const removePlan = await plan({ type: "source.remove", source_id: replacement.source_id }, "Source remove");
+      if (removePlan) {
+        await runInstalled(
+          "Refuse unapproved destructive apply",
+          ["project", "apply", project, "--change-set-json", JSON.stringify(removePlan), "--json"],
+          { expectFailure: true, expectFailureIncludes: "requires explicit approval" },
+        );
+      }
+      await apply(removePlan, "Source remove");
+      const purgePlan = await plan({ type: "source.purge", source_id: replacement.source_id }, "Source purge");
+      await apply(purgePlan, "Source purge");
+    }
+  }
+
+  const renamePlan = await plan({ type: "project.rename", name: "Installed Maintenance Renamed" }, "Project rename");
+  await apply(renamePlan, "Project rename");
+
+  await writeFile(join(project, "AGENTS.md"), "# User-owned instructions\n\nKeep this paragraph.\n", "utf8");
+  const pointerInstallPlan = await plan({ type: "pointer.adapter", environment: "codex", action: "install" }, "Managed pointer install");
+  await apply(pointerInstallPlan, "Managed pointer install");
+  const pointerRemovePlan = await plan({ type: "pointer.adapter", environment: "codex", action: "remove" }, "Managed pointer remove");
+  await apply(pointerRemovePlan, "Managed pointer remove");
+  const pointerBody = readFileSync(join(project, "AGENTS.md"), "utf8");
+  addCheck(
+    pointerBody === "# User-owned instructions\n\nKeep this paragraph.\n",
+    "managed pointer install/remove preserves user content",
+    pointerBody === "# User-owned instructions\n\nKeep this paragraph.\n" ? "preserved exactly" : "content changed",
+  );
+
+  await runInstalled("Initialize legacy migration fixture", ["init", legacyProject]);
+  const legacyMetadataPath = join(legacyProject, "liner.yaml");
+  const legacyTapePath = join(legacyProject, "mixtape", "tape.yaml");
+  const legacyMetadata = YAML.parse(readFileSync(legacyMetadataPath, "utf8"));
+  delete legacyMetadata.id;
+  const legacyTape = YAML.parse(readFileSync(legacyTapePath, "utf8"));
+  for (const source of legacyTape.sources || []) delete source.id;
+  await writeFile(legacyMetadataPath, YAML.stringify(legacyMetadata), "utf8");
+  await writeFile(legacyTapePath, YAML.stringify(legacyTape), "utf8");
+  const legacyBefore = `${readFileSync(legacyMetadataPath, "utf8")}\n---\n${readFileSync(legacyTapePath, "utf8")}`;
+  await runInstalled("Read legacy Project without migration", ["project", "inspect", legacyProject, "--json"]);
+  const legacyAfterRead = `${readFileSync(legacyMetadataPath, "utf8")}\n---\n${readFileSync(legacyTapePath, "utf8")}`;
+  addCheck(legacyBefore === legacyAfterRead, "legacy inspect is read-only", legacyBefore === legacyAfterRead ? "byte-identical" : "fixture changed");
+  const legacyRequest = JSON.stringify({
+    contract: "liner.maintenance_request",
+    version: 1,
+    operation: { type: "source.add", source: { type: "web", url: "https://example.com/legacy-migration", priority: "required" } },
+  });
+  const legacyPlanResult = await runInstalled("Plan guarded legacy migration", ["project", "plan", legacyProject, "--request-json", legacyRequest, "--json"]);
+  const legacyChangeSet = parseContract(legacyPlanResult, "liner.project_change_set", "legacy mutation emits structural Change Set");
+  addCheck(
+    legacyChangeSet?.approval_required === true && legacyChangeSet?.operations?.some((operation) => operation.type === "identity.assign_project"),
+    "legacy migration is lazy and approval-gated",
+    legacyChangeSet?.approval_required ? "structural approval required" : "missing migration gate",
+  );
+  if (legacyChangeSet) {
+    const legacyApply = await runInstalled("Apply guarded legacy migration", [
+      "project", "apply", legacyProject, "--change-set-json", JSON.stringify(legacyChangeSet), "--approve", "--json",
+    ]);
+    parseContract(legacyApply, "liner.change_receipt", "legacy migration emits a receipt");
+  }
+
+  await runInstalled("Initialize incompatible Project fixture", ["init", incompatibleProject]);
+  const incompatibleMetadataPath = join(incompatibleProject, "liner.yaml");
+  const incompatibleMetadata = YAML.parse(readFileSync(incompatibleMetadataPath, "utf8"));
+  incompatibleMetadata.version = 99;
+  await writeFile(incompatibleMetadataPath, YAML.stringify(incompatibleMetadata), "utf8");
+  await runInstalled(
+    "Refuse incompatible Project mutation",
+    ["project", "plan", incompatibleProject, "--request-json", JSON.stringify({ contract: "liner.maintenance_request", version: 1, operation: { type: "project.rename", name: "Unsafe" } }), "--json"],
+    { expectFailure: true, expectFailureIncludes: "Unsupported Liner Project format version" },
+  );
+
+  const receiptFiles = listFiles(join(project, "mixtape", ".liner-runs", "maintenance"), ".json");
+  addCheck(receiptFiles.length >= 10, "installed maintenance persists durable receipts", `receipts: ${receiptFiles.length}`);
+
+  const moveDestination = join(workDir, "installed-maintenance-project-moved");
+  const movePlan = await plan({ type: "project.move", destination: moveDestination }, "Project move");
+  if (movePlan) {
+    const moveApply = await runInstalled("Project move apply", [
+      "project", "apply", project,
+      "--change-set-json", JSON.stringify(movePlan),
+      "--approve",
+      "--approved-destination", moveDestination,
+      "--json",
+    ]);
+    const moveReceipt = parseContract(moveApply, "liner.change_receipt", "Project move emits a versioned Change Receipt");
+    const movedOperation = moveReceipt?.operations?.find((operation) => operation.type === "project.move");
+    const canonicalMoveDestination = existsSync(moveDestination) ? realpathSync(moveDestination) : resolve(moveDestination);
+    addCheck(
+      existsSync(moveDestination) && !existsSync(project) && movedOperation?.new_root === canonicalMoveDestination,
+      "installed Project move activates the approved root",
+      movedOperation?.new_root || "missing moved root",
+    );
+    const movedInspect = await runInstalled("Inspect moved Project root", ["project", "inspect", moveDestination, "--json"]);
+    const movedSnapshot = parseContract(movedInspect, "liner.project_snapshot", "moved Project remains inspectable");
+    addCheck(movedSnapshot?.root === canonicalMoveDestination, "moved Snapshot reports the new root", movedSnapshot?.root || "missing");
+  }
 }
 
 function parsePreflightArgs(raw) {
@@ -577,6 +942,8 @@ function addPackFileChecks(summary, addCheck) {
     "bin/liner.js",
     "dist/agents/headless-runner.js",
     "cli-update-docs/SKILL.md",
+    "maintenance-skill/SKILL.md",
+    "maintenance-skill/agents/openai.yaml",
     "package.json",
   ];
   for (const requiredPath of requiredPaths) {
@@ -619,12 +986,37 @@ function buildMetadata(evidenceDir) {
   };
 }
 
+function resolveVerificationArtifactRoot(project) {
+  const metadata = readYaml(join(project, "liner.yaml"));
+  const value = metadata.ok && isRecord(metadata.value) ? metadata.value : {};
+  if (value.artifact !== "liner" || typeof value.mixtape !== "string") return project;
+  const candidate = resolve(project, value.mixtape);
+  const relativeCandidate = relative(resolve(project), candidate);
+  if (relativeCandidate === "" || relativeCandidate.startsWith("..")) return project;
+  return candidate;
+}
+
 function verifyProject(project, expect) {
   const checks = [];
   const add = (ok, name, detail) => checks.push({ ok, name, detail });
+  const requestedProject = project;
+  const artifactRoot = resolveVerificationArtifactRoot(requestedProject);
+
+  add(
+    existsSync(requestedProject) && statSync(requestedProject).isDirectory(),
+    "project directory exists",
+    requestedProject,
+  );
+  if (artifactRoot !== requestedProject) {
+    add(
+      existsSync(artifactRoot) && statSync(artifactRoot).isDirectory(),
+      "v2 mixtape artifact directory exists",
+      artifactRoot,
+    );
+  }
+  project = artifactRoot;
   const exists = (rel) => existsSync(join(project, rel));
 
-  add(existsSync(project) && statSync(project).isDirectory(), "project directory exists", project);
   const tape = readYaml(join(project, "tape.yaml"));
   add(tape.ok, "tape.yaml parses", tape.ok ? "YAML parsed" : tape.message);
   if (tape.ok) {

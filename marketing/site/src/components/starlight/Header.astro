@@ -1,0 +1,60 @@
+---
+import Search from "virtual:starlight/components/Search";
+import SiteHeader from "../SiteHeader.astro";
+
+import config from "virtual:starlight/user-config";
+
+const shouldRenderSearch =
+  config.pagefind || config.components.Search !== "@astrojs/starlight/components/Search.astro";
+---
+
+<SiteHeader current="docs" className="docs-site-header">
+  {shouldRenderSearch && (
+    <div slot="center" class="docs-header-search">
+      <Search />
+    </div>
+  )}
+</SiteHeader>
+
+<script is:inline>
+  (function () {
+    function syncToc() {
+      const headings = Array.from(document.querySelectorAll("main h1[id], main h2[id], main h3[id]"));
+      if (!headings.length) return;
+
+      const threshold = Math.min(window.innerHeight * 0.68, window.innerHeight - 120);
+      let active = headings[0];
+
+      headings.forEach(function (heading) {
+        if (heading.getBoundingClientRect().top <= threshold) active = heading;
+      });
+
+      const activeHash = "#" + encodeURIComponent(active.id);
+      document.querySelectorAll("starlight-toc a, mobile-starlight-toc a").forEach(function (link) {
+        link.toggleAttribute("aria-current", link.hash === activeHash);
+      });
+    }
+
+    let raf = 0;
+    function scheduleSync() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(syncToc);
+    }
+
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync);
+    window.addEventListener("load", scheduleSync);
+    setTimeout(scheduleSync, 250);
+  })();
+</script>
+
+<style>
+  :global(.docs-site-header) {
+    min-height: 100%;
+    border-bottom: 0;
+  }
+
+  .docs-header-search {
+    width: 100%;
+  }
+</style>

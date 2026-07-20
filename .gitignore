@@ -39,6 +39,7 @@ process.json
 # Skill bundle copied into the TUI package at prepack time. The tracked source
 # of truth is docs/curation-skill/; this copy is for npm-publish layout only.
 packages/tui/cli-update-docs/
+packages/tui/maintenance-skill/
 
 # Local-only documents kept outside this repo (handoffs, planning,
 # old PRDs). Path is for documentation; the directory lives outside

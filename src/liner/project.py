@@ -6,13 +6,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from liner.tape import STARTER_TAPE
+from liner.tape import starter_tape_with_ids
 
 MIXTAPE_DIR = "mixtape"
 LINER_METADATA_FILENAME = "liner.yaml"
 PROJECT_MILESTONES = {"started", "corpus_ready", "project_complete"}
 PROJECT_SKILL_STATUSES = {"active", "missing", "declined", "unresolved"}
+
+
+class SynthesisReviewRequiredError(RuntimeError):
+    """A stale corpus cannot publish before its synthesis disposition is approved."""
+
 
 SYNTHESIS_PLACEHOLDER = """# Synthesis
 
@@ -208,17 +214,25 @@ def init_project(path: Path, *, force: bool = False) -> ProjectFolder:
     path.mkdir(parents=True, exist_ok=True)
 
     project = ProjectFolder(path)
+    existing_metadata = read_liner_metadata(project)
     if not project.liner_metadata_path.exists() or force:
-        write_liner_metadata(project, initial_liner_metadata())
+        existing_project_id = existing_metadata.get("id")
+        project_id = (
+            existing_project_id
+            if isinstance(existing_project_id, str) and existing_project_id.strip()
+            else str(uuid4())
+        )
+        write_liner_metadata(
+            project,
+            initial_liner_metadata(project_id=project_id),
+        )
 
     project.corpus_path.mkdir(parents=True, exist_ok=True)
 
     if project.tape_path.exists() and not force:
-        raise FileExistsError(
-            f"{project.tape_path} already exists. Use --force to overwrite."
-        )
+        raise FileExistsError(f"{project.tape_path} already exists. Use --force to overwrite.")
 
-    project.tape_path.write_text(STARTER_TAPE, encoding="utf-8")
+    project.tape_path.write_text(starter_tape_with_ids(), encoding="utf-8")
 
     if not project.synthesis_path.exists() or force:
         project.synthesis_path.write_text(SYNTHESIS_PLACEHOLDER, encoding="utf-8")
@@ -248,9 +262,13 @@ def init_project(path: Path, *, force: bool = False) -> ProjectFolder:
     return project
 
 
-def initial_liner_metadata(*, updated: str | None = None) -> dict[str, Any]:
+def initial_liner_metadata(
+    *,
+    updated: str | None = None,
+    project_id: str | None = None,
+) -> dict[str, Any]:
     """Return the root metadata for a fresh Liner Project."""
-    return {
+    metadata: dict[str, Any] = {
         "version": 2,
         "artifact": "liner",
         "mixtape": MIXTAPE_DIR,
@@ -269,6 +287,9 @@ def initial_liner_metadata(*, updated: str | None = None) -> dict[str, Any]:
         },
         "project_skill": {"status": "missing"},
     }
+    if project_id is not None:
+        metadata = {"id": project_id, **metadata}
+    return metadata
 
 
 def read_liner_metadata(project: ProjectFolder | Path) -> dict[str, Any]:
@@ -303,9 +324,50 @@ def status_snapshot(project: ProjectFolder, *, refresh: bool = False) -> dict[st
     if not refresh and existing_status:
         snapshot = _normalize_status_snapshot(project, existing_status)
         snapshot["stale"] = _status_snapshot_stale(project, snapshot)
-        return snapshot
+        return _normalize_missing_operating_refresh(project, metadata, snapshot)
 
     return _infer_status_snapshot(project, metadata, updated=_now_iso() if refresh else None)
+
+
+def _normalize_missing_operating_refresh(
+    project: ProjectFolder,
+    metadata: dict[str, Any],
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    if _operating_artifacts_exist(project, metadata):
+        return snapshot
+    if snapshot.get("milestone") != "corpus_ready":
+        return snapshot
+    operating = dict(snapshot.get("operating_layer", {}))
+    operating["state"] = "pending"
+    operating.pop("last_verified_state", None)
+    snapshot["operating_layer"] = operating
+    raw_refresh = snapshot.get("refresh")
+    if not isinstance(raw_refresh, dict):
+        return snapshot
+    refresh = dict(raw_refresh)
+    refresh["operating_layer"] = {
+        "state": "approved",
+        "disposition": "not_applicable",
+    }
+    remaining = [
+        str(item)
+        for item in refresh.get("remaining_artifacts", [])
+        if str(item) not in set(_operating_artifacts(metadata))
+    ]
+    refresh["remaining_artifacts"] = remaining
+    synthesis = refresh.get("synthesis")
+    corpus = refresh.get("corpus")
+    complete = (
+        isinstance(synthesis, dict)
+        and synthesis.get("state") == "approved"
+        and isinstance(corpus, dict)
+        and corpus.get("state") == "current"
+    )
+    refresh["state"] = "current" if complete else "required"
+    snapshot["refresh"] = refresh
+    snapshot["stale"] = not complete
+    return snapshot
 
 
 def refresh_status_snapshot(project: ProjectFolder) -> dict[str, Any]:
@@ -317,18 +379,70 @@ def refresh_status_snapshot(project: ProjectFolder) -> dict[str, Any]:
         metadata = initial_liner_metadata()
     metadata["status"] = snapshot
     write_liner_metadata(project, metadata)
-    return metadata["status"]
+    return snapshot
 
 
 def mark_corpus_ready(project: ProjectFolder) -> dict[str, Any]:
     metadata = read_liner_metadata(project)
+    raw_existing_status = metadata.get("status")
+    existing_status: dict[str, Any] = (
+        dict(raw_existing_status) if isinstance(raw_existing_status, dict) else {}
+    )
+    refresh = existing_status.get("refresh")
+    if isinstance(refresh, dict):
+        synthesis = refresh.get("synthesis")
+        if not isinstance(synthesis, dict) or synthesis.get("state") != "approved":
+            raise SynthesisReviewRequiredError(
+                "Synthesis review is required before publishing a refreshed MIXTAPE. "
+                "Plan and approve `synthesis.review` first."
+            )
+        refresh = dict(refresh)
+        refresh["corpus"] = {"state": "current", "refreshed_at": _now_iso()}
+        operating = refresh.get("operating_layer")
+        operating_not_applicable = (
+            isinstance(operating, dict)
+            and operating.get("state") == "approved"
+            and operating.get("disposition") == "not_applicable"
+        )
+        operating_approved = operating_not_applicable or (
+            isinstance(operating, dict)
+            and operating.get("state") == "approved"
+            and _operating_artifacts_exist(project, metadata)
+        )
+        refresh["state"] = "current" if operating_approved else "required"
+        refresh["remaining_artifacts"] = (
+            [] if operating_approved else _operating_artifacts(metadata)
+        )
+        snapshot = _status_snapshot_payload(
+            project,
+            milestone=_later_milestone(
+                str(existing_status.get("milestone", "started")), "corpus_ready"
+            ),
+            updated=_now_iso(),
+            corpus_ready=True,
+            operating_layer_state=(
+                "pending"
+                if operating_not_applicable
+                else "ready"
+                if operating_approved and project.liner_path.is_file()
+                else "stale"
+            ),
+            existing_status=existing_status,
+        )
+        snapshot["stale"] = not operating_approved
+        snapshot["refresh"] = refresh
+        if not _can_write_liner_metadata(project):
+            return snapshot
+        metadata["status"] = snapshot
+        write_liner_metadata(project, metadata)
+        return snapshot
     snapshot = _status_snapshot_payload(
         project,
         milestone="corpus_ready",
         updated=_now_iso(),
         corpus_ready=True,
         operating_layer_state="pending",
-        existing_status=metadata.get("status") if isinstance(metadata.get("status"), dict) else {},
+        existing_status=existing_status,
     )
     if not _can_write_liner_metadata(project):
         return snapshot
@@ -345,7 +459,10 @@ def _infer_status_snapshot(
     *,
     updated: str | None,
 ) -> dict[str, Any]:
-    existing_status = metadata.get("status") if isinstance(metadata.get("status"), dict) else {}
+    raw_existing_status = metadata.get("status")
+    existing_status: dict[str, Any] = (
+        dict(raw_existing_status) if isinstance(raw_existing_status, dict) else {}
+    )
     project_skill = project_skill_status(metadata)
     corpus_ready = project.mixtape_path.is_file()
     operating_ready = project.liner_path.is_file()
@@ -448,13 +565,15 @@ def project_skill_status(metadata: dict[str, Any]) -> dict[str, Any]:
 def _existing_updated(existing_status: dict[str, Any]) -> str:
     updated = existing_status.get("updated")
     if isinstance(updated, datetime):
-        return updated.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        return updated.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     if isinstance(updated, str) and updated.strip():
         return updated
     return _now_iso()
 
 
 def _status_snapshot_stale(project: ProjectFolder, existing_status: dict[str, Any]) -> bool:
+    if bool(existing_status.get("stale")):
+        return True
     updated = existing_status.get("updated")
     updated_at = _parse_status_time(updated)
     if updated_at is None:
@@ -488,9 +607,11 @@ def _normalize_status_snapshot(project: ProjectFolder, raw: dict[str, Any]) -> d
     milestone = raw.get("milestone")
     if not isinstance(milestone, str) or milestone not in PROJECT_MILESTONES:
         milestone = "started"
-    corpus = raw.get("corpus") if isinstance(raw.get("corpus"), dict) else {}
-    operating = raw.get("operating_layer") if isinstance(raw.get("operating_layer"), dict) else {}
-    return {
+    raw_corpus = raw.get("corpus")
+    corpus: dict[str, Any] = dict(raw_corpus) if isinstance(raw_corpus, dict) else {}
+    raw_operating = raw.get("operating_layer")
+    operating: dict[str, Any] = dict(raw_operating) if isinstance(raw_operating, dict) else {}
+    snapshot: dict[str, Any] = {
         "milestone": milestone,
         "stale": bool(raw.get("stale")),
         "updated": _existing_updated(raw),
@@ -503,6 +624,9 @@ def _normalize_status_snapshot(project: ProjectFolder, raw: dict[str, Any]) -> d
         },
         "operating_layer": _normalize_operating_layer(project, operating),
     }
+    if isinstance(raw.get("refresh"), dict):
+        snapshot["refresh"] = dict(raw["refresh"])
+    return snapshot
 
 
 def _normalize_operating_layer(project: ProjectFolder, raw: dict[str, Any]) -> dict[str, Any]:
@@ -514,6 +638,42 @@ def _normalize_operating_layer(project: ProjectFolder, raw: dict[str, Any]) -> d
     if isinstance(audit, str) and audit.strip():
         operating_layer["audit"] = audit.strip()
     return operating_layer
+
+
+def ensure_compile_review_approved(project: ProjectFolder) -> None:
+    metadata = read_liner_metadata(project)
+    raw_status = metadata.get("status")
+    status: dict[str, Any] = dict(raw_status) if isinstance(raw_status, dict) else {}
+    refresh = status.get("refresh")
+    if not isinstance(refresh, dict):
+        return
+    synthesis = refresh.get("synthesis")
+    if not isinstance(synthesis, dict) or synthesis.get("state") != "approved":
+        raise SynthesisReviewRequiredError(
+            "Synthesis review is required before publishing a refreshed MIXTAPE. "
+            "Plan and approve `synthesis.review` first."
+        )
+
+
+def _later_milestone(left: str, right: str) -> str:
+    order = {"started": 0, "corpus_ready": 1, "project_complete": 2}
+    return left if order.get(left, 0) >= order.get(right, 0) else right
+
+
+def _operating_artifacts(metadata: dict[str, Any]) -> list[str]:
+    artifacts = ["LINER.md"]
+    skill = project_skill_status(metadata)
+    if skill.get("status") == "active" and isinstance(skill.get("path"), str):
+        artifacts.append(str(skill["path"]))
+    return artifacts
+
+
+def _operating_artifacts_exist(project: ProjectFolder, metadata: dict[str, Any]) -> bool:
+    for relative in _operating_artifacts(metadata):
+        path = project.path / relative
+        if not path.is_file() or path.is_symlink():
+            return False
+    return True
 
 
 def _latest_operating_audit(project: ProjectFolder) -> str | None:
@@ -562,7 +722,7 @@ def _can_write_liner_metadata(project: ProjectFolder) -> bool:
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _write_if_missing(path: Path, content: str, *, force: bool) -> None:

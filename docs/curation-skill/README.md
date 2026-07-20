@@ -2,7 +2,10 @@
 
 This is the Liner methodology made executable by Claude or Codex. The bundle implements CURATION.md v2.0 as instructions to a running AI, drives the mixtape lifecycle from a task description to a project folder ready for `liner compile`, and supports both quick mode (the AI does most of the work, with lightweight gate review) and methodology mode (the curator engages substantively at every phase).
 
-It is one of Liner's surfaces, alongside the CLI, the TUI, the planned MCP server, and the planned web builder. The skill is the surface for Claude-Code-native and TUI-subprocess authoring. Methodology-mode curators can also use it directly when working in a Claude Code session.
+It is one of Liner's authoring surfaces, alongside the CLI and TUI. The skill is
+the surface for Claude-Code-native and TUI-subprocess curation. Methodology-mode
+curators can also use it directly when working in a Claude Code session. It is
+not the Project Skill or the optional Maintenance Adapter.
 
 ## Bundle contents
 
@@ -80,7 +83,22 @@ The bundle is functional and ships inside the npm TUI package so agent-backed ph
 
 The bundle still benefits from more worked examples in the companion files, but it is no longer blocked by the old "second pass before any shipping" constraint. Current product risk lives more in curation quality and fetcher edge cases than in basic skill availability.
 
-As of `linersh@1.0.0`, compilation is the corpus-ready milestone and Create Operating Layer is the project-complete milestone. A project can be "ready to use — compiled with warnings" when `MIXTAPE.md` is written but some sources are missing or soft-failed. The TUI opens the existing compile result for a completed mixtape and requires an explicit retry/re-run from that screen. Framing also has a validation contract: Phase 1 must produce a capability brief and required source roles before source discovery can proceed.
+In the local `1.1.0` release candidate, compilation is the Corpus Ready
+milestone and Create Operating Layer is the Project Complete milestone. A
+project can be usable when `MIXTAPE.md` is written but some Sources are missing
+or soft-failed after review. The TUI opens the existing compile result and
+requires an explicit retry or rerun. Phase 1 must produce a Capability Brief and
+Required source roles before discovery can proceed.
+
+## Three Skill Surfaces
+
+- The **curating-mixtapes skill** authors the initial corpus recipe, synthesis,
+  and working notes. It never performs post-creation maintenance.
+- The root **Project Skill** is created by the Operating Layer and teaches future
+  sessions how to use one completed Project.
+- The optional **Maintenance Adapter** is installed explicitly for Codex or
+  Claude and delegates supported changes to the installed CLI's current
+  guidance. A `type: skill` Source remains inert evidence and is not installed.
 
 ## Versioning
 
@@ -98,7 +116,9 @@ The skill is the methodology made executable. It sits alongside Liner's other su
 
 **CURATION.md** is the methodology described to humans. The skill bundle implements it for an AI executor. The two are paired artifacts that update together when the methodology changes substantively.
 
-**The Liner CLI** runs `liner compile` against the project folder this skill produces. The skill never compiles; the CLI never authors. Clean split.
+**The Liner CLI** runs `liner compile` against the project folder this skill
+produces and owns supported post-creation maintenance. The curation skill never
+compiles and never bypasses the Core maintenance contract.
 
 **The Liner TUI** invokes this skill internally for agent-backed authoring via the local Claude or Codex CLI. Same methodology, different UX.
 

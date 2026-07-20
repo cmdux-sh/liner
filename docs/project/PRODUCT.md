@@ -142,6 +142,34 @@ project/
 Legacy root-level mixtape folders remain readable. New product design should
 prefer the v2 shape and use compatibility paths intentionally.
 
+### Maintenance Safety Model
+
+Liner Core is the sole writer for supported Project and Source maintenance.
+The CLI, Go TUI, and optional Maintenance Adapters share one structured process:
+
+1. Inspect the Project into a versioned, read-only Project Snapshot.
+2. Plan a write-free Project Change Set with exact operations, file effects,
+   lifecycle consequences, risk, and approval requirements.
+3. Apply only that exact Change Set after revalidating Project ID, revision,
+   content, paths, and any required curator approval.
+4. Persist a durable, redacted Change Receipt or return a structured failure
+   with recovery guidance.
+
+Project and Source IDs are immutable. Rename and move preserve Project identity;
+Source metadata and locator updates preserve Source identity; semantic Source
+replacement creates successor identity and lineage. Remove is retention-first.
+Purge is a separate destructive action that requires explicit approval.
+
+Compatibility and ambiguity fail closed for mutation. Legacy Projects may be
+inspected read-only, but identity migration happens lazily only inside an
+approved structural Change Set. Supported TUI operations and adapters must never
+fall back to direct edits of canonical Project files.
+
+Source changes invalidate dependent corpus and Operating Layer state. Corpus
+refresh requires reviewed synthesis and atomic publication before Operating
+Layer review becomes available. Failed or concurrent refreshes preserve the
+last verified Project state.
+
 `liner.yaml` is the root metadata home for durable project-level state. The
 default Project Skill should be recorded there instead of inferred from
 `skills/*.md` file counts:
@@ -216,6 +244,13 @@ The stable nouns are:
   Liner Project and records what happened.
 - **Composition:** child projects, lineage, routing, copy packets, and merge
   decisions.
+- **Project Snapshot:** the versioned, read-only Core view used for maintenance
+  planning; distinct from the persisted Status Snapshot.
+- **Project Change Set:** the reviewed, write-free plan for one exact Project
+  revision.
+- **Change Receipt:** the durable, redacted proof of an applied Change Set.
+- **Retention Vault:** preserved Source content detached from the active corpus
+  until a separately approved purge.
 
 ## Process Model
 
@@ -238,8 +273,8 @@ The primary milestones are:
   source-grounded AI context.
 - **Project Complete:** the Corpus is ready and the Operating Layer has written
   `LINER.md`, root `SKILL.md`, and `liner.yaml`. The complete state
-  should say the project is complete and expose management actions; it should
-  not treat Enter as "open `LINER.md`" by default.
+  says the project is complete, keeps management actions visible, and uses Enter
+  to open `LINER.md` as the concrete default action.
 
 Audits are maintenance work outside the default v1 completion flow. A future
 Audit surface can inspect contradictions, source-note quality, stale or weak

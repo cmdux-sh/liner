@@ -79,22 +79,7 @@ The workflow `.github/workflows/platform-bundles.yml` is intended to run from
 the public `cmdux-sh/liner` repository. It builds one selected target at a time
 so the release can stay under GitHub Free artifact storage limits.
 
-Use the release helper from the public repo root:
-
-```sh
-VERSION=1.0.3
-scripts/release-tarballs.sh --version "$VERSION"
-```
-
-The helper verifies that the local version files match the requested release
-version, confirms the public branch is pushed and aligned with its upstream,
-checks that none of the release packages already exists on npm for that version,
-triggers the one-target workflow for all six targets, downloads each artifact
-into `/Users/arturo/Documents/Projects/Liner Public/release-tarballs-<version>/`,
-deletes the GitHub Actions artifact after download, writes `SHA256SUMS.txt`, and
-writes `PUBLISH-COMMANDS.md` with the exact commands Arturo should run.
-
-Manual trigger examples, for fallback only:
+Manual trigger examples:
 
 ```sh
 gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh-darwin-arm64
@@ -102,29 +87,11 @@ gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=
 gh workflow run platform-bundles.yml --repo cmdux-sh/liner --ref main -f target=linersh
 ```
 
-If the fallback path is used, download each artifact immediately, delete it from
-GitHub Actions, then run the next target. Publish manually only after all five
-platform package tarballs and the main `linersh` tarball have been downloaded
-and inspected.
+Download each artifact immediately, delete it from GitHub Actions, then run the
+next target. Publish manually only after all five platform package tarballs and
+the main `linersh` tarball have been downloaded and inspected.
 
 ## Automated Publish
 
 Automated npm publish is not enabled. Publish manually only after the platform
 package artifacts and clean consumer smoke pass.
-
-## Historical 0.5.x Note
-
-Older 0.5.x releases used the same platform package names but a different
-handoff. Do not use those artifacts or run notes for v1; use the public
-one-target workflow above and the release checklist instead.
-
-## Historical Runner Labels
-
-The old artifact workflow used explicit hosted runner labels for each
-architecture:
-
-- macOS arm64: `macos-15`
-- macOS Intel: `macos-15-intel`
-- Linux arm64: `ubuntu-24.04-arm`
-- Linux x64: `ubuntu-24.04`
-- Windows x64: `windows-2025`

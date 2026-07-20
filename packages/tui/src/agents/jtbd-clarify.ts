@@ -7,6 +7,8 @@
 // the user retry; Liner should not hide the problem behind canned questions.
 
 import { runAgentTask } from "./runner.js";
+import { resolveRunProfile } from "./models.js";
+import { readConfig } from "../config.js";
 import type { AgentDescriptor } from "./types.js";
 import type { AgentEvent } from "./events.js";
 
@@ -32,7 +34,9 @@ export type ElicitArgs = {
  */
 export async function elicitClarifyingQuestions(args: ElicitArgs): Promise<string[]> {
   if (!args.agent || !args.skillPath) {
-    throw new Error("Clarifying questions require an available Claude Code or Codex agent and skill bundle");
+    throw new Error(
+      "Clarifying questions require an available Claude or OpenAI provider and skill bundle",
+    );
   }
 
   const prompt = buildClarifyingQuestionsPrompt(args.jtbd);
@@ -41,6 +45,7 @@ export async function elicitClarifyingQuestions(args: ElicitArgs): Promise<strin
     try {
       return await runClarifyAttempt(args, prompt);
     } catch (error) {
+      if (error instanceof ExplicitConfiguredOptionRejectionError) throw error;
       failures.push(error instanceof Error ? error.message : String(error));
     }
   }
@@ -54,11 +59,24 @@ async function runClarifyAttempt(args: ElicitArgs, prompt: string): Promise<stri
   let finalText = "";
   const textChunks: string[] = [];
 
+  const config = readConfig();
+  const preference = config.providerPreferences?.[args.agent!.id];
+  const profile = resolveRunProfile(
+    args.agent!.id,
+    "jtbd-clarify",
+    config.models?.[args.agent!.id],
+    preference,
+  );
   const handle = runAgentTask({
     agent: args.agent!,
     project: args.cwd,
     skillPath: args.skillPath!,
     prompt,
+    model: profile.model,
+    reasoningEffort: profile.reasoningEffort,
+    modelFallbackSource:
+      profile.modelSource === "auto" || profile.modelSource === "builtin" ? profile.modelSource : undefined,
+    allowEffortFallback: profile.effortSource === "auto",
     taskLabel: "jtbd-clarify",
     onEvent: (event: AgentEvent) => {
       if (event.kind === "text") {
@@ -77,11 +95,13 @@ async function runClarifyAttempt(args: ElicitArgs, prompt: string): Promise<stri
   }, timeoutMs);
 
   try {
-    const { code } = await handle.done;
+    const { code, stderr } = await handle.done;
     if (timedOut) {
       throw new Error(`${args.agent!.name} did not return clarification questions before timeout`);
     }
     if (code !== 0) {
+      const rejection = explicitConfiguredOptionRejectionMessage(stderr);
+      if (rejection) throw new ExplicitConfiguredOptionRejectionError(rejection);
       throw new Error(`${args.agent!.name} exited with code ${code}`);
     }
     const body = finalText || textChunks.join("\n");
@@ -95,6 +115,20 @@ async function runClarifyAttempt(args: ElicitArgs, prompt: string): Promise<stri
   } finally {
     clearTimeout(timeout);
   }
+}
+
+class ExplicitConfiguredOptionRejectionError extends Error {}
+
+function explicitConfiguredOptionRejectionMessage(stderr: string): string | null {
+  const line = stderr
+    .split("\n")
+    .map((value) => value.trim())
+    .find(
+      (value) =>
+        (value.includes("rejected configured model") && value.includes("did not substitute another model")) ||
+        (value.includes("rejected configured Thinking effort") && value.includes("did not substitute another effort or model")),
+    );
+  return line || null;
 }
 
 export function buildClarifyingQuestionsPrompt(jtbd: string): string {

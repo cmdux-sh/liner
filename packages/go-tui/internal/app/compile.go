@@ -26,6 +26,14 @@ const (
 )
 
 func (m Model) startCompile() (Model, tea.Cmd) {
+	if m.projectSnapshotAttempted && m.currentProjectSnapshot() == nil {
+		m.err = "Compile is blocked until Liner Core returns a trustworthy Project Snapshot."
+		return m, nil
+	}
+	if m.projectNextKind() == projectNextReviewSynthesis {
+		m.err = "Compile is blocked until Review Synthesis records a Core-approved disposition."
+		return m, nil
+	}
 	events, done := m.runner.StartCompile(m.currentPath)
 	m.compileEvents = events
 	m.compileDone = done
@@ -445,6 +453,7 @@ func (m Model) selectedCompileWarning() (core.CompileWarningPayload, bool) {
 }
 
 func (m Model) moveCompileWarningSelection(delta int) Model {
+	m.compileMaintenancePlan = nil
 	actionable := m.actionableCompileWarnings()
 	if len(actionable) == 0 {
 		return m
@@ -462,6 +471,7 @@ func (m Model) moveCompileWarningSelection(delta int) Model {
 }
 
 func (m Model) toggleCompilePane() Model {
+	m.compileMaintenancePlan = nil
 	if m.compilePane == compilePaneSources {
 		m.compilePane = compilePaneIssues
 		return m
@@ -514,6 +524,25 @@ func (m Model) openSelectedCompileWarningSource() (Model, tea.Cmd) {
 }
 
 func (m Model) dropSelectedCompileWarningSource() (Model, tea.Cmd) {
+	if m.compileMaintenancePlan != nil {
+		receipt, err := m.runner.ApplyMaintenance(m.currentPath, *m.compileMaintenancePlan, true)
+		if err != nil {
+			m.err = err.Error()
+			return m, nil
+		}
+		m.compileMaintenancePlan = nil
+		refreshed, readErr := tape.ReadProject(m.currentPath)
+		if readErr != nil {
+			m.err = "Source was removed by Core, but the refreshed Project could not be read: " + readErr.Error()
+			return m, nil
+		}
+		m.currentTape = refreshed
+		m.clearProjectStatus()
+		m.compileRows = initialCompileRows(refreshed.Sources)
+		m.note = strings.Join(core.ReceiptSummaryLines(receipt), " · ")
+		m.err = ""
+		return m, tea.Batch(loadProjectStatus(m.runner, m.currentPath), loadProjectSnapshot(m.runner, m.currentPath))
+	}
 	warning, ok := m.selectedCompileWarning()
 	if !ok {
 		m.err = "No source issue is selected."
@@ -524,76 +553,55 @@ func (m Model) dropSelectedCompileWarningSource() (Model, tea.Cmd) {
 		m.err = "The selected source issue does not identify a source."
 		return m, nil
 	}
-	updated, removed := dropTapeSourceByID(m.currentTape, sourceID)
-	if removed == 0 {
-		m.err = "No matching source found in tape.yaml for " + sourceID + "."
+	snapshot, err := m.runner.InspectMaintenanceProject(m.currentPath)
+	if err != nil {
+		m.err = err.Error()
 		return m, nil
 	}
-	if strings.TrimSpace(m.currentPath) == "" {
-		m.err = "No project path is available for updating tape.yaml."
+	canonicalIDs := maintenanceSourceIDsForLocator(snapshot, sourceID)
+	if len(canonicalIDs) == 0 {
+		m.err = "Core could not resolve an immutable Source ID for " + sourceID + ". Upgrade Project guidance before removing it."
 		return m, nil
 	}
-	if err := tape.WriteProject(m.currentPath, updated); err != nil {
-		m.err = "Could not update tape.yaml: " + err.Error()
+	if len(canonicalIDs) > 1 {
+		m.err = "Core found multiple Sources for " + sourceID + " (" + strings.Join(canonicalIDs, ", ") + "). Open maintenance and choose the immutable Source ID explicitly."
 		return m, nil
 	}
-	m.currentTape = updated
-	m.compileRows = removeCompileRowsForSource(m.compileRows, sourceID)
-	m.note = fmt.Sprintf("Dropped %d source(s) from tape.yaml. Retry compile to refresh the result.", removed)
+	canonicalID := canonicalIDs[0]
+	plan, err := m.runner.PlanMaintenance(m.currentPath, core.SourceOperation("source.remove", canonicalID, nil))
+	if err != nil {
+		m.err = err.Error()
+		return m, nil
+	}
+	m.compileMaintenancePlan = &plan
+	m.note = "Review the Core Change Set preview. Press d again to approve retention-first removal."
+	m.err = ""
 	return m, nil
 }
 
-func dropTapeSourceByID(current tape.Tape, sourceID string) (tape.Tape, int) {
-	sourceID = strings.TrimSpace(sourceID)
-	if sourceID == "" {
-		return current, 0
-	}
-	next := current
-	next.Sources = make([]tape.Source, 0, len(current.Sources))
-	removed := 0
-	for _, src := range current.Sources {
-		if tapeSourceMatchesID(src, sourceID) {
-			removed++
-			continue
+func maintenanceSourceIDsForLocator(snapshot core.MaintenanceProjectSnapshot, locator string) []string {
+	ids := []string{}
+	for _, item := range snapshot.Sources {
+		if maintenanceLocatorsMatch(item.Locator, locator) && item.SourceID != nil {
+			if canonicalID := strings.TrimSpace(*item.SourceID); canonicalID != "" {
+				ids = append(ids, canonicalID)
+			}
 		}
-		next.Sources = append(next.Sources, src)
 	}
-	return next, removed
+	return ids
 }
 
-func tapeSourceMatchesID(src tape.Source, sourceID string) bool {
-	sourceID = strings.TrimSpace(sourceID)
-	if sourceID == "" {
-		return false
-	}
-	values := []string{src.URL}
-	if src.Path != nil {
-		values = append(values, *src.Path)
-	}
-	if src.Citation != nil {
-		values = append(values, *src.Citation)
-	}
-	for _, value := range values {
-		if strings.TrimSpace(value) == sourceID {
-			return true
+func maintenanceLocatorsMatch(left string, right string) bool {
+	normalize := func(value string) string {
+		value = strings.TrimSpace(value)
+		for _, prefix := range []string{"file://", "skill://"} {
+			if strings.HasPrefix(strings.ToLower(value), prefix) {
+				return strings.TrimSpace(value[len(prefix):])
+			}
 		}
+		return value
 	}
-	return false
-}
-
-func removeCompileRowsForSource(rows []compileSourceRow, sourceID string) []compileSourceRow {
-	sourceID = strings.TrimSpace(sourceID)
-	if sourceID == "" {
-		return rows
-	}
-	next := make([]compileSourceRow, 0, len(rows))
-	for _, row := range rows {
-		if strings.TrimSpace(row.Source) == sourceID {
-			continue
-		}
-		next = append(next, row)
-	}
-	return next
+	return normalize(left) == normalize(right)
 }
 
 func (m *Model) recordCompileProgress() {
@@ -668,6 +676,8 @@ func (m Model) compileNextActionLabel() string {
 		return "View sources."
 	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
 		return "Repair sources."
+	case m.compilePane == compilePaneSources && m.compileRepairAttempted && m.compileHasUsableResult() && m.actionableCompileWarningCount() > 0:
+		return fmt.Sprintf("Create the Operating Layer with %d usable Sources.", m.compileResult.Summary.Succeeded)
 	case !m.compileHasUsableResult():
 		if action := m.compileAttentionNextAction(); action != "" {
 			return action
@@ -682,7 +692,20 @@ func (m Model) viewCompileSourcesNext() Model {
 	m.compilePane = compilePaneSources
 	m.compileSourcesReviewed = true
 	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
-	if m.compileHasRepairableSources() {
+	if m.compileHasRepairableSources() && m.compileRepairAttempted && m.compileResult != nil {
+		remaining := max(m.compileResult.Summary.Failed, m.actionableCompileWarningCount())
+		verb := "need"
+		if remaining == 1 {
+			verb = "needs"
+		}
+		m.note = fmt.Sprintf(
+			"Repair finished. %d of %d Sources are usable; %s still %s attention.",
+			m.compileResult.Summary.Succeeded,
+			m.compileResult.Summary.Total,
+			intLabel(remaining, "Source"),
+			verb,
+		)
+	} else if m.compileHasRepairableSources() {
 		m.note = "Review sources, then repair them."
 	} else {
 		m.note = "Review sources."
@@ -846,6 +869,9 @@ func (m Model) viewCompile() string {
 		styles.Subtitle.Render("Fetch sources, assemble MIXTAPE.md, and report anything that needs attention."),
 		"",
 		m.viewCompileStatus(width),
+	}
+	if m.compileMaintenancePlan != nil {
+		sections = append(sections, "", maintenancePlanView(width, *m.compileMaintenancePlan, "d"))
 	}
 	if m.sourceRecoveryReview {
 		sections = append(sections, "", m.viewSourceRecoveryReview(width))
@@ -1079,7 +1105,7 @@ func (m Model) viewCompileAllSources(width int) string {
 	if m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources() {
 		lines = append(lines, styles.Subtitle.Render("Repair sources first with r. This retries unavailable custom sources, then refreshes source evaluation if any recover."))
 	} else if m.compilePane == compilePaneSources && m.compileRepairAttempted {
-		lines = append(lines, styles.Subtitle.Render("You can continue with the current MIXTAPE.md, repair again with r, or add replacements with a."))
+		lines = append(lines, styles.Subtitle.Render("Browser rendering was already attempted where applicable. These remaining failures need an accessible copy, a replacement, or a later retry; reinstalling Playwright will not help."))
 	}
 	if start > 0 {
 		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↑ %d earlier source(s)", start)))
@@ -1176,7 +1202,28 @@ func (m Model) compileSourceDetail(width int) string {
 		{Label: "Source", Value: truncateMiddle(item.Source, max(24, width-18))},
 		{Label: "Detail", Value: item.Detail},
 	}
+	if recommendation := compileSourceRecommendation(item); recommendation != "" {
+		rows = append(rows, labelValueRow{Label: "Next", Value: recommendation})
+	}
 	return styles.ReportSection.Render("Source detail") + "\n" + renderLabelValueBlock(width, rows, 0, 0)
+}
+
+func compileSourceRecommendation(item compileSourceListItem) string {
+	status := strings.ToLower(strings.TrimSpace(item.Status))
+	if status != "error" && status != "failed" && status != "warning" && status != "retryable" && status != "needs retry" {
+		return ""
+	}
+	detail := strings.ToLower(item.Detail)
+	switch {
+	case strings.Contains(detail, "browser rendering was attempted") || strings.Contains(detail, "security challenge"):
+		return "Save an authenticated copy as a local file, or replace this Source."
+	case strings.Contains(detail, "refused the connection") || strings.Contains(detail, "connection refused"):
+		return "Retry later. If the host still refuses access, replace or drop this Source."
+	case strings.Contains(detail, "certificate") || strings.Contains(detail, "ssl"):
+		return "Verify the Source in your browser. Replace or drop it rather than bypassing certificate checks."
+	default:
+		return "Open the Source to verify access, then retry, replace, or drop it."
+	}
 }
 
 func compileSourceListSummary(items []compileSourceListItem) string {
@@ -1564,7 +1611,7 @@ func (m Model) viewCompileJSSetup(width int) string {
 	if m.jsSetupRunning {
 		return strings.Join([]string{
 			styles.ReportSection.Render("JS rendering"),
-			renderWaitStatusBlock(width, "Installing JS rendering", "Downloading Playwright Chromium. First run can take a few minutes.", "browser setup in progress"),
+			renderActiveWaitStatusBlock(width, "Installing JS rendering", "Downloading Playwright Chromium. Keep Liner open; first setup can take several minutes.", "browser setup in progress", m.loadingTitleSpinnerView()),
 			styles.Subtitle.Render("If setup succeeds, Liner retries this compile automatically."),
 		}, "\n")
 	}
@@ -1641,6 +1688,12 @@ func compileWarningRecommendation(warning core.CompileWarningPayload) string {
 		return "Liner recovered this source with browser rendering and included the rendered text in MIXTAPE.md. You can continue; open it only if you want to inspect the captured evidence."
 	case compileWarningNeedsJSSetup(warning):
 		return "Press i to install JS rendering. Liner will retry this compile automatically; if the source still fails, replace or drop it."
+	case strings.Contains(message, "security challenge") && strings.Contains(message, "js rendering"):
+		return "Browser rendering was already attempted. Save an authenticated copy as a local file, or replace this Source."
+	case strings.Contains(message, "connection refused") || strings.Contains(message, "refused the connection"):
+		return "Retry later. If the host still refuses access, replace or drop this Source."
+	case strings.Contains(message, "certificate verify failed") || strings.Contains(message, "certificate verification") || strings.Contains(message, "self-signed certificate"):
+		return "Verify the Source in your browser. Replace or drop it rather than bypassing certificate checks."
 	case strings.Contains(message, "very short") || strings.Contains(message, "short"):
 		return "Open the source if it is important. If the page has no readable body, drop it from tape.yaml and retry compile; otherwise keep it only as a weak pointer."
 	case strings.Contains(message, "transcript"):
@@ -1674,6 +1727,12 @@ func compileWarningSummary(warning core.CompileWarningPayload) string {
 		return "Recovered with browser rendering and included in MIXTAPE.md."
 	case compileWarningNeedsJSSetup(warning):
 		return "This page needs browser rendering before Liner can extract readable text."
+	case strings.Contains(lower, "security challenge") && strings.Contains(lower, "js rendering"):
+		return "Browser rendering was attempted, but the source still blocked access."
+	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "refused the connection"):
+		return "The source host refused the connection."
+	case strings.Contains(lower, "certificate verify failed") || strings.Contains(lower, "certificate verification") || strings.Contains(lower, "self-signed certificate"):
+		return "The source failed certificate verification."
 	case strings.Contains(lower, "http 404") || strings.Contains(lower, "not_found") || strings.Contains(lower, "not found"):
 		return "The source was not found."
 	case strings.Contains(lower, "status: http 403") || strings.Contains(lower, "status 403") || strings.Contains(lower, "forbidden"):

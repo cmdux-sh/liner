@@ -257,6 +257,21 @@ label/value rows, and viewports before adding borders or containers.
 - **Rules:** generated fixes are proposed before they are written. Apply writes,
   discard removes drafts, and review output explains decisions.
 
+### Maintenance Preview
+
+- **Shape:** Project/Source identity, operation summary, Core risk, exact file
+  effects, lifecycle consequences, validation conditions, and one explicit
+  approval action when Core requires it.
+- **Usage:** `Maintain project` operations for Source add, update, replace,
+  remove, purge, and Project rename or move.
+- **Rules:** render the versioned Core Change Set; do not reconstruct risk or
+  approval requirements in the TUI. Additive or metadata plans may continue
+  after validation when Core says approval is not required. Structural,
+  destructive, or destination-sensitive plans wait for approval of that exact
+  preview. A changed or malformed plan fails closed and returns to inspection.
+- **Completion:** show the Change Receipt and refreshed Project Snapshot. A
+  console success string alone is not completion evidence.
+
 ## 6. Do's and Don'ts
 
 ### Do:
@@ -267,6 +282,9 @@ label/value rows, and viewports before adding borders or containers.
 - **Do** use Command Orange only for selection, action, progress, and filter
   matches.
 - **Do** show write behavior before writes happen.
+- **Do** show immutable Project and Source IDs when selecting maintenance
+  targets.
+- **Do** derive maintenance risk, approval, and file effects from Liner Core.
 - **Do** keep `MIXTAPE.md` readiness separate from full Liner project readiness.
 - **Do** use current evidence from files, command output, and audits when showing
   status.
@@ -290,3 +308,7 @@ label/value rows, and viewports before adding borders or containers.
 - **Don't** imply a project is complete only because `MIXTAPE.md` exists.
 - **Don't** let previews, read-only views, or render paths create files or
   directories.
+- **Don't** let the TUI or an adapter write canonical Project files directly
+  for a supported maintenance operation.
+- **Don't** present Source removal as deletion; removal retains content, while
+  purge is a separately approved destructive action.

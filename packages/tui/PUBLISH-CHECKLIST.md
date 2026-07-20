@@ -29,41 +29,36 @@ machine. Each platform package contains both native binaries:
 
 ## Release Order
 
-1. Bump the release version everywhere:
-   - `packages/tui/package.json`
-   - `packages/tui/package-lock.json`
-   - `pyproject.toml`
-   - `src/liner/__init__.py`
-   - user-facing docs that name the current release
-2. Run the verification suite and commit the version/release changes.
-3. Push the release commit to the public `cmdux-sh/liner` repository.
-4. Generate tarballs from the public repo with the release helper:
-
+1. Confirm the repo is clean, all version files agree, public maintenance docs
+   match the installed CLI, and none of the six package versions already exists:
    ```sh
-   VERSION=1.0.3
-   scripts/release-tarballs.sh --version "$VERSION"
+   uv run python scripts/release-version.py --check
+   uv run python scripts/validate-public-commands.py
+   uv run python scripts/release-version.py --check --check-registry
    ```
-
-   The helper is the default path. It verifies the public repo, checks that all
-   version files match, confirms the branch is pushed to its upstream, confirms
-   the target version is absent on npm, runs the public GitHub Actions bundle
-   workflow once per target, downloads every tarball into a local versioned
-   folder, deletes the GitHub artifact after each download, writes checksums,
-   and writes `PUBLISH-COMMANDS.md`.
-5. Give Arturo the generated `PUBLISH-COMMANDS.md` code block verbatim, including
-   the absolute local tarball path. Do not hand-write or summarize the publish
-   commands from memory.
-6. Publish every `linersh-<platform>-<arch>` package for the release version.
-7. Publish the main `linersh` package after the platform packages exist.
-8. Verify the registry and run a clean external-user smoke test.
-
-Never reuse an npm version. If any package in the release set already exists on
-npm, stop, bump the version, regenerate the tarballs, and publish the new
-version.
+2. Sync the release commit to the public `cmdux-sh/liner` repository.
+3. Build each release tarball one at a time from the public repo's manual
+   `Platform Bundles` workflow:
+   - `linersh-darwin-arm64`
+   - `linersh-darwin-x64`
+   - `linersh-linux-arm64`
+   - `linersh-linux-x64`
+   - `linersh-win32-x64`
+   - `linersh`
+4. Download each tarball immediately, then delete the GitHub Actions artifact
+   before building the next target.
+5. Publish every `linersh-<platform>-<arch>` package for the release version.
+6. Publish the main `linersh` package after the platform packages exist.
+7. Smoke a clean consumer install with `npx linersh --version` and `npx linersh`
+   on at least macOS arm64, Linux x64, and Windows x64.
+8. Run clean-user smoke tests with temporary `HOME`, `npm_config_cache`, and
+   `LINER_DIR` values. Remove the temp directory when done so the verification
+   leaves no npm cache, Liner config, Playwright cache, or test project behind.
 
 Minimum checks before publishing:
 
 - Python test suite from the repo root.
+- Canonical release, npm registry uniqueness, and public command-surface checks.
 - Go tests from `packages/go-tui`.
 - TypeScript typecheck, tests, and package build from `packages/tui`.
 - `npm run acceptance:go -- release-smoke` from `packages/tui`.
@@ -85,52 +80,9 @@ HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@l
 rm -rf "$tmp"
 ```
 
-Hard-reset smoke pattern for a real machine or a throwaway user account:
-
-```sh
-npx --yes linersh@latest uninstall --yes || true
-liner uninstall --yes || true
-
-npm uninstall -g linersh || true
-npm uninstall -g \
-  linersh-darwin-arm64 \
-  linersh-darwin-x64 \
-  linersh-linux-arm64 \
-  linersh-linux-x64 \
-  linersh-win32-x64 || true
-
-rm -rf ~/.npm/_npx
-rm -rf ~/.liner
-rm -rf ~/Library/Caches/ms-playwright
-rm -rf ~/.cache/ms-playwright
-npm cache clean --force
-```
-
-After the reset, test as an external user with an explicit version:
-
-```sh
-VERSION=1.0.3
-tmp=$(mktemp -d)
-home="$tmp/home"
-cache="$tmp/npm-cache"
-projects="$tmp/projects"
-mkdir -p "$home" "$cache" "$projects"
-
-HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes "linersh@$VERSION" --version
-HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes "linersh@$VERSION"
-
-rm -rf "$tmp"
-```
-
-Use the hard reset only when it is acceptable to remove local Liner config,
-npx caches, global installs, and Playwright Chromium. The isolated temporary
-`HOME` pattern is safer for repeatable verification because it leaves the real
-machine alone.
-
 For non-isolated one-shot installs, use `npx --yes linersh@latest uninstall --yes`
 to remove Liner's local cache, Playwright's Chromium cache, and npm's `_npx`
 execution cache. For global installs, also run `npm uninstall -g linersh`.
 
-Historical release artifacts from the cleanup are outside the repo at:
-
-`/Users/arturo/Documents/Projects/0-archive/liner-archive/2026-06-25-root-cleanup/package-artifacts/`
+Historical release artifacts are not part of the repository and must not be
+used as inputs to a new release.

@@ -35,8 +35,13 @@ type Event struct {
 	SkillPath string `json:"skillPath,omitempty"`
 	Resume    bool   `json:"resume,omitempty"`
 
-	Code   *int   `json:"code,omitempty"`
-	Stderr string `json:"stderr,omitempty"`
+	Code        *int   `json:"code,omitempty"`
+	Stderr      string `json:"stderr,omitempty"`
+	Outcome     string `json:"outcome,omitempty"`
+	FailureKind string `json:"failureKind,omitempty"`
+	Recovery    string `json:"recovery,omitempty"`
+	Category    string `json:"category,omitempty"`
+	LogPath     string `json:"logPath,omitempty"`
 
 	Raw json.RawMessage `json:"-"`
 }

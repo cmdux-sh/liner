@@ -89,6 +89,7 @@ export type SourceDoneEvent = {
   title: string | null;
   author: string | null;
   published_at: string | null;
+  updated_at: string | null;
   duration_seconds: number | null;
   body_chars: number;
   body_preview: string;

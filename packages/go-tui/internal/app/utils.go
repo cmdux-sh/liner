@@ -32,9 +32,8 @@ func markdownMetadataValue(body string, label string) (string, bool) {
 		if !strings.HasPrefix(strings.ToLower(clean), prefix) {
 			continue
 		}
-		value := markdownBacktickValue(clean)
-		if value == "" {
-			value = strings.TrimSpace(clean[len(prefix):])
+		value := strings.TrimSpace(clean[len(prefix):])
+		if strings.HasPrefix(value, "`") && strings.HasSuffix(value, "`") && strings.Count(value, "`") == 2 {
 			value = strings.Trim(value, "`")
 		}
 		value = strings.TrimSpace(value)
@@ -75,18 +74,41 @@ func wrapWords(value string, width int) []string {
 	}
 	var lines []string
 	for _, word := range strings.Fields(value) {
-		if len(lines) == 0 {
-			lines = append(lines, word)
-			continue
+		wordParts := splitWordToWidth(word, width)
+		for _, part := range wordParts {
+			if len(lines) == 0 {
+				lines = append(lines, part)
+				continue
+			}
+			current := lines[len(lines)-1]
+			if lipgloss.Width(current)+1+lipgloss.Width(part) <= width {
+				lines[len(lines)-1] = current + " " + part
+				continue
+			}
+			lines = append(lines, part)
 		}
-		current := lines[len(lines)-1]
-		if lipgloss.Width(current)+1+lipgloss.Width(word) <= width {
-			lines[len(lines)-1] = current + " " + word
-			continue
-		}
-		lines = append(lines, word)
 	}
 	return lines
+}
+
+func splitWordToWidth(word string, width int) []string {
+	if width <= 0 || lipgloss.Width(word) <= width {
+		return []string{word}
+	}
+	parts := []string{}
+	var current strings.Builder
+	for _, r := range word {
+		candidate := current.String() + string(r)
+		if current.Len() > 0 && lipgloss.Width(candidate) > width {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+		current.WriteRune(r)
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	return parts
 }
 
 func padLines(value string, height int) string {

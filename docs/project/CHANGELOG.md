@@ -2,8 +2,40 @@
 
 ## Unreleased
 
-## 1.0.3
-
+- **Prepared the maintenance stack as the Liner 1.1.0 release candidate.**
+  Python, npm, platform packages, Go binaries, installed version output, and
+  public version fields now agree on `1.1.0`. Release preparation fails closed
+  if any candidate package version already exists on npm, and CI now compares
+  the public maintenance command reference with the installed CLI so Project,
+  Source, and adapter commands cannot silently drift.
+- **Verified the installed maintenance authority end to end.** Release smoke now
+  builds and installs the local npm and platform tarballs into an isolated HOME,
+  then exercises CLI guidance, versioned Snapshot/Change Set/Receipt flows,
+  Source lifecycle operations, Project rename, managed pointers, optional agent
+  adapters, guarded legacy migration, and incompatible-version refusal. A Go
+  source audit prevents supported maintenance entry points from reintroducing
+  direct canonical-file writes; older composition, contradiction-cleanup, and
+  production-merge apply paths now fail closed with exact Core remediation.
+  First-run assembly now uses a Core-created one-shot boundary and Core Source
+  additions, so later corpus rebuilds cannot replace identity-bearing Sources.
+- **Moved Go TUI maintenance onto Liner Core.** The TUI now consumes versioned
+  Project Snapshots, Change Sets, Failure Reports, and Change Receipts for
+  Source and Project maintenance. Core-provided risk and file effects drive
+  explicit confirmation, malformed or crashed Core responses fail closed, and
+  the retired Source append/drop paths no longer write `tape.yaml` directly.
+  A `Maintain project` TUI command exposes immutable Source IDs and routes
+  update, replace, remove, purge, rename, and move through that same contract.
+  Confirmation now follows Core risk: additive and metadata plans continue
+  after validation, while approval-required plans wait on the exact preview.
+- **Bundled opt-in Maintenance Adapters.** Liner now ships a thin
+  CLI-delegating maintenance skill for Codex and Claude, with explicit
+  inspect/install/update/remove commands, durable receipts, fail-closed managed
+  content checks, and canonical Change Sets for optional Project pointer blocks.
+- **Published CLI-owned Project maintenance guidance.** `liner project guidance`
+  now emits equivalent versioned JSON or Markdown, classifies Project Skill
+  routing state, keeps skill Sources explicitly inert, and upgrades legacy root
+  or declared Project Skill routing only through a reviewed Change Set, folding
+  in lazy immutable-identity migration when required.
 - **Sharpened generated Project Skills.** Root `SKILL.md` now acts as a concise
   project entrypoint with trigger-oriented description text, explicit load
   order, and checkable completion criteria while leaving detailed operating

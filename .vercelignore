@@ -1,0 +1,11 @@
+.DS_Store
+.git/
+.pytest_cache/
+.venv/
+build/
+packages/
+
+**/.astro/
+**/.vercel/
+**/dist/
+**/node_modules/

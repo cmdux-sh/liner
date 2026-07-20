@@ -1,0 +1,68 @@
+---
+title: Build Reusable AI Context
+description: Collect sources, compile Markdown research, write instruction files, and use the saved folder with an AI assistant.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+import FileTree from "../../../components/FileTree.astro";
+
+Start with a Liner Project for one focused task. Define its Job to Be Done in Job Story form, Clarify Job, collect sources, compile the Mixtape, then write the instruction files a future AI session should follow.
+
+## Interactive Flow
+
+<CommandSnippet command="npx linersh" />
+
+The terminal UI helps you create the Liner Project, add sources, draft or inspect the research plan, compile the Mixtape, and write AI instructions. Use the CLI when you want to package a `.mixtape` archive.
+
+The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another location:
+
+<CommandSnippet command="LINER_DIR=~/liner/projects npx linersh" />
+
+## CLI Flow
+
+<CommandSnippet command={`mkdir my-projects
+cd my-projects
+liner init mobile-design-foundations`} />
+
+Add Sources through Liner Core so each one receives durable identity and duplicate checks:
+
+<CommandSnippet command={`liner sources add mobile-design-foundations \
+  --type web \
+  --url https://developer.apple.com/app-store/review/guidelines/ \
+  --note "Use the current review rules as primary evidence." \
+  --priority required`} />
+
+Then use the terminal UI to build and review the corpus. The Curator's approved synthesis is published into the Mixtape during that workflow.
+
+Compile when the summary is ready:
+
+<CommandSnippet command="liner compile mobile-design-foundations" />
+
+The compile step writes the research packet:
+
+<FileTree
+  root="mobile-design-foundations/"
+  label="Compile Output"
+  items={[
+    { name: "mixtape/", kind: "dir" },
+    { name: "MIXTAPE.md", kind: "file", depth: 1, accent: true },
+    { name: "sources/", kind: "dir", depth: 1 },
+    { name: "NN-source-slug.md", kind: "file", depth: 2 },
+  ]}
+/>
+
+## Use The Result
+
+After compile, give the AI `mixtape/MIXTAPE.md` and `mixtape/sources/`.
+
+In the terminal UI, continue to **Create Operating Layer** after compile. That action writes the instruction files: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
+
+After the instruction files are written, give the AI the whole folder when it can read files. For lighter use, paste `mixtape/MIXTAPE.md` into the conversation and keep the source files nearby for detail.
+
+## Recompile
+
+When evidence changes, use `liner sources add`, `update`, or `replace` so identity and lineage stay intact. Then rebuild the affected corpus and compile:
+
+<CommandSnippet command="liner compile mobile-design-foundations" />
+
+In the terminal UI, completed folders open the existing compile result by default. Press `r` from the compile screen to rerun the compile, then recreate the instruction files if the saved research changed.

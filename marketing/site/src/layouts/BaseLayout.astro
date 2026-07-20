@@ -1,0 +1,174 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+const {
+  title = "Liner: Build reusable AI context from focused research",
+  description = "Use a local CLI and terminal UI to turn sources into Markdown research, AI instructions, and status files future AI sessions can use.",
+  image = "/og-image.png",
+} = Astro.props;
+
+const site = Astro.site ?? new URL("https://www.liner.sh");
+const canonicalUrl = new URL(Astro.url.pathname, site).toString();
+const imageUrl = new URL(image, site).toString();
+const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY || "";
+const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Liner" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#ff4500" />
+    <meta property="og:site_name" content="Liner" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content="Liner: reusable AI context from focused research sources." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+
+    <link
+      rel="preload"
+      href="/fonts/inter-latin-v20.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/jetbrains-mono-latin-v24.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <title>{title}</title>
+  </head>
+  <body class="overflow-x-hidden">
+    <slot />
+
+    {/* Intersection Observer for masked-reveal headlines */}
+    <script>
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              observer.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.2, rootMargin: "0px 0px -10% 0px" },
+      );
+
+      document
+        .querySelectorAll(".reveal-container")
+        .forEach((el) => observer.observe(el));
+    </script>
+
+    {
+      posthogKey && (
+        <script define:vars={{ posthogKey, posthogHost }}>
+          (function () {
+            const hostname = window.location.hostname;
+            const isLocal =
+              hostname === "localhost" ||
+              hostname === "127.0.0.1" ||
+              hostname === "::1" ||
+              hostname.endsWith(".local");
+            const isLighthouse = /\bChrome-Lighthouse\b/i.test(navigator.userAgent);
+
+            if (isLocal || isLighthouse || window.__LINER_DISABLE_ANALYTICS__) return;
+
+            function loadPostHog() {
+              const script = document.createElement("script");
+              const assetHost = posthogHost.replace(".i.posthog.com", "-assets.i.posthog.com");
+              script.async = true;
+              script.crossOrigin = "anonymous";
+              script.src = assetHost + "/static/array.js";
+              script.onload = initPostHog;
+              document.head.appendChild(script);
+            }
+
+            function initPostHog() {
+              if (!window.posthog || typeof window.posthog.init !== "function") return;
+
+              window.posthog.init(posthogKey, {
+                api_host: posthogHost,
+                defaults: "2026-01-30",
+                capture_pageview: true,
+                capture_pageleave: true,
+                autocapture: false,
+                person_profiles: "identified_only",
+              });
+
+              bindIntentEvents();
+            }
+
+            function capture(event, properties) {
+              if (!window.posthog || typeof window.posthog.capture !== "function") return;
+              window.posthog.capture(event, properties || {});
+            }
+
+            function linkEventName(url) {
+              if (url.hostname === "github.com") {
+                if (url.pathname.includes("/mixtapes/") || url.pathname.includes("/projects/")) return "project_link_clicked";
+                if (url.pathname.includes("/blob/master/docs/project/CHANGELOG")) return "changelog_clicked";
+                return "github_clicked";
+              }
+              return "outbound_link_clicked";
+            }
+
+            function bindIntentEvents() {
+              document.addEventListener("click", function (event) {
+                const target = event.target;
+                if (!(target instanceof Element)) return;
+
+                const copyButton = target.closest(".copy-install-cmd");
+                if (copyButton) {
+                  capture("install_command_copied", {
+                    command: "npx linersh",
+                    location: copyButton.closest("section, main, footer")?.tagName.toLowerCase() || "page",
+                  });
+                  return;
+                }
+
+                const link = target.closest("a[href]");
+                if (!link) return;
+
+                const url = new URL(link.href, window.location.href);
+                if (url.origin === window.location.origin) return;
+
+                capture(linkEventName(url), {
+                  href: url.href,
+                  label: link.textContent?.trim().replace(/\s+/g, " ").slice(0, 120) || "",
+                });
+              });
+            }
+
+            loadPostHog();
+          })();
+        </script>
+      )
+    }
+  </body>
+</html>

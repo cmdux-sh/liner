@@ -90,13 +90,20 @@ func (m Model) screenLabel() string {
 	case screenCreate:
 		return "setup"
 	case screenClarify:
-		return "clarify"
+		return "clarify job"
 	case screenImport:
 		return "import"
 	case screenSettings:
 		return "settings"
 	case screenOnboarding:
 		return "set up"
+	case screenMaintenance:
+		return "maintenance"
+	case screenSynthesisReview:
+		if m.synthesisReviewKind == semanticReviewOperatingLayer {
+			return "review operating layer"
+		}
+		return "review synthesis"
 	default:
 		return "liner"
 	}
@@ -129,27 +136,39 @@ func (m Model) viewActivity() string {
 func (m Model) nextAction() string {
 	switch m.screen {
 	case screenCreate:
+		if m.createRunning {
+			if m.createOpenRetryPath != "" {
+				return "Wait for Liner to finish opening the already-created Project."
+			}
+			return "Wait for Liner Core to finish creating the accepted Project."
+		}
+		if m.createError != "" && m.createStep == createFieldCount()-1 {
+			if m.createOpenRetryPath != "" {
+				return "Press enter to retry opening the created Project without running Core creation again."
+			}
+			return "Review the preserved Project details, then press enter to retry."
+		}
 		switch m.createStep {
 		case 0:
-			return "Name the mixtape."
+			return "Name the Liner Project."
 		case 1:
-			return "Describe what this Liner should help your AI agent do."
+			return "Define the Job to Be Done."
 		case 2:
-			return "Add the curator."
+			return "Name the Curator."
 		case 3:
-			return "Confirm whether you want to add custom sources."
+			return "Confirm whether you want to add Sources through the Source Inbox."
 		}
 	case screenClarify:
 		if m.clarifyLoading {
-			return "AI is working on the clarification questions."
+			return "AI is preparing Clarify Job questions."
 		}
 		if len(m.clarifyQuestions) == 0 {
-			return "Retry clarification question generation."
+			return "Retry Clarify Job question generation."
 		}
 		if m.clarifyStep < len(m.clarifyQuestions)-1 {
 			return "Answer this question, then continue."
 		}
-		return "Finish clarification, then start research."
+		return "Finish Clarify Job, then start research."
 	case screenSources:
 		if strings.TrimSpace(m.sourceInput.Value()) != "" {
 			return "Add this source."
@@ -157,16 +176,22 @@ func (m Model) nextAction() string {
 		if len(m.sourceItems) > 0 {
 			return "Review the sources."
 		}
-		return "Paste one source, or finish without custom sources."
+		return "Paste one Source into the Source Inbox, or finish without adding one."
 	case screenSourceReview:
-		return "Save active sources, then clarify the AI-agent goal."
+		return "Save active sources, then continue to Clarify Job."
 	case screenResearch:
 		if !m.researchDone {
+			if m.methodologyPhaseID == "improvement" {
+				return "Let Liner finish the focused improvement pass."
+			}
 			return "Let Liner build the corpus."
+		}
+		if m.methodologyPhaseID == "improvement" {
+			return "Review the focused Source additions before changing the Project."
 		}
 		return "Review the corpus artifacts on disk."
 	case screenAssemblyReview:
-		return "Save checked sources, then compile MIXTAPE.md."
+		return "Accept the checked Sources, then continue."
 	case screenLinerReview:
 		return ""
 	case screenSkills:
@@ -182,7 +207,7 @@ func (m Model) nextAction() string {
 	case screenReport:
 		return reportNextAction(m.currentTape, m.sourceItems)
 	case screenBoard:
-		return "Optional: adjust personal sources, then compile the mixtape."
+		return "Optional: adjust User-Provided Sources, then compile the Mixtape."
 	case screenCompile:
 		return m.compileNextActionLabel()
 	case screenImprovementReview:
@@ -211,6 +236,40 @@ func (m Model) nextAction() string {
 			return "Open folders until you choose a .mixtape project."
 		}
 		return "Choose a .mixtape project file."
+	case screenMaintenance:
+		if m.maintenanceLoading {
+			return "Wait for Liner Core to finish the current maintenance request."
+		}
+		if m.maintenancePlan != nil {
+			return "Review the exact Core Change Set, then apply or discard it."
+		}
+		switch m.maintenanceStage {
+		case maintenanceStageSource:
+			return "Choose a Source by readable locator and immutable Source ID."
+		case maintenanceStageFields:
+			return "Edit typed Source fields, then preview the exact Core Change Set."
+		case maintenanceStageReceipt:
+			return "Use the durable receipt and refreshed Snapshot as completion evidence."
+		default:
+			return "Choose a guided Source maintenance operation."
+		}
+	case screenSynthesisReview:
+		if m.synthesisReviewLoading {
+			return "Wait for Liner Core to finish the synthesis review request."
+		}
+		if m.synthesisReviewPlan != nil {
+			return "Approve the reviewed content, or go back without changing the Project."
+		}
+		if m.synthesisReviewEditing {
+			return "Finish the proposed revision, then request a Core preview."
+		}
+		if m.synthesisReviewChoice == synthesisReviewPatch {
+			if !m.semanticReviewHasLocalChanges() {
+				return "Edit the proposed " + m.activeSemanticReviewArtifactName() + ", then preview exactly what Liner Core will record."
+			}
+			return "Preview the edited " + m.activeSemanticReviewArtifactName() + " exactly as Liner Core will record it."
+		}
+		return "Preview approval of the current text without rewriting it."
 	case screenOnboarding:
 		if m.onboardingStep <= onboardingStepLibrary {
 			if m.onboardingEditingDir {

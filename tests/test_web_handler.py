@@ -7,6 +7,7 @@ from liner.config import FetchConfig
 from liner.handlers import html_extraction
 from liner.handlers.base import HandlerHardFailure, HandlerSoftFailure, JsRenderingRequired
 from liner.handlers.html_extraction import (
+    extract_html_text,
     looks_like_bot_challenge,
     looks_like_cookie_notice_only,
     looks_like_spa_shell,
@@ -72,6 +73,47 @@ def test_web_handler_accepts_real_html() -> None:
     assert "substantive paragraph" in content.body
     assert content.metadata.get("extraction") == "trafilatura"
     handler.close()
+
+
+def test_html_metadata_uses_declared_publication_and_update_fields() -> None:
+    html = """
+    <html><head>
+      <meta property="og:title" content="Reliable article title">
+      <meta name="citation_author" content="Ada Lovelace">
+      <meta name="citation_author" content="Grace Hopper">
+      <meta property="article:published_time" content="2022-06-01T09:00:00Z">
+      <meta property="article:modified_time" content="2024-04-12T10:30:00Z">
+    </head><body><article>Substantive body.</article></body></html>
+    """
+
+    extraction = extract_html_text(html)
+
+    assert extraction.title == "Reliable article title"
+    assert extraction.author == "Ada Lovelace; Grace Hopper"
+    assert extraction.published_at == "2022-06-01T09:00:00Z"
+    assert extraction.updated_at == "2024-04-12T10:30:00Z"
+
+
+def test_html_metadata_omits_placeholder_and_inferred_navigation_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BadMetadata:
+        def as_dict(self) -> dict[str, str]:
+            return {
+                "title": "references-details-empty",
+                "author": "Thoroughly Review the Authorization Logic; Technologies",
+                "date": "1997-03-18",
+            }
+
+    monkeypatch.setattr(html_extraction.trafilatura, "extract_metadata", lambda *_: BadMetadata())
+    html = "<html><head><title>references-details-empty</title></head><body><article>Useful content.</article></body></html>"
+
+    extraction = extract_html_text(html)
+
+    assert extraction.title is None
+    assert extraction.author is None
+    assert extraction.published_at is None
+    assert extraction.updated_at is None
 
 
 def test_web_handler_extracts_remote_pdf_before_html_pipeline(
@@ -170,6 +212,31 @@ def test_looks_like_bot_challenge_recognizes_vendor_signatures() -> None:
     assert looks_like_bot_challenge(
         "<html>Checking your browser before accessing example.com…</html>"
     )
+    # Generic security-service interstitials observed on Hindawi and SAGE.
+    assert looks_like_bot_challenge(
+        "Performing security verification. This website uses a security service "
+        "to protect against malicious bots."
+    )
+
+
+def test_web_handler_retries_200_security_verification_page_via_js() -> None:
+    html = (
+        "<html><head><title>Performing security verification</title></head><body>"
+        "<h1>Performing security verification</h1>"
+        "<p>This website uses a security service to protect against malicious bots.</p>"
+        "</body></html>"
+    )
+
+    def fake_transport(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=html)
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(fake_transport))
+
+    with pytest.raises(JsRenderingRequired) as exc_info:
+        handler.fetch(SourceSpec(type="web", url="https://journals.example/article"))
+    assert "security challenge" in str(exc_info.value)
+    handler.close()
     # Imperva Incapsula.
     assert looks_like_bot_challenge("Request unsuccessful. Incapsula incident ID: 1234")
     # Distil / Imperva "Pardon our interruption" page.

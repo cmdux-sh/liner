@@ -196,19 +196,6 @@ func Import(input string, project string, save bool) (Preview, error) {
 	return preview, nil
 }
 
-func AppendToTape(project string, sources []tape.Source) error {
-	current, err := tape.ReadProject(project)
-	if err != nil {
-		return err
-	}
-	current.Sources = append(current.Sources, sources...)
-	return tape.WriteProject(project, current)
-}
-
-func AppendActiveToTape(project string, items []StagedSource) error {
-	return AppendToTape(project, ActiveSources(items))
-}
-
 func (p *Preview) add(src tape.Source) {
 	p.Sources = append(p.Sources, src)
 	switch src.Type {

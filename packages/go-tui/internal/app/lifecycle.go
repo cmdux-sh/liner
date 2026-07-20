@@ -45,6 +45,10 @@ func New(opts Options) (Model, error) {
 	input.Placeholder = "Paste one URL, article, file path, repo, or local document..."
 	input.SetWidth(80)
 	input.Focus()
+	maintenanceInput := textinput.New()
+	maintenanceInput.Placeholder = "Type the selected Source field…"
+	maintenanceInput.SetWidth(80)
+	maintenanceInput.Blur()
 
 	createInput := textinput.New()
 	createInput.Prompt = ""
@@ -79,33 +83,40 @@ func New(opts Options) (Model, error) {
 	)
 
 	m := Model{
-		baseDir:                  baseDir,
-		runner:                   runner,
-		screen:                   screen,
-		projectTable:             newProjectTable(80, 10),
-		commands:                 commands,
-		help:                     helpModel,
-		importPicker:             newImportPicker(".", 12),
-		settings:                 settings,
-		sourceInput:              input,
-		sourceTable:              newSourceTable(80, 8),
-		skillTable:               newSkillTable(80, 8),
-		auditTable:               newAuditTable(80, 8),
-		evalTable:                newEvalTable(80, 8),
-		compositionTable:         newCompositionTable(80, 8),
-		createInput:              createInput,
-		createArea:               createArea,
-		clarifyArea:              clarifyArea,
-		clarifySpin:              clarifySpin,
-		operatingLayerSpin:       operatingLayerSpin,
-		compileSpin:              spin,
-		compileBar:               compileBar,
-		researchSpin:             researchSpin,
-		researchLog:              researchLog,
-		preview:                  viewport.New(viewport.WithWidth(80), viewport.WithHeight(20)),
-		onboardingDirInput:       newOnboardingDirInput(baseDir, 80),
-		onboardingStep:           onboardingStep,
-		onboardingProviderCursor: settingsProviderIndex(onboardingDefaultProvider(settings)),
+		baseDir:                       baseDir,
+		runner:                        runner,
+		screen:                        screen,
+		projectTable:                  newProjectTable(80, 10),
+		commands:                      commands,
+		help:                          helpModel,
+		importPicker:                  newImportPicker(".", 12),
+		settings:                      settings,
+		settingsInput:                 newSettingsModelInput(),
+		sourceInput:                   input,
+		maintenanceInput:              maintenanceInput,
+		maintenancePlanView:           viewport.New(viewport.WithWidth(80), viewport.WithHeight(10)),
+		sourceTable:                   newSourceTable(80, 8),
+		skillTable:                    newSkillTable(80, 8),
+		auditTable:                    newAuditTable(80, 8),
+		evalTable:                     newEvalTable(80, 8),
+		compositionTable:              newCompositionTable(80, 8),
+		createInput:                   createInput,
+		createArea:                    createArea,
+		clarifyArea:                   clarifyArea,
+		clarifySpin:                   clarifySpin,
+		operatingLayerSpin:            operatingLayerSpin,
+		compileSpin:                   spin,
+		compileBar:                    compileBar,
+		researchSpin:                  researchSpin,
+		researchLog:                   researchLog,
+		preview:                       viewport.New(viewport.WithWidth(80), viewport.WithHeight(20)),
+		synthesisReviewCurrent:        newSynthesisReviewViewport(80, 8),
+		synthesisReviewPlanView:       newSynthesisReviewViewport(80, 12),
+		synthesisReviewArea:           newSynthesisReviewArea(80),
+		operatingLayerReviewSkillArea: newOperatingLayerReviewSkillArea(80),
+		onboardingDirInput:            newOnboardingDirInput(baseDir, 80),
+		onboardingStep:                onboardingStep,
+		onboardingProviderCursor:      settingsProviderIndex(onboardingDefaultProvider(settings)),
 	}
 	m.commands.SetItems(m.commandItems())
 	return m, nil
@@ -176,15 +187,19 @@ func (m Model) View() tea.View {
 		body = m.viewSettings()
 	case screenOnboarding:
 		body = m.viewOnboarding()
+	case screenMaintenance:
+		body = m.viewMaintenance()
+	case screenSynthesisReview:
+		body = m.viewSynthesisReview()
 	}
 	banner := m.viewBanner()
 	activity := m.viewActivity()
 	footer := styles.Help.Render(m.footerHelp())
 	if m.note != "" {
-		footer += "\n" + styles.SuccessText.Render(m.note)
+		footer += "\n" + renderFooterMessage(m.note, m.width, styles.SuccessText)
 	}
 	if m.err != "" {
-		footer += "\n" + styles.ErrorText.Render(m.err)
+		footer += "\n" + renderFooterMessage(m.err, m.width, styles.ErrorText)
 	}
 	body = fitBodyAboveFooter(body, m.height, m.width, banner, activity, footer)
 
@@ -196,6 +211,11 @@ func (m Model) View() tea.View {
 	view := tea.NewView(lipgloss.JoinVertical(lipgloss.Left, parts...))
 	view.AltScreen = true
 	return view
+}
+
+func renderFooterMessage(value string, width int, style lipgloss.Style) string {
+	contentWidth := max(1, styles.ClampWidth(width-4))
+	return style.Render(strings.Join(wrapWords(value, contentWidth), "\n"))
 }
 
 func fitBodyAboveFooter(body string, terminalHeight int, terminalWidth int, banner string, activity string, footer string) string {

@@ -117,7 +117,7 @@ func (m Model) viewOnboardingJS() string {
 		styles.PrimaryText.Render(copy),
 	}
 	if m.jsSetupRunning {
-		parts = append(parts, "", renderWaitStatusBlock(width, "Installing", "Downloading Playwright Chromium. First run can take a few minutes.", "browser setup in progress"))
+		parts = append(parts, "", renderActiveWaitStatusBlock(width, "Installing", "Downloading Playwright Chromium. Keep Liner open; first setup can take several minutes.", "browser setup in progress", m.loadingTitleSpinnerView()))
 		return lipgloss.JoinVertical(lipgloss.Left, parts...)
 	}
 	if m.settings.JSSetupCompleted {
@@ -155,11 +155,11 @@ func (m Model) startOnboarding() Model {
 func onboardingProviderSummary(info settingsInfo) string {
 	switch len(info.Installed) {
 	case 0:
-		return "No Codex or Claude Code runner found."
+		return "No OpenAI or Claude runner found."
 	case 1:
 		return settingsProviderName(info.Installed[0]) + " installed; it will be active."
 	default:
-		return "Claude Code and Codex are installed; choose one."
+		return "OpenAI and Claude are installed; choose one."
 	}
 }
 
@@ -357,7 +357,7 @@ func (m Model) finishOnboarding() (Model, tea.Cmd) {
 	m.commands.SetItems(m.commandItems())
 	m.screen = screenHome
 	if agent == "" {
-		m.note = "Onboarding saved. Install Claude Code or Codex CLI, then refresh Settings."
+		m.note = "Onboarding saved. Install the Claude Code or Codex CLI, then refresh Settings."
 	} else {
 		m.note = "Onboarding saved. " + settingsProviderName(agent) + " is active."
 	}

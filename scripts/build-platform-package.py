@@ -11,9 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-TUI_PACKAGE_JSON = ROOT / "packages" / "tui" / "package.json"
+VERSION_FILE = ROOT / "VERSION"
 ENTRYPOINT = ROOT / "src" / "liner" / "__main__.py"
 GO_TUI_DIR = ROOT / "packages" / "go-tui"
 DEFAULT_DIST = ROOT / "build" / "platform-dist"
@@ -33,11 +32,6 @@ def main() -> int:
         help="Directory that will receive linersh-<platform>-<arch>/.",
     )
     parser.add_argument(
-        "--version",
-        default=read_tui_version(),
-        help="npm package version to write. Defaults to packages/tui/package.json.",
-    )
-    parser.add_argument(
         "--clean",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -50,6 +44,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    version = read_release_version()
     target = current_target()
     package_name = f"linersh-{target['node_platform']}-{target['node_arch']}"
     package_dir = args.out_dir.resolve() / package_name
@@ -69,8 +64,8 @@ def main() -> int:
 
     package_dir.mkdir(parents=True, exist_ok=True)
     copy_tree_contents(built_dir, package_dir)
-    build_go_tui(package_dir / tui_name(target["node_platform"]))
-    write_package_json(package_dir, package_name, args.version, target)
+    build_go_tui(package_dir / tui_name(target["node_platform"]), version)
+    write_package_json(package_dir, package_name, version, target)
     write_readme(package_dir, package_name, target)
 
     binary = package_dir / exe_name(target["node_platform"])
@@ -81,7 +76,7 @@ def main() -> int:
         )
 
     smoke(binary)
-    print(f"Built {package_name}@{args.version} in {package_dir}")
+    print(f"Built {package_name}@{version} in {package_dir}")
     print(f"Next: npm pack --dry-run {package_dir}")
     return 0
 
@@ -117,6 +112,8 @@ def run_pyinstaller() -> None:
         "trafilatura",
         "--collect-all",
         "certifi",
+        "--collect-data",
+        "liner",
         "--hidden-import",
         "liner.handlers.web_js",
         str(ENTRYPOINT),
@@ -124,12 +121,21 @@ def run_pyinstaller() -> None:
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
-def build_go_tui(out: Path) -> None:
+def build_go_tui(out: Path, version: str) -> None:
     go = shutil.which("go")
     if go is None:
         raise SystemExit("go is required to build the platform TUI binary. Install Go and retry.")
     subprocess.run(
-        [go, "build", "-o", str(out), "./cmd/liner-tui"],
+        [
+            go,
+            "build",
+            "-trimpath",
+            "-ldflags",
+            f"-X main.version={version}",
+            "-o",
+            str(out),
+            "./cmd/liner-tui",
+        ],
         cwd=GO_TUI_DIR,
         check=True,
     )
@@ -162,9 +168,11 @@ def current_target() -> dict[str, str]:
     return {"node_platform": node_platform, "node_arch": node_arch}
 
 
-def read_tui_version() -> str:
-    data = json.loads(TUI_PACKAGE_JSON.read_text(encoding="utf-8"))
-    return str(data["version"])
+def read_release_version() -> str:
+    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    if not version:
+        raise SystemExit(f"{VERSION_FILE}: canonical release version is empty")
+    return version
 
 
 def write_package_json(

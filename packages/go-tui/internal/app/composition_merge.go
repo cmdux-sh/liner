@@ -55,68 +55,71 @@ func (m Model) mergeCompositionChild() (Model, tea.Cmd) {
 }
 
 func writeCompositionProductionMerge(project string, item compositionFile) (compositionProductionMergeResult, tape.Tape, error) {
-	parent, err := tape.ReadProject(project)
-	if err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("parent tape.yaml is required before merging child production artifacts: %w", err)
-	}
-	input, err := compositionPromotionInput(project, item)
-	if err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, err
-	}
-	childProject, referenceIssue := compositionChildProjectReference(project, item)
-	if referenceIssue != "" {
-		return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("cannot merge child production artifacts: %s", referenceIssue)
-	}
-	now := time.Now()
-	result := compositionProductionMergeResult{
-		AuditRel:     filepath.Join("working", "audits", now.Format("2006-01-02-150405")+"-composition-production-merge.md"),
-		ChildProject: childProject,
-		Input:        input,
-	}
-	if err := os.MkdirAll(filepath.Join(project, "working", "audits"), 0o755); err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, err
-	}
-	if err := os.MkdirAll(filepath.Join(project, "working", "composition"), 0o755); err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, err
-	}
-	childSlug := slug(input.Child)
-	childTape, err := tape.ReadProject(childProject)
-	if err != nil {
-		if os.IsNotExist(err) {
-			result.Skipped = append(result.Skipped, "child tape.yaml missing; no child tape sources were merged.")
-		} else {
-			return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("could not read child tape.yaml: %w", err)
+	return compositionProductionMergeResult{}, tape.Tape{}, legacyCoreWriterError("merge child Project state")
+	/*
+		parent, err := tape.ReadProject(project)
+		if err != nil {
+			return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("parent tape.yaml is required before merging child production artifacts: %w", err)
 		}
-	} else {
-		sourceRows, updatedParent, err := compositionMergeChildSources(project, childProject, childSlug, input, parent, childTape, now)
+		input, err := compositionPromotionInput(project, item)
 		if err != nil {
 			return compositionProductionMergeResult{}, tape.Tape{}, err
 		}
-		result.Sources = sourceRows
-		if len(updatedParent.Sources) != len(parent.Sources) {
-			backupRel, err := backupCompositionFile(project, "tape.yaml", now, "previous-tape.yaml")
+		childProject, referenceIssue := compositionChildProjectReference(project, item)
+		if referenceIssue != "" {
+			return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("cannot merge child production artifacts: %s", referenceIssue)
+		}
+		now := time.Now()
+		result := compositionProductionMergeResult{
+			AuditRel:     filepath.Join("working", "audits", now.Format("2006-01-02-150405")+"-composition-production-merge.md"),
+			ChildProject: childProject,
+			Input:        input,
+		}
+		if err := os.MkdirAll(filepath.Join(project, "working", "audits"), 0o755); err != nil {
+			return compositionProductionMergeResult{}, tape.Tape{}, err
+		}
+		if err := os.MkdirAll(filepath.Join(project, "working", "composition"), 0o755); err != nil {
+			return compositionProductionMergeResult{}, tape.Tape{}, err
+		}
+		childSlug := slug(input.Child)
+		childTape, err := tape.ReadProject(childProject)
+		if err != nil {
+			if os.IsNotExist(err) {
+				result.Skipped = append(result.Skipped, "child tape.yaml missing; no child tape sources were merged.")
+			} else {
+				return compositionProductionMergeResult{}, tape.Tape{}, fmt.Errorf("could not read child tape.yaml: %w", err)
+			}
+		} else {
+			sourceRows, updatedParent, err := compositionMergeChildSources(project, childProject, childSlug, input, parent, childTape, now)
 			if err != nil {
 				return compositionProductionMergeResult{}, tape.Tape{}, err
 			}
-			result.TapeBackup = backupRel
-			if err := tape.WriteProject(project, updatedParent); err != nil {
-				return compositionProductionMergeResult{}, tape.Tape{}, err
+			result.Sources = sourceRows
+			if len(updatedParent.Sources) != len(parent.Sources) {
+				backupRel, err := backupCompositionFile(project, "tape.yaml", now, "previous-tape.yaml")
+				if err != nil {
+					return compositionProductionMergeResult{}, tape.Tape{}, err
+				}
+				result.TapeBackup = backupRel
+				if err := tape.WriteProject(project, updatedParent); err != nil {
+					return compositionProductionMergeResult{}, tape.Tape{}, err
+				}
+				parent = updatedParent
 			}
-			parent = updatedParent
 		}
-	}
-	skillRows, err := compositionMergeChildSkills(project, childProject, childSlug)
-	if err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, err
-	}
-	result.Skills = skillRows
-	if len(result.Sources) == 0 && len(result.Skills) == 0 && len(result.Skipped) == 0 {
-		result.Skipped = append(result.Skipped, "no child sources or skills were found to merge.")
-	}
-	if err := os.WriteFile(filepath.Join(project, result.AuditRel), []byte(renderCompositionProductionMergeAudit(now, result)), 0o644); err != nil {
-		return compositionProductionMergeResult{}, tape.Tape{}, err
-	}
-	return result, parent, nil
+		skillRows, err := compositionMergeChildSkills(project, childProject, childSlug)
+		if err != nil {
+			return compositionProductionMergeResult{}, tape.Tape{}, err
+		}
+		result.Skills = skillRows
+		if len(result.Sources) == 0 && len(result.Skills) == 0 && len(result.Skipped) == 0 {
+			result.Skipped = append(result.Skipped, "no child sources or skills were found to merge.")
+		}
+		if err := os.WriteFile(filepath.Join(project, result.AuditRel), []byte(renderCompositionProductionMergeAudit(now, result)), 0o644); err != nil {
+			return compositionProductionMergeResult{}, tape.Tape{}, err
+		}
+		return result, parent, nil
+	*/
 }
 
 func compositionMergeChildSources(parentProject string, childProject string, childSlug string, input compositionRouteAuditInput, parent tape.Tape, child tape.Tape, now time.Time) ([]compositionMergedSource, tape.Tape, error) {

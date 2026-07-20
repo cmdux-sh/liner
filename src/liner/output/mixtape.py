@@ -215,6 +215,8 @@ def _render_index_entry(entry: dict[str, Any]) -> str:
             lines.append(f"- **Author:** {content.author}")
         if content.published_at:
             lines.append(f"- **Published:** {content.published_at}")
+        if content.updated_at:
+            lines.append(f"- **Updated:** {content.updated_at}")
         if spec.type == "youtube" and content.duration_seconds is not None:
             lines.append(f"- **Duration:** {_fmt_duration(content.duration_seconds)}")
         transcript_type = content.metadata.get("transcript_type")
@@ -265,6 +267,8 @@ def _render_source_file(item: CompiledSource) -> str:
             lines.append(f"**Author:** {content.author}  ")
         if content.published_at:
             lines.append(f"**Published:** {content.published_at}  ")
+        if content.updated_at:
+            lines.append(f"**Updated:** {content.updated_at}  ")
         if spec.type == "youtube" and content.duration_seconds is not None:
             lines.append(f"**Duration:** {_fmt_duration(content.duration_seconds)}  ")
         lines.append(f"**Fetched:** {content.fetched_at}  ")

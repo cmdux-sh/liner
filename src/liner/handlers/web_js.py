@@ -18,6 +18,7 @@ from liner.handlers.base import HandlerHardFailure
 from liner.handlers.html_extraction import (
     MIN_USEFUL_BODY_CHARS,
     extract_html_text,
+    looks_like_bot_challenge,
     looks_like_cookie_notice_only,
     looks_like_js_stub,
 )
@@ -148,6 +149,13 @@ class WebJsHandler:
         body = extraction.body
         fetched_at = datetime.now(UTC).isoformat()
 
+        if looks_like_bot_challenge(html):
+            raise HandlerHardFailure(
+                f"{url} still returned a security challenge after JS rendering. "
+                "Save an authenticated/rendered copy as a local_file source or replace it.",
+                url,
+            )
+
         if body is not None and looks_like_js_stub(body):
             raise HandlerHardFailure(
                 f"{url} still looks like a noscript stub even after JS execution. "
@@ -182,8 +190,14 @@ class WebJsHandler:
                     fetched_at=fetched_at,
                     author=str(extraction.author) if extraction.author else None,
                     published_at=str(extraction.published_at) if extraction.published_at else None,
+                    updated_at=str(extraction.updated_at) if extraction.updated_at else None,
                     metadata={
                         "extraction": "playwright-fallback",
+                        **(
+                            {"metadata_source": extraction.metadata_source}
+                            if extraction.metadata_source
+                            else {}
+                        ),
                         "trafilatura_error": extraction.extraction_error,
                     },
                 )
@@ -202,7 +216,15 @@ class WebJsHandler:
             fetched_at=fetched_at,
             author=str(extraction.author) if extraction.author else None,
             published_at=str(extraction.published_at) if extraction.published_at else None,
-            metadata={"extraction": "playwright"},
+            updated_at=str(extraction.updated_at) if extraction.updated_at else None,
+            metadata={
+                "extraction": "playwright",
+                **(
+                    {"metadata_source": extraction.metadata_source}
+                    if extraction.metadata_source
+                    else {}
+                ),
+            },
         )
 
     def close(self) -> None:

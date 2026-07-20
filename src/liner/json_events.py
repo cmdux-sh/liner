@@ -49,6 +49,7 @@ class JsonEventReporter:
                 "title": content.title if content else None,
                 "author": content.author if content else None,
                 "published_at": content.published_at if content else None,
+                "updated_at": content.updated_at if content else None,
                 "duration_seconds": content.duration_seconds if content else None,
                 "body_chars": len(content.body) if content else 0,
                 "body_preview": body_preview,
@@ -138,5 +139,4 @@ def compile_result_to_payload(result: Any, project: Any = None) -> dict[str, Any
         ]
 
     return payload
-
 

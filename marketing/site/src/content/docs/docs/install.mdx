@@ -1,0 +1,116 @@
+---
+title: Install
+description: Install Liner with npx or as a global npm package.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+
+The npm package is `linersh`. It includes the Go terminal UI plus a bundled per-platform CLI binary, so normal use needs no Python install.
+
+## One-Shot
+
+<CommandSnippet command="npx linersh" />
+
+This opens the interactive terminal UI.
+
+Use the same one-shot form for subcommands when you have not installed the package globally:
+
+<CommandSnippet command={`npx --yes linersh@latest --version
+npx --yes linersh@latest setup-js
+npx --yes linersh@latest uninstall --yes`} />
+
+## Persistent Install
+
+<CommandSnippet command={`npm install -g linersh
+liner`} />
+
+Running `liner` with no arguments opens the terminal UI. Running a subcommand forwards to the bundled CLI core.
+
+## Optional Codex or Claude Maintenance
+
+Use a persistent install when you want an external coding assistant to maintain Liner Projects. Liner ships the Maintenance Adapter inside the package but never installs it without your approval.
+
+Inspect the target first, then install the adapter for your agent:
+
+<CommandSnippet command={`liner adapters inspect codex
+liner adapters install codex --yes`} />
+
+Use `claude` instead of `codex` for Claude Code. The installed skill delegates every supported change to the current Liner CLI; it does not edit canonical Project files directly or replace the Project Skill.
+
+Continue with [Maintain a Project with an Agent](/docs/maintenance/) for the request, preview, approval, and receipt workflow.
+
+## Clean Trial
+
+Use this when you want to try the website flow without touching your real Liner folders, npm cache, or Playwright cache:
+
+<CommandSnippet command={`tmp=$(mktemp -d)
+home="$tmp/home"
+cache="$tmp/npm-cache"
+projects="$tmp/projects"
+mkdir -p "$home" "$cache" "$projects"
+
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest --version
+HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@latest
+
+rm -rf "$tmp"`} />
+
+The second command opens the terminal UI. Create a test project, add sources, build the corpus, and run Create Operating Layer. Because the home folder, npm cache, and Liner workspace all point inside `$tmp`, removing `$tmp` removes the trial install and test project.
+
+## Platform Support
+
+Version `1.1.0` supports:
+
+- macOS arm64 and x64
+- Linux arm64 and x64
+- Windows x64
+
+Node.js 18 or newer is required.
+
+## JavaScript-Rendered Pages
+
+Some source pages need a browser to render correctly. Enable that support once:
+
+<CommandSnippet command={`npx --yes linersh@latest setup-js
+liner setup-js`} />
+
+The first command is for one-shot `npx` use. The second is for global installs. This downloads Playwright Chromium for the local fetcher. The download is about 150 MB and is safe to run again later.
+
+## Clean Uninstall
+
+<CommandSnippet command={`npx --yes linersh@latest uninstall --yes
+liner uninstall --yes`} />
+
+The first command is for one-shot `npx` use. The second is for global installs. Both remove Liner's local cache, npm's npx execution cache, and Playwright's Chromium cache. They leave your saved project folders alone.
+
+If you installed globally, also remove the npm package:
+
+<CommandSnippet command="npm uninstall -g linersh" />
+
+## Hard Reset Before Release Testing
+
+Use this only on a test machine or throwaway user account. It removes every
+installed or cached TUI surface before testing as an external user: global npm
+packages, npx execution cache, Liner config/cache, npm cache, and Playwright
+Chromium.
+
+<CommandSnippet command={`npx --yes linersh@latest uninstall --yes || true
+liner uninstall --yes || true
+
+npm uninstall -g linersh || true
+npm uninstall -g \\
+  linersh-darwin-arm64 \\
+  linersh-darwin-x64 \\
+  linersh-linux-arm64 \\
+  linersh-linux-x64 \\
+  linersh-win32-x64 || true
+
+rm -rf ~/.npm/_npx
+rm -rf ~/.liner
+rm -rf ~/Library/Caches/ms-playwright
+rm -rf ~/.cache/ms-playwright
+npm cache clean --force
+
+tmp=$(mktemp -d)
+HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.0 --version
+HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.0
+rm -rf "$tmp"`} />

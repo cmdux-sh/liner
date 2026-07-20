@@ -23,6 +23,38 @@ export const WORKSPACE_DISCIPLINE = `# Workspace discipline
 - Keep shell checks narrow: read or parse the required artifacts, then stop.`;
 
 const PHASE_INSTRUCTIONS: Partial<Record<PhaseId, string>> = {
+  improvement: `## Improve Corpus — incremental Source delta
+
+You are working in an isolated staging copy of the current accepted Project Snapshot. Read \`.liner-current-snapshot.json\` first; it is the fixed Core-owned baseline containing the Project ID, revision, accepted Source IDs, and active-instruction state. Then read \`tape.yaml\`, \`working/01-jtbd-and-knowledge-map.md\`, \`working/04-quality-checks.md\`, \`working/05-operating-fit-audit.md\` when present, and \`synthesis.md\`. This is a focused improvement pass, not initial Corpus Creation. Writes in this workspace cannot change canonical Project artifacts.
+
+- Identify only the missing source roles and concrete search lanes named by the operating-fit audit.
+- Search and evaluate enough focused evidence to close those gaps; preserve every accepted Source exactly as it is, including every immutable Source ID and active state.
+- The default operation is add/dedupe. Do not infer removal or replacement from quality judgments, duplication, age, preference, or a stronger candidate.
+- A removal or replacement requires separate explicit curator intent captured through guided Source maintenance. This phase has no such intent surface, so \`removals\` and \`replacements\` must stay empty.
+- Do not modify \`tape.yaml\`. Do not modify \`synthesis.md\`. Do not modify anything under \`working/\`. The TUI will ask Liner Core to classify duplicates and stage one atomic Change Set after this run.
+
+Write exactly one staging artifact to \`.liner-runs/improvement/delta.yaml\`:
+
+\`\`\`yaml
+contract: liner.improvement_delta
+version: 1
+summary: One sentence naming the focused gap this delta closes.
+additions:
+  - type: web
+    url: https://example.com/substantive-source
+    note: |
+      Role: Name the missing evidence job this source fills.
+      Value: Name the useful content and where it is.
+      Limitation: Name a real boundary.
+    section: relevant-section
+    priority: required
+    kind: example
+removals: []
+replacements: []
+\`\`\`
+
+Every addition must be a complete valid Source with \`type\`, its typed locator (\`url\` or \`path\`), \`priority\`, and \`kind\`. Include a curator note and section when the source type supports them. It is safe to propose a locator already in the corpus: Core will classify it as an exact duplicate before review and retain the existing immutable Source ID. Stop after validating and writing the staging artifact.`,
+
   framing: `## Phase 1 — Framing
 
 Define the reusable AI capability, derive the internal job-to-be-done, and sketch the knowledge map.
@@ -30,7 +62,10 @@ Define the reusable AI capability, derive the internal job-to-be-done, and sketc
 - The user provided a plain-language capability goal in \`tape.yaml.jtbd\` and \`working/01-jtbd-and-knowledge-map.md\`: what this Liner should help a future AI agent do. Read both.
 - Treat that field as user intent, not as a finished formal JTBD. The user should not have to know research lanes, source categories, or Job Story syntax.
 - **Read \`tape.yaml.jtbd_clarifications\` if present.** Those are the user's answers to sharpening questions about capability boundaries, output behavior, quality anchors, constraints, and future-agent autonomy. Use them to derive the research plan.
-- Write a Capability Brief before the knowledge map: what future AI sessions should be able to do, what outputs/decisions/behaviors it supports, the internal JTBD, inferred research lanes, required source roles/exclusions, and runtime behavior for the future agent.
+- Write a Capability Brief before the knowledge map: what future AI sessions should be able to do, the exact runtime output contract, the internal JTBD, inferred research lanes, required source roles/exclusions, and runtime behavior for the future agent. The output contract is required for every capability pattern, not only reference-translation.
+- Use these exact level-three headings inside the Capability Brief so the Operating Layer can promote the contract reliably: \`### Reusable AI capability\`, \`### Exact runtime output contract\`, \`### Internal job-to-be-done\`, \`### Inferred research lanes\`, \`### Required source roles\`, \`### Source exclusions\`, and \`### Runtime autonomy, abstention, and escalation\`.
+- Runtime behavior must distinguish missing evidence that blocks a reliable conclusion from evidence that merely limits confidence. Ask targeted questions only for blocking gaps; otherwise proceed with a bounded result that labels observations, inferences, unknowns, and verification needs.
+- For sensitive data, consent, security, privacy, irreversible actions, regulated contexts, or vulnerable users, specify when the future agent must abstain, request authoritative evidence, or escalate to human review. Never infer compliance, safety, accessibility, or release readiness from screenshots alone.
 - The Capability Brief must include a **Required source roles** subsection. Source roles are capability-specific evidence jobs, not generic kinds. Derive them from what the future AI must do. Typical roles include: core-action methods, domain/primary authority, worked examples or case studies, implementation constraints, critique/validation evidence, dissenting practitioner voice, and domain-specific data. Delete roles that do not fit; add roles the capability clearly needs.
 - For each required source role, name why it matters, what good evidence looks like, and the minimum kept/trim sources the corpus needs. Defaults: at least 2 strong sources for required roles; at least 3 substantive worked examples/case studies when the capability depends on taste, visual output, craft judgment, or recognizing quality; primary/official sources for legal, medical, financial, or safety-sensitive authority roles.
 - Detect specialized **capability patterns** and write them into the Capability Brief. If the goal involves images, moodboards, visual references, inspiration, style, art direction, examples, or translating one medium/domain into another output, mark \`Capability pattern: reference-translation\`. For that pattern, source roles must separate: input/reference-domain interpretation, cross-domain translation method, target-output constraints, critique/clarification, and caller handoff language. Output-medium implementation sources are bridge evidence; they cannot satisfy the input/reference-domain or translation-method roles by themselves.
@@ -125,6 +160,8 @@ Stop after the fragments and/or final file are written. Do not draft synthesis y
 Read working/03-evaluation.yaml. Then read \`quality-check-tests.md\` in the skill bundle — note especially the strengthened framing-gap rules below.
 
 **Bounded quality discipline:** Phase 5 is an audit of the evaluated corpus, not a fresh research phase. Start from the existing \`kept\` and \`trim\` entries in \`working/03-evaluation.yaml\`. If those entries lack \`kind\`, assign \`reference / principle / prescription / example\` from the title, note, section, rating, and source type before you consider any search. Missing \`kind\` metadata is not itself a reason to backfill.
+
+When enriching \`working/03-evaluation.yaml\`, update only fields that are missing or intentionally changing; never insert a second copy of an existing YAML key. After every edit, parse the file with a strict duplicate-key-rejecting YAML parser. Ruby \`YAML.load_file\` and permissive PyYAML loads are not sufficient validation because they silently accept duplicate mapping keys.
 
 Run the core-action test, then the eight standard tests against the keep-list:
 0. Core-action fit — what is the exact action in the JTBD, and which kept sources directly teach or demonstrate it?

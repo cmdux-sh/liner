@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/cmdux/liner/packages/go-tui/internal/core"
 	"github.com/cmdux/liner/packages/go-tui/internal/styles"
@@ -86,6 +87,11 @@ func homeProjectStatus(project core.ProjectSummary, summary capabilitySummary) s
 	case projectCompileArtifactsNeedAttention(project.Path, nil, project.SourceCount):
 		return "Compile Needs Attention"
 	case summary.HasLiner:
+		if state := savedProjectLifecycleState(project.Path); state.reviewRequired {
+			return "Project Complete · Review Required"
+		} else if state.stale {
+			return "Project Complete · Stale"
+		}
 		return "Project Complete"
 	case projectFileExists(project.Path, "MIXTAPE.md"):
 		return "Corpus Ready"
@@ -94,17 +100,76 @@ func homeProjectStatus(project core.ProjectSummary, summary capabilitySummary) s
 	}
 }
 
-func (m Model) primaryProjectAction() (Model, tea.Cmd) {
-	if m.hasPendingAssemblyDraft() {
-		return m.startAssemblyReview()
+type savedLifecycleState struct {
+	stale          bool
+	reviewRequired bool
+}
+
+func savedProjectLifecycleState(projectPath string) savedLifecycleState {
+	raw, err := os.ReadFile(filepath.Join(projectPath, "liner.yaml"))
+	if err != nil {
+		return savedLifecycleState{}
 	}
-	if m.projectCompileNeedsAttention() {
+	var metadata struct {
+		Status struct {
+			Stale   bool `yaml:"stale"`
+			Refresh struct {
+				Synthesis struct {
+					State string `yaml:"state"`
+				} `yaml:"synthesis"`
+				OperatingLayer struct {
+					State string `yaml:"state"`
+				} `yaml:"operating_layer"`
+			} `yaml:"refresh"`
+		} `yaml:"status"`
+	}
+	if yaml.Unmarshal(raw, &metadata) != nil {
+		return savedLifecycleState{}
+	}
+	return savedLifecycleState{
+		stale: metadata.Status.Stale,
+		reviewRequired: metadata.Status.Refresh.Synthesis.State == "review_required" ||
+			metadata.Status.Refresh.OperatingLayer.State == "review_required",
+	}
+}
+
+func (m Model) primaryProjectAction() (Model, tea.Cmd) {
+	if m.projectSnapshotDegraded() {
+		m.err = "Project actions are read-only until Liner Core returns a trustworthy Project Snapshot. Press r to retry."
+		return m, nil
+	}
+	nextKind := m.projectNextKind()
+	if nextKind != projectNextOpenLiner && !m.projectMutationsAvailable() {
+		m.err = "Liner Core reports this Project as read-only. Project writes are unavailable."
+		return m, nil
+	}
+	switch nextKind {
+	case projectNextOpenLiner:
+		return m.openPreview("LINER.md")
+	case projectNextCreateOperatingLayer:
+		return m.startLinerDraftReview()
+	case projectNextReviewOperatingLayer:
+		return m.startOperatingLayerReview()
+	case projectNextRefreshStatus:
+		m.projectSnapshotRefreshing = true
+		m.note = "Refreshing the Core-owned Project status."
+		m.err = ""
+		return m, refreshProjectStatus(m.runner, m.currentPath)
+	case projectNextReviewSynthesis:
+		return m.startPreparedSynthesisReview()
+	case projectNextCompileRefresh:
+		return m.startCompile()
+	}
+	if m.hasPendingAssemblyDraft() {
+		return m.startPreparedAssemblyReview()
+	}
+	if m.currentProjectSnapshot() == nil && m.projectCompileNeedsAttention() {
 		return m.startCompileReviewFromArtifacts()
 	}
-	if m.isProjectComplete() {
+	if m.currentProjectSnapshot() == nil && m.isProjectComplete() {
 		return m.openPreview("LINER.md")
 	}
-	if m.hasCorpusReady() {
+	if m.currentProjectSnapshot() == nil && m.hasCorpusReady() {
 		return m.startLinerDraftReview()
 	}
 	if m.needsClarificationBeforeMethodology() {
@@ -170,7 +235,11 @@ func (m Model) primaryProjectActionIsSourceEntry() bool {
 
 func (m Model) projectCapabilities() capabilitySummary {
 	project := strings.TrimSpace(m.currentPath)
-	return capabilitiesForProject(project)
+	summary := capabilitiesForProject(project)
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil {
+		summary.HasLiner = snapshot.Lifecycle.Milestone == "project_complete" || snapshot.Lifecycle.OperatingLayer.State == "ready" || snapshot.Lifecycle.OperatingLayer.State == "stale"
+	}
+	return summary
 }
 
 func capabilitiesForProject(project string) capabilitySummary {
@@ -383,7 +452,7 @@ func (m Model) projectBrowserSelectedDetail(width int) string {
 		{Label: "Name", Value: title},
 		{Label: "Status", Value: homeProjectStatus(item.project, item.capabilities)},
 		{Label: "Description", Value: projectSummaryDescription(item.project)},
-		{Label: "Job", Value: jtbd},
+		{Label: "Job", Value: jtbd, MaxLines: 3},
 		{Label: "Folder", Value: item.project.Path},
 	}, 0, 0)
 }
@@ -410,6 +479,24 @@ func (m Model) viewProject() string {
 		styles.Title.Render(truncateMiddle(title, width)),
 		lipgloss.NewStyle().Width(width).Render(styles.Subtitle.Render(strings.Join(wrapLabelValue(description, width), "\n"))),
 		"",
+	}
+	if m.projectSnapshotDegraded() {
+		status := "Core Project Snapshot unavailable"
+		if m.projectSnapshotLoading {
+			status = "Loading Core Project Snapshot"
+		}
+		parts = append(parts, projectSectionDetail(
+			width,
+			"Project status",
+			"This Project is read-only until Liner Core returns trustworthy lifecycle state.",
+			newMetadataTable(width, []metadataTableRow{
+				{Field: "Status", Value: status},
+				{Field: "Diagnostic", Value: m.projectSnapshotDiagnostic()},
+				{Field: "Core binary", Value: m.projectCoreBinaryValue(width)},
+				{Field: "Action", Value: "Retry"},
+			}).View(),
+		))
+		return lipgloss.JoinVertical(lipgloss.Left, parts...)
 	}
 	if width >= 92 {
 		listWidth := min(30, max(22, width/4))
@@ -493,6 +580,11 @@ func clampProjectPaneIndex(index int, count int) int {
 
 func (m Model) projectHealthDetail(width int) string {
 	done, total, next := m.projectProgressCounts()
+	if m.projectNextKind() == projectNextReviewOperatingLayer {
+		next = "Review Operating Layer"
+	} else if m.projectNextKind() == projectNextReviewSynthesis {
+		next = "Review Synthesis"
+	}
 	progress := "not started"
 	if total > 0 {
 		progress = fmt.Sprintf("%d of %d steps complete", done, total)
@@ -503,7 +595,7 @@ func (m Model) projectHealthDetail(width int) string {
 	rows := []metadataTableRow{
 		{Field: "Status", Value: m.projectStatusLabel()},
 		{Field: "Primary action", Value: m.projectPrimaryLabel()},
-		{Field: "Corpus build", Value: progress},
+		{Field: "Project flow", Value: progress},
 		{Field: "Missing next", Value: next},
 		{Field: "Status source", Value: m.projectStatusSourceLabel()},
 	}
@@ -524,7 +616,7 @@ func (m Model) projectHealthDetail(width int) string {
 	}
 	rows = append(rows,
 		metadataTableRow{Field: "Sources", Value: fmt.Sprintf("%d", len(m.currentTape.Sources))},
-		metadataTableRow{Field: "Local files", Value: m.projectLocalSourcesValue()},
+		metadataTableRow{Field: "Local source files", Value: m.projectLocalSourcesValue()},
 		metadataTableRow{Field: "Folder", Value: m.currentPath},
 	)
 	return projectSectionDetail(
@@ -575,6 +667,9 @@ func (m Model) projectFlowDetail(width int) string {
 }
 
 func (m Model) projectFlowRows() []projectPipelineRow {
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil {
+		return projectFlowRowsFromSnapshot(*snapshot)
+	}
 	startedState := "done"
 	startedEvidence := "project folder"
 	corpusState := "queued"
@@ -588,7 +683,7 @@ func (m Model) projectFlowRows() []projectPipelineRow {
 	} else if !m.isProjectComplete() {
 		corpusState = "current"
 		if m.needsClarificationBeforeMethodology() {
-			corpusEvidence = "answer clarification questions"
+			corpusEvidence = "complete Clarify Job"
 		} else if m.primaryProjectActionIsSourceEntry() {
 			corpusEvidence = "add sources"
 		}
@@ -611,6 +706,50 @@ func (m Model) projectFlowRows() []projectPipelineRow {
 		{Phase: "Corpus Ready", State: corpusState, Evidence: corpusEvidence, Current: corpusState == "current"},
 		{Phase: "Create Operating Layer", State: operatingState, Evidence: operatingEvidence, Current: operatingState == "current"},
 		{Phase: "Project Complete", State: completeState, Evidence: completeEvidence, Current: completeState == "current"},
+	}
+}
+
+func projectFlowRowsFromSnapshot(snapshot core.MaintenanceProjectSnapshot) []projectPipelineRow {
+	lifecycle := snapshot.Lifecycle
+	corpusState := "current"
+	corpusEvidence := "Continue Corpus Creation"
+	operatingState := "queued"
+	operatingEvidence := "LINER.md + Project Skill"
+	completeState := "queued"
+	if lifecycle.Milestone == "corpus_ready" || lifecycle.Milestone == "project_complete" {
+		corpusState = "done"
+		corpusEvidence = lifecycle.Corpus.Evidence
+		operatingState = "current"
+	}
+	if lifecycle.Milestone == "project_complete" {
+		operatingState = "done"
+		operatingEvidence = lifecycle.OperatingLayer.Evidence
+		completeState = "done"
+	}
+	if lifecycle.Stale {
+		if lifecycle.Corpus.State == "stale" {
+			corpusState = "stale"
+		}
+		if lifecycle.OperatingLayer.State == "stale" {
+			operatingState = "stale"
+		}
+		if lifecycle.Refresh != nil {
+			switch {
+			case lifecycle.Refresh.Synthesis.State == "review_required":
+				corpusEvidence = "Review Synthesis required"
+			case lifecycle.Refresh.Corpus.State == "compile_required":
+				corpusEvidence = "Compile refresh required"
+			}
+			if lifecycle.Refresh.OperatingLayer.State == "review_required" {
+				operatingEvidence = "Review Operating Layer required"
+			}
+		}
+	}
+	return []projectPipelineRow{
+		{Phase: "Project Shell", State: "done", Evidence: "Core Project Snapshot"},
+		{Phase: "Corpus Ready", State: corpusState, Evidence: corpusEvidence, Current: corpusState == "current" || corpusState == "stale"},
+		{Phase: "Create Operating Layer", State: operatingState, Evidence: operatingEvidence, Current: operatingState == "current" || operatingState == "stale"},
+		{Phase: "Project Complete", State: completeState, Evidence: "liner.yaml"},
 	}
 }
 
@@ -739,10 +878,13 @@ func projectSectionDetail(width int, title string, description string, content s
 }
 
 func (m Model) projectProgressCounts() (int, int, string) {
+	if m.currentProjectSnapshot() != nil {
+		return projectProgressCountsFromRows(m.projectFlowRows())
+	}
 	rows := projectPipelineRows(m.currentPath, m.currentTape, m.currentProjectStatus())
 	done, total, next := projectProgressCountsFromRows(rows)
 	if m.needsClarificationBeforeMethodology() {
-		next = "Clarification"
+		next = "Clarify Job"
 	}
 	return done, total, next
 }
@@ -764,13 +906,34 @@ func projectProgressCountsFromRows(rows []projectPipelineRow) (int, int, string)
 
 func (m Model) projectStatusLabel() string {
 	label := projectMilestoneLabel(m.projectMilestone())
-	if status := m.currentProjectStatus(); status != nil && status.Snapshot.Stale {
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil && snapshot.Lifecycle.Stale {
+		label += " (stale)"
+	} else if status := m.currentProjectStatus(); status != nil && status.Snapshot.Stale {
 		label += " (stale)"
 	}
 	return label
 }
 
 func (m Model) projectPrimaryLabel() string {
+	switch m.projectNextKind() {
+	case projectNextUnavailable:
+		if m.currentProjectSnapshot() != nil {
+			return "Read-only Core guidance"
+		}
+		return "Retry Project Snapshot"
+	case projectNextOpenLiner:
+		return "Open LINER.md"
+	case projectNextCreateOperatingLayer:
+		return "Create Operating Layer"
+	case projectNextReviewOperatingLayer:
+		return "Review Operating Layer"
+	case projectNextRefreshStatus:
+		return "Refresh Status"
+	case projectNextReviewSynthesis:
+		return "Review Synthesis"
+	case projectNextCompileRefresh:
+		return "Compile refreshed corpus"
+	}
 	switch {
 	case m.hasPendingAssemblyDraft():
 		return "Review draft sources"
@@ -781,7 +944,7 @@ func (m Model) projectPrimaryLabel() string {
 	case m.hasCorpusReady():
 		return "Create Operating Layer"
 	case m.needsClarificationBeforeMethodology():
-		return "Answer clarification questions"
+		return "Continue Clarify Job"
 	case m.primaryProjectActionIsSourceEntry():
 		return "Add sources"
 	default:
@@ -790,6 +953,22 @@ func (m Model) projectPrimaryLabel() string {
 }
 
 func (m Model) projectMilestoneNextAction() string {
+	switch m.projectNextKind() {
+	case projectNextUnavailable:
+		return ""
+	case projectNextOpenLiner:
+		return projectCompleteNextAction
+	case projectNextCreateOperatingLayer:
+		return "Create Operating Layer."
+	case projectNextReviewOperatingLayer:
+		return "Review Operating Layer."
+	case projectNextRefreshStatus:
+		return "Refresh Status through Liner Core."
+	case projectNextReviewSynthesis:
+		return "Review Synthesis before Compile."
+	case projectNextCompileRefresh:
+		return "Compile the reviewed corpus refresh."
+	}
 	if m.hasPendingAssemblyDraft() {
 		return "Review the assembly draft sources."
 	}
@@ -802,7 +981,7 @@ func (m Model) projectMilestoneNextAction() string {
 		return "Review compile issues and retry compile."
 	default:
 		if m.needsClarificationBeforeMethodology() {
-			return "Answer the clarification questions before building the corpus."
+			return "Complete Clarify Job before building the corpus."
 		}
 		if m.needsSourcesBeforeMethodology() {
 			return "Continue Corpus Creation: add sources."
@@ -812,6 +991,9 @@ func (m Model) projectMilestoneNextAction() string {
 }
 
 func (m Model) projectMilestone() string {
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil {
+		return snapshot.Lifecycle.Milestone
+	}
 	if m.projectCompileNeedsAttention() {
 		return "compile_attention"
 	}
@@ -852,6 +1034,9 @@ func (m Model) projectSkillReady() bool {
 }
 
 func (m Model) projectSkillStatus() string {
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil {
+		return snapshot.Lifecycle.ProjectSkill.Status
+	}
 	if status := m.currentProjectStatus(); status != nil {
 		if status.ProjectSkill.Status == "active" {
 			return "active"
@@ -861,6 +1046,9 @@ func (m Model) projectSkillStatus() string {
 }
 
 func (m Model) projectStatusSourceLabel() string {
+	if m.currentProjectSnapshot() != nil {
+		return "Core Project Snapshot"
+	}
 	if status := m.currentProjectStatus(); status != nil {
 		source := strings.TrimSpace(status.Progress.Source)
 		if source == "" {
@@ -896,7 +1084,7 @@ func (m Model) projectProviderReadiness() string {
 	if len(info.Installed) > 0 {
 		return info.activeProviderLabel() + "; choose a runner in Settings"
 	}
-	return "None found; install Claude Code or Codex, then open Settings"
+	return "None found; install the Claude Code or Codex CLI, then open Settings"
 }
 
 func (m Model) projectCoreBinaryValue(width int) string {

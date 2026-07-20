@@ -4,7 +4,10 @@ This document explains what Liner is, how it works, how it is built, how it is u
 
 ## Short Version
 
-Liner is an open-source toolkit for building curated AI context bundles called **mixtapes**.
+Liner is an open-source toolkit for creating and maintaining local,
+source-grounded AI context Projects. Each Project contains a curated corpus
+called a **Mixtape** plus an Operating Layer that makes the evidence reusable by
+future AI sessions.
 
 A Liner project is a folder. Its mixtape corpus lives under `mixtape/` in v2 projects and contains:
 
@@ -47,7 +50,10 @@ A **tape** is the recipe. It lives in `mixtape/tape.yaml` in v2 projects.
 
 It names the mixtape, describes its purpose, identifies the curator, and lists the kept sources with notes, sections, and source metadata.
 
-The tape is small and shareable. It can be edited by hand, stored in Git, reviewed in a pull request, forked, or recompiled later.
+The tape is small and shareable. It can be stored in Git, reviewed in a pull
+request, forked, or recompiled later. Initial curation may author the recipe,
+but supported post-creation Source maintenance goes through Liner Core so
+identity, lineage, lifecycle invalidation, and receipts remain intact.
 
 ### Mixtape
 
@@ -143,12 +149,17 @@ There are three common ways to use Liner.
 
 ### 1. CLI-First
 
-Use the Python CLI when you already have a project folder or prefer editing YAML and Markdown directly.
+Use the installed CLI when you already have a Project folder or want a
+scriptable workflow. Add known Sources through Core, then use the Curator
+workflow to review the corpus and synthesis before compile.
 
 ```sh
 liner init mobile-design-foundations
-# edit mobile-design-foundations/mixtape/tape.yaml
-# write mobile-design-foundations/mixtape/synthesis.md
+liner sources add mobile-design-foundations \
+  --type web \
+  --url https://developer.apple.com/design/human-interface-guidelines/gestures \
+  --note "Apple's canonical gesture reference." \
+  --priority required
 liner compile mobile-design-foundations
 ```
 
@@ -172,7 +183,10 @@ Use the terminal UI when you want an interactive authoring experience.
 npx linersh
 ```
 
-The TUI helps create and edit mixtape project folders, add sources, edit metadata, run compilation, share archives, and inspect process manifests.
+The TUI helps create and manage Liner Projects, add Sources, run the curation
+workflow and compilation, create the Operating Layer, share archives, and
+inspect Project state. Supported Project and Source maintenance is delegated to
+the same Core contract used by the CLI.
 
 With no arguments, the `liner` npm package opens the TUI. CLI subcommands pass through to the bundled Python core:
 
@@ -180,6 +194,7 @@ With no arguments, the `liner` npm package opens the TUI. CLI subcommands pass t
 liner compile mobile-design-foundations
 liner setup-js
 liner share mobile-design-foundations
+liner project inspect mobile-design-foundations
 ```
 
 ### 3. Skill-Assisted Curation
@@ -197,6 +212,22 @@ The skill does not compile. After the skill finishes, run:
 ```sh
 liner compile <project-folder>
 ```
+
+### 4. Agent-Assisted Maintenance
+
+Install the optional Maintenance Adapter when Codex or Claude should inspect and
+maintain an existing Project. The adapter is a thin router to the installed
+CLI; it is not a second writer and it does not replace the Project Skill.
+
+```sh
+liner adapters inspect codex
+liner adapters install codex --yes
+liner project guidance mobile-design-foundations --format markdown
+```
+
+Every supported change starts from a read-only Project Snapshot and a write-free
+Project Change Set. Approval-required operations stop on the exact preview.
+Apply revalidates that plan and writes a durable, redacted Change Receipt.
 
 ## The Curation Lifecycle
 
@@ -273,6 +304,7 @@ Supported source types:
 - `web`
 - `youtube`
 - `local_file`
+- `skill`
 
 Web sources use `httpx` and `trafilatura` for server-rendered extraction. If a page is JavaScript-walled and Playwright support has been set up, Liner can use headless Chromium. You enable that path once:
 
@@ -315,6 +347,10 @@ The Python package is the mechanical core.
 Important areas:
 
 - `src/liner/cli.py` exposes the `liner` command with Typer.
+- `src/liner/maintenance.py` owns Project identity, versioned Snapshots, Change
+  Sets, apply validation, Source retention, refresh gates, and Change Receipts.
+- `src/liner/agent_adapters.py` manages the optional Codex and Claude adapter
+  installations without overwriting user-authored content.
 - `src/liner/tape.py` parses and validates `tape.yaml`.
 - `src/liner/compile.py` orchestrates compilation.
 - `src/liner/handlers/` contains source handlers:
@@ -344,12 +380,16 @@ Important areas:
 
 - `packages/go-tui/cmd/liner-tui/` starts the active terminal app.
 - `packages/go-tui/internal/app/` owns screen routing, key handling, and UI rendering.
-- `packages/tui/src/yaml-io.ts` reads and writes `tape.yaml`.
+- `packages/tui/src/yaml-io.ts` supports initial methodology artifact parsing
+  and authoring; it is not a supported post-creation maintenance path.
 - `packages/tui/src/bin-resolver.ts` finds the Python core.
 - `packages/tui/src/agents/` runs and parses agent-backed methodology phases.
-- `packages/go-tui/internal/core/` streams compile progress from the Python CLI.
+- `packages/go-tui/internal/core/` streams compile progress and carries the
+  versioned maintenance contract between the Go app and Python Core.
 
-The TUI does not reimplement core compile/share/import behavior. It shells out to the Python core and reads structured progress events.
+The TUI does not reimplement Core compile, share, import, Project, or Source
+maintenance behavior. It shells out to Core, renders structured results, and
+applies only exact Core-issued Change Sets.
 
 ### npm Distribution
 
@@ -370,7 +410,8 @@ This follows the native-binary package pattern used by many developer tools: ins
 The shim behavior:
 
 - `liner` with no arguments opens the TUI.
-- CLI subcommands such as `compile`, `share`, `setup-js`, and `status` forward to the bundled Python binary.
+- CLI subcommands such as `compile`, `share`, `project`, `sources`, `adapters`,
+  `setup-js`, and `status` forward to the bundled Python binary.
 - `LINER_BIN=/path/to/liner` overrides binary resolution for development/debugging.
 - `liner uninstall` removes local Liner state, the npm `_npx` execution cache, and Playwright's Chromium cache for clean reinstall testing. It does not delete mixtape project folders.
 
@@ -413,7 +454,8 @@ The tracked skill bundle lives in `docs/curation-skill/`.
 
 It encodes the curation methodology as executable instructions for an AI assistant. It is not the same thing as the CLI or TUI. It is one surface for producing Liner project folders.
 
-The skill writes authoring artifacts. The CLI compiles them.
+The skill writes initial authoring artifacts. The CLI compiles them and owns
+supported post-creation Project and Source maintenance.
 
 ## How Liner Differs From Skills
 
@@ -437,9 +479,14 @@ They overlap because Liner includes a skill, but they are not the same kind of t
 
 The relationship is:
 
-- The Liner skill helps author a mixtape.
+- The curation skill helps author a Mixtape.
 - The Liner CLI compiles the mixtape.
-- The mixtape can then be used in any AI tool, with or without the skill.
+- The Operating Layer creates the root Project Skill that teaches future
+  sessions how to use that completed Project.
+- The optional Maintenance Adapter delegates Codex or Claude maintenance to the
+  installed CLI's current guidance.
+- A `type: skill` Source stays inert evidence; it is never installed or executed.
+- The Mixtape can then be used in any AI tool, with or without these skills.
 
 So a skill is one way to make a mixtape. The mixtape is the portable artifact you keep.
 
@@ -490,9 +537,13 @@ sources:
 # Start a project.
 liner init mobile-design-foundations
 
-# Edit the recipe and synthesis.
-$EDITOR mobile-design-foundations/mixtape/tape.yaml
-$EDITOR mobile-design-foundations/mixtape/synthesis.md
+# Add known source material through Core, then use the TUI or curation skill to
+# review Sources, author synthesis, and assemble the corpus.
+liner sources add mobile-design-foundations \
+  --type web \
+  --url https://developer.apple.com/design/human-interface-guidelines/gestures \
+  --note "Apple's canonical gesture reference." \
+  --priority required
 
 # Enable JS rendering if needed.
 liner setup-js
@@ -527,7 +578,9 @@ The value is not in collecting the most sources. The value is in choosing, frami
 
 ### Plain Text Wins
 
-YAML and Markdown make the artifact easy to inspect, diff, edit, copy, and version.
+YAML and Markdown make the artifact easy to inspect, diff, copy, and version.
+For supported maintenance, Core changes those files through reviewed operations
+so plain-text transparency does not come at the expense of identity or receipts.
 
 ### Local First
 
@@ -554,16 +607,25 @@ Liner's methodology exists to catch these before compile.
 
 ## Project Status
 
-As of v1.0.0:
+The current source is the local v1.1.0 release candidate:
 
 - The Python CLI is functional.
 - The active Go TUI is functional. The old React/Ink TUI is decommissioned. The empirical-test phase has been removed from the driven flow — compilation is now the corpus-ready milestone and Create Operating Layer is the project-complete milestone. The hub is a single summary view (status box + always-visible phase checklist), import uses a file picker for `.mixtape` archives, and completed/partial compiles open the existing compile result instead of rerunning by default.
 - Phase 1 framing now validates the evidence plan before source discovery. The TUI requires a capability brief and required source roles with why/evidence/minimum coverage before advancing.
 - The npm distribution uses a main `linersh` package plus five optional platform packages (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`).
-- The release is installable via `npx linersh` on Mac, Linux, and Windows x64. `liner --version` reports the TUI version (and the bundled core version alongside it).
+- Published releases install through `npx linersh` on Mac, Linux, and Windows
+  x64. The local 1.1.0 candidate is not shipped until publish succeeds.
+  `liner --version` reports the TUI version and the bundled Core version.
 - JavaScript-rendered web support is available through `liner setup-js`; the TUI prompts for it during first-run onboarding and from compile warnings when Chromium is missing.
 - `liner uninstall` exists for clean local reinstall tests.
 - The curation skill exists, ships with the TUI package, and supports Claude or Codex as the local runner.
+- Liner Core owns supported Project and Source maintenance through versioned
+  Snapshots, Change Sets, exact-plan apply, retention-first removal, refresh
+  gates, and durable Change Receipts.
+- The Go TUI exposes `Maintain project`, while optional Codex and Claude
+  Maintenance Adapters delegate to the installed CLI's current guidance.
+- Project Skill, Maintenance Adapter, and inert `type: skill` Sources are
+  separate surfaces with different authority.
 - The MCP server, hosted web builder, and public library are planned.
 
 ## Where To Read Next

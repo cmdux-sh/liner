@@ -19,15 +19,24 @@ let fakeHome: string;
 let originalHome: string | undefined;
 let originalUserprofile: string | undefined;
 let originalLinerAgent: string | undefined;
+let originalCodexBin: string | undefined;
+let originalCodexHome: string | undefined;
+let originalNativeCodexHome: string | undefined;
 
 beforeEach(() => {
   fakeHome = mkdtempSync(join(tmpdir(), "liner-config-test-"));
   originalHome = process.env["HOME"];
   originalUserprofile = process.env["USERPROFILE"];
   originalLinerAgent = process.env["LINER_AGENT"];
+  originalCodexBin = process.env["LINER_CODEX_BIN"];
+  originalCodexHome = process.env["LINER_CODEX_HOME"];
+  originalNativeCodexHome = process.env["CODEX_HOME"];
   process.env["HOME"] = fakeHome;
   process.env["USERPROFILE"] = fakeHome; // Windows
   delete process.env["LINER_AGENT"];
+  delete process.env["LINER_CODEX_BIN"];
+  delete process.env["LINER_CODEX_HOME"];
+  delete process.env["CODEX_HOME"];
   vi.resetModules();
 });
 
@@ -39,6 +48,12 @@ afterEach(() => {
   else delete process.env["USERPROFILE"];
   if (originalLinerAgent !== undefined) process.env["LINER_AGENT"] = originalLinerAgent;
   else delete process.env["LINER_AGENT"];
+  if (originalCodexBin !== undefined) process.env["LINER_CODEX_BIN"] = originalCodexBin;
+  else delete process.env["LINER_CODEX_BIN"];
+  if (originalCodexHome !== undefined) process.env["LINER_CODEX_HOME"] = originalCodexHome;
+  else delete process.env["LINER_CODEX_HOME"];
+  if (originalNativeCodexHome !== undefined) process.env["CODEX_HOME"] = originalNativeCodexHome;
+  else delete process.env["CODEX_HOME"];
 });
 
 async function loadConfigModule(): Promise<typeof import("./config.js")> {
@@ -59,6 +74,8 @@ describe("config", () => {
     expect(cfg.configExists()).toBe(false);
     expect(cfg.readConfig()).toEqual({
       agent: null,
+      runner: null,
+      providerPreferences: null,
       models: null,
       jsSetupPrompted: false,
     });
@@ -78,6 +95,8 @@ describe("config", () => {
     writeFileSync(cfg.configPath(), "::: not yaml :::", "utf8");
     expect(cfg.readConfig()).toEqual({
       agent: null,
+      runner: null,
+      providerPreferences: null,
       models: null,
       jsSetupPrompted: false,
     });
@@ -106,10 +125,193 @@ describe("config", () => {
     expect(cfg.readConfig().models).toEqual({ claude: { candidates: "opus" } });
   });
 
+  it("round-trips independent provider model preferences", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: "gpt-5.6-sol" },
+        claude: { model: "sonnet" },
+      },
+    });
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: "gpt-5.6-sol" },
+      claude: { model: "sonnet" },
+    });
+    expect(readFileSync(cfg.configPath(), "utf8")).toContain("provider_preferences:");
+  });
+
+  it("round-trips OpenAI reasoning effort without clearing its model", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: "gpt-5.6-sol", reasoningEffort: "max" },
+      },
+    });
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { reasoningEffort: "high" },
+      },
+    });
+
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: "gpt-5.6-sol", reasoningEffort: "high" },
+    });
+    const saved = readFileSync(cfg.configPath(), "utf8");
+    expect(saved).toContain("reasoning_effort: high");
+  });
+
+  it("persists Auto separately from provider-default and fixed OpenAI models", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: "gpt-5.6-sol", reasoningEffort: "max" },
+      },
+    });
+
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: null, modelMode: "auto", reasoningEffort: null },
+      },
+    });
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: null, modelMode: "auto" },
+    });
+    let saved = readFileSync(cfg.configPath(), "utf8");
+    expect(saved).toContain("model_mode: auto");
+    expect(saved).not.toContain("model: gpt-5.6-sol");
+
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: null, modelMode: "default" },
+      },
+    });
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: null, modelMode: "default" },
+    });
+
+    cfg.writeConfig({
+      providerPreferences: {
+        codex: { model: "gpt-5.6-terra", modelMode: null },
+      },
+    });
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: "gpt-5.6-terra" },
+    });
+    saved = readFileSync(cfg.configPath(), "utf8");
+    expect(saved).not.toMatch(/^\s+model_mode:/m);
+  });
+
+  it("keeps a valid OpenAI model when reasoning effort is malformed", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "codex" });
+    writeFileSync(
+      cfg.configPath(),
+      "agent: codex\nprovider_preferences:\n  codex:\n    model: gpt-5.6-terra\n    reasoning_effort: turbo\n",
+      "utf8",
+    );
+
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: "gpt-5.6-terra" },
+    });
+  });
+
+  it("reads an effort-only OpenAI preference", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "codex" });
+    writeFileSync(
+      cfg.configPath(),
+      "agent: codex\nprovider_preferences:\n  codex:\n    reasoning_effort: xhigh\n",
+      "utf8",
+    );
+
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: null, reasoningEffort: "xhigh" },
+    });
+  });
+
+  it("updates one provider preference without deleting siblings or unknown fields", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "codex" });
+    writeFileSync(
+      cfg.configPath(),
+      [
+        "agent: codex",
+        "provider_preferences:",
+        "  codex:",
+        "    model: old-openai-model",
+        "    effort: high",
+        "  claude:",
+        "    model: opus",
+        "  future_provider:",
+        "    future_field: keep-me",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    cfg.writeConfig({ providerPreferences: { codex: { model: "gpt-5.6-terra" } } });
+
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      codex: { model: "gpt-5.6-terra" },
+      claude: { model: "opus" },
+    });
+    const saved = readFileSync(cfg.configPath(), "utf8");
+    for (const expected of ["model: gpt-5.6-terra", "effort: high", "model: opus", "future_field: keep-me"]) {
+      expect(saved).toContain(expected);
+    }
+  });
+
+  it("drops only malformed provider model entries", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "codex" });
+    writeFileSync(
+      cfg.configPath(),
+      "agent: codex\nrunner:\n  agent: codex\n  executable: /saved/codex\n  config_home: /saved/home\nprovider_preferences:\n  codex:\n    model: '   '\n  claude:\n    model: opus\n",
+      "utf8",
+    );
+    const out = cfg.readConfig();
+    expect(out.runner?.executable).toBe("/saved/codex");
+    expect(out.providerPreferences).toEqual({ claude: { model: "opus" } });
+  });
+
   it("round-trips the JS setup onboarding flag", async () => {
     const cfg = await loadConfigModule();
     cfg.writeConfig({ jsSetupPrompted: true });
     expect(cfg.readConfig().jsSetupPrompted).toBe(true);
+  });
+
+  it("round-trips the durable AI runner profile", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      runner: {
+        agent: "codex",
+        executable: "/opt/liner/bin/codex",
+        configHome: "/opt/liner/codex-home",
+      },
+    });
+
+    expect(cfg.readConfig().runner).toEqual({
+      agent: "codex",
+      executable: "/opt/liner/bin/codex",
+      configHome: "/opt/liner/codex-home",
+    });
+    expect(readFileSync(cfg.configPath(), "utf8")).not.toContain("auth");
+  });
+
+  it("drops a malformed runner profile and preserves unrelated settings on write", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "claude" });
+    writeFileSync(
+      cfg.configPath(),
+      "agent: claude\nrunner:\n  agent: codex\n  executable: 42\ncustom_field: keep-me\n",
+      "utf8",
+    );
+
+    expect(cfg.readConfig().runner).toBeNull();
+    cfg.writeConfig({ jsSetupPrompted: true });
+    const text = readFileSync(cfg.configPath(), "utf8");
+    expect(text).toContain("custom_field: keep-me");
+    expect(text).toContain("jsSetupPrompted: true");
   });
 
   it("preserves model overrides when only the agent changes", async () => {
@@ -147,13 +349,12 @@ describe("resolveConfiguredAgent priority order", () => {
     expect(cfg.resolveConfiguredAgent(installed)?.id).toBe("codex");
   });
 
-  it("ignores LINER_AGENT when the named agent isn't installed", async () => {
+  it("fails closed when LINER_AGENT names an unavailable runner", async () => {
     process.env["LINER_AGENT"] = "codex";
     const cfg = await loadConfigModule();
     cfg.writeConfig({ agent: "claude" });
-    // Codex isn't installed — env pin is invalid, fall through to config.
     const installed = [fakeAgent("claude")];
-    expect(cfg.resolveConfiguredAgent(installed)?.id).toBe("claude");
+    expect(cfg.resolveConfiguredAgent(installed)).toBeNull();
   });
 
   it("falls back to the configured agent when no env pin is set", async () => {
@@ -161,6 +362,83 @@ describe("resolveConfiguredAgent priority order", () => {
     cfg.writeConfig({ agent: "codex" });
     const installed = [fakeAgent("claude"), fakeAgent("codex")];
     expect(cfg.resolveConfiguredAgent(installed)?.id).toBe("codex");
+  });
+
+  it("uses the persisted executable instead of the same provider found on PATH", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      runner: {
+        agent: "codex",
+        executable: "/saved/bin/codex",
+        configHome: "/saved/codex-home",
+      },
+    });
+
+    const resolved = cfg.resolveConfiguredAgent([fakeAgent("codex")]);
+    expect(resolved).toMatchObject({
+      id: "codex",
+      bin: "/saved/bin/codex",
+      configHome: "/saved/codex-home",
+    });
+  });
+
+  it("lets explicit path overrides win without rewriting the saved profile", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      runner: {
+        agent: "codex",
+        executable: "/saved/bin/codex",
+        configHome: "/saved/codex-home",
+      },
+    });
+    const before = readFileSync(cfg.configPath(), "utf8");
+    process.env["LINER_CODEX_BIN"] = "/override/bin/codex";
+    process.env["LINER_CODEX_HOME"] = "/override/codex-home";
+
+    expect(cfg.resolveConfiguredAgent([fakeAgent("codex")])).toMatchObject({
+      bin: "/override/bin/codex",
+      configHome: "/override/codex-home",
+    });
+    expect(readFileSync(cfg.configPath(), "utf8")).toBe(before);
+  });
+
+  it("layers a matching LINER_AGENT over the saved paths before PATH detection", async () => {
+    process.env["LINER_AGENT"] = "codex";
+    const cfg = await loadConfigModule();
+    const config = {
+      agent: null,
+      runner: {
+        agent: "codex",
+        executable: "/saved/bin/codex",
+        configHome: "/saved/codex-home",
+      },
+      providerPreferences: null,
+      models: null,
+      jsSetupPrompted: false,
+    } satisfies import("./config.js").UserConfig;
+
+    expect(cfg.resolveConfiguredAgent([], config)).toMatchObject({
+      id: "codex",
+      bin: "/saved/bin/codex",
+      configHome: "/saved/codex-home",
+    });
+  });
+
+  it("lets the native config-home override win over the saved home", async () => {
+    process.env["CODEX_HOME"] = "/native/codex-home";
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({
+      runner: {
+        agent: "codex",
+        executable: "/saved/bin/codex",
+        configHome: "/saved/codex-home",
+      },
+    });
+
+    expect(cfg.resolveConfiguredAgent([])).toMatchObject({
+      bin: "/saved/bin/codex",
+      configHome: "/native/codex-home",
+    });
   });
 
   it("ignores configured agent when it's no longer installed", async () => {

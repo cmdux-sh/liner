@@ -1,0 +1,77 @@
+---
+title: Liner Projects and Mixtapes
+description: Understand the durable Liner Project, its Mixtape research packet, instruction files, status, and source files.
+---
+
+import FileTree from "../../../components/FileTree.astro";
+
+Liner saves each job as a durable Liner Project. A Mixtape is the curated research packet inside that project.
+
+<FileTree
+  root="mobile-design-foundations/"
+  items={[
+    { name: "liner.yaml", kind: "file" },
+    { name: "LINER.md", kind: "file" },
+    { name: "SKILL.md", kind: "file" },
+    { name: "working/", kind: "dir" },
+    { name: "mixtape/", kind: "dir" },
+    { name: "MIXTAPE.md", kind: "file", depth: 1, accent: true },
+    { name: "tape.yaml", kind: "file", depth: 1 },
+    { name: "synthesis.md", kind: "file", depth: 1 },
+    { name: "sources/", kind: "dir", depth: 1 },
+    { name: "01-touch-target-size.md", kind: "file", depth: 2 },
+    { name: "02-apple-gestures.md", kind: "file", depth: 2 },
+    { name: "local-sources/", kind: "dir", depth: 1 },
+    { name: "touch-target-paper.pdf", kind: "file", depth: 2 },
+    { name: "working/", kind: "dir", depth: 1 },
+    { name: "01-jtbd-and-knowledge-map.md", kind: "file", depth: 2 },
+    { name: "02-candidate-longlist.md", kind: "file", depth: 2 },
+    { name: "03-evaluation.yaml", kind: "file", depth: 2 },
+    { name: "04-quality-checks.md", kind: "file", depth: 2 },
+  ]}
+/>
+
+## Tape
+
+`mixtape/tape.yaml` is the recipe. It names the mixtape, describes its purpose, identifies the curator, and lists the kept sources.
+
+The tape is small enough to review, fork, and store in Git.
+
+For supported changes after creation, use Liner's Project and Source maintenance
+commands instead of editing canonical files directly. Core preserves identity,
+plans the exact file effects, and records a Change Receipt after apply.
+
+## Liner Project
+
+The Liner Project owns the Mixtape plus the instruction files future AI sessions need.
+
+- `LINER.md` tells an AI how to use the saved research.
+- `SKILL.md` is the default skill file for local AI assistants.
+- `liner.yaml` records status, evidence pointers, and instruction-file state.
+- `working/` is for audits and maintenance notes.
+
+## Mixtape
+
+The Mixtape is the research packet. It lives under `mixtape/` and includes the tape, synthesis, extracted sources, optional private source copies, methodology notes, and compiled output.
+
+## Consumable Output
+
+`mixtape/MIXTAPE.md` is the research entry point. It includes the curator synthesis and a source index with links to extracted files in `mixtape/sources/`. A written `MIXTAPE.md` means the research packet is compiled, but the AI instruction files may still need to be created.
+
+## Instruction Files
+
+In the terminal UI, **Create Operating Layer** is the guided action that writes `LINER.md`, root `SKILL.md`, and `liner.yaml`.
+
+Use it when a future AI session should load the whole folder, follow the method from the saved research, and understand status without reading every working note first.
+
+## Curator Notes
+
+Every source should explain why it belongs. A source with no note is just a bookmark. A useful note tells the AI what matters, what to skim, and any limitation to keep in mind.
+
+## Skills And Projects
+
+Skills carry reusable method: steps, style, rules, and taste.
+
+Mixtapes carry job-specific research context: primary docs, examples, contested takes, and local files.
+
+A Liner Project combines both: job-specific evidence in the Mixtape, plus task-specific method in the root skill file.

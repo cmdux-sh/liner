@@ -40,9 +40,71 @@ describe("readCandidateLonglist", () => {
       },
     ]);
   });
+
+  it("keeps level-three candidate titles inside their level-two knowledge-map section", () => {
+    const root = mkdtempSync(join(tmpdir(), "liner-heading-longlist-"));
+    const path = write(
+      join(root, "working/02-candidate-longlist.md"),
+      [
+        "# Candidate long-list",
+        "",
+        "## 1. Foundations",
+        "",
+        "### Source A",
+        "",
+        "- URL: https://example.com/a",
+        "- Candidate reason: Strong foundation.",
+        "",
+        "### Source B",
+        "",
+        "- URL: https://example.com/b",
+        "- Candidate reason: Useful counterpoint.",
+      ].join("\n"),
+    );
+
+    const candidates = readCandidateLonglist(path);
+    expect(candidates).toEqual([
+      {
+        url: "https://example.com/a",
+        title: "Source A",
+        section: "Foundations",
+        reason: "Strong foundation.",
+      },
+      {
+        url: "https://example.com/b",
+        title: "Source B",
+        section: "Foundations",
+        reason: "Useful counterpoint.",
+      },
+    ]);
+    expect(groupCandidateLonglist(candidates)).toMatchObject([
+      {
+        index: 1,
+        total: 1,
+        section: "Foundations",
+        candidates,
+      },
+    ]);
+  });
 });
 
 describe("groupCandidateLonglist", () => {
+  it("turns the captured 47-candidate, eight-section shape into eight evaluation groups", () => {
+    const sectionSizes = [6, 6, 6, 6, 6, 6, 6, 5];
+    const candidates = sectionSizes.flatMap((size, sectionIndex) =>
+      Array.from({ length: size }, (_, candidateIndex) => ({
+        url: `https://example.com/${sectionIndex + 1}/${candidateIndex + 1}`,
+        section: `Research section ${sectionIndex + 1}`,
+      })),
+    );
+
+    const groups = groupCandidateLonglist(candidates);
+    expect(candidates).toHaveLength(47);
+    expect(groups).toHaveLength(8);
+    expect(groups.map((group) => group.candidates.length)).toEqual(sectionSizes);
+    expect(groups.every((group) => group.total === 8)).toBe(true);
+  });
+
   it("groups by section and splits large sections into stable fragment paths", () => {
     const candidates = Array.from({ length: 3 }, (_, i) => ({
       url: `https://example.com/${i}`,

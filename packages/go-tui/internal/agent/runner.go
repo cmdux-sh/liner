@@ -94,7 +94,7 @@ func (r Runner) Start(ctx context.Context, args RunArgs) (Run, error) {
 		return Run{}, err
 	}
 
-	events := make(chan Event)
+	events := make(chan Event, 16)
 	done := make(chan error, 1)
 	var stderrBuf bytes.Buffer
 	var stderrWG sync.WaitGroup
@@ -132,7 +132,7 @@ func (r Runner) Start(ctx context.Context, args RunArgs) (Run, error) {
 	return Run{Events: events, Done: done}, nil
 }
 
-func scanEvents(ctx context.Context, stdout io.Reader, events chan<- Event) error {
+func scanEvents(ctx context.Context, stdout io.Reader, events chan Event) error {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
@@ -143,8 +143,43 @@ func scanEvents(ctx context.Context, stdout io.Reader, events chan<- Event) erro
 		select {
 		case events <- event:
 		case <-ctx.Done():
-			return ctx.Err()
+			if isTerminalRunnerEvent(event) {
+				deliverTerminalRunnerEvent(events, event)
+			}
 		}
 	}
 	return scanner.Err()
+}
+
+func isTerminalRunnerEvent(event Event) bool {
+	switch event.Kind {
+	case "runner_cancelled", "runner_failure", "runner_error", "runner_done":
+		return true
+	default:
+		return false
+	}
+}
+
+func deliverTerminalRunnerEvent(events chan Event, event Event) {
+	if cap(events) == 0 {
+		select {
+		case events <- event:
+		default:
+		}
+		return
+	}
+	for {
+		select {
+		case events <- event:
+			return
+		default:
+		}
+		// The detached UI no longer needs queued progress. Evict the oldest
+		// buffered item so terminal outcomes always retain a route across the
+		// bridge without blocking process shutdown.
+		select {
+		case <-events:
+		default:
+		}
+	}
 }

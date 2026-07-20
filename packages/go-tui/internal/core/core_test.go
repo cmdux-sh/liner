@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -52,6 +54,26 @@ func TestDefaultBaseDirUsesHomeProjectLibrary(t *testing.T) {
 	want := filepath.Join(home, "liner", "projects")
 	if got := DefaultBaseDir(); got != want {
 		t.Fatalf("expected home project library, got %q want %q", got, want)
+	}
+}
+
+func TestSetupJSInvokesNonInteractiveCoreCommand(t *testing.T) {
+	argsPath := filepath.Join(t.TempDir(), "setup-args")
+	runnerPath := filepath.Join(t.TempDir(), "liner-core")
+	if err := os.WriteFile(runnerPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$LINER_SETUP_ARGS\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LINER_SETUP_ARGS", argsPath)
+
+	if err := (Runner{Command: runnerPath}).SetupJS(); err != nil {
+		t.Fatalf("setup JS command failed: %v", err)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Fields(string(args)), []string{"setup-js", "--yes"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected setup JS arguments: got %#v want %#v", got, want)
 	}
 }
 
@@ -190,12 +212,13 @@ func TestParseProjectStatus(t *testing.T) {
 	}
 }
 
-func TestProjectStatusFallsBackWhenNoWriteUnsupported(t *testing.T) {
+func TestProjectStatusDoesNotFallBackToWritableStatus(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script runner fixture is unix-only")
 	}
 	dir := t.TempDir()
 	script := filepath.Join(dir, "liner")
+	marker := filepath.Join(dir, "writable-status-ran")
 	body := `#!/bin/sh
 for arg in "$@"; do
   if [ "$arg" = "--no-write" ]; then
@@ -203,17 +226,49 @@ for arg in "$@"; do
     exit 2
   fi
 done
-printf '{"progress":{"step":10,"total":10,"source":"fallback"},"phases":[]}\n'
+touch "` + marker + `"
+printf '{"progress":{"step":10,"total":10,"source":"writable"},"phases":[]}\n'
 `
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := (Runner{Command: script}).ProjectStatus("/tmp/project")
+	_, err := (Runner{Command: script}).ProjectStatus("/tmp/project")
+	if err == nil || !strings.Contains(err.Error(), "exit status 2") {
+		t.Fatalf("expected unsupported read-only status to fail closed, got %v", err)
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("ProjectStatus must not invoke writable fallback, stat err=%v", statErr)
+	}
+}
+
+func TestRefreshProjectStatusUsesStatusOnlyWriter(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script runner fixture is unix-only")
+	}
+	dir := t.TempDir()
+	script := filepath.Join(dir, "liner")
+	argsPath := filepath.Join(dir, "args")
+	body := `#!/bin/sh
+printf '%s\n' "$@" > "` + argsPath + `"
+printf '{"progress":{"step":1,"total":1,"source":"status-only"},"phases":[]}\n'
+`
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := (Runner{Command: script}).RefreshProjectStatus("/tmp/project")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Progress.Source != "fallback" || got.Progress.Step != 10 {
-		t.Fatalf("unexpected fallback status: %#v", got.Progress)
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "--status-only") || strings.Contains(string(args), "--no-write") {
+		t.Fatalf("Refresh Status must use the dedicated status-only writer, args:\n%s", args)
+	}
+	if got.Progress.Source != "status-only" {
+		t.Fatalf("unexpected refreshed status: %#v", got.Progress)
 	}
 }

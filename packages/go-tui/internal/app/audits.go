@@ -496,7 +496,7 @@ func (m Model) acceptSourceNoteCleanupDraft() (Model, tea.Cmd) {
 		m.err = err.Error()
 		return m, nil
 	}
-	item, updated, err := applySourceNoteCleanup(m.currentPath, rel)
+	item, updated, err := applySourceNoteCleanup(m.runner, m.currentPath, rel)
 	if err != nil {
 		m.err = err.Error()
 		return m, nil
@@ -1126,31 +1126,7 @@ func writeContradictionCleanupDraft(project string) (auditFile, error) {
 }
 
 func applyContradictionCleanup(project string, draftRel string) (auditFile, error) {
-	draftPath := filepath.Join(project, draftRel)
-	draft, err := os.ReadFile(draftPath)
-	if err != nil {
-		return auditFile{}, fmt.Errorf("Could not read contradiction cleanup draft: %w", err)
-	}
-	linerPath := filepath.Join(project, "LINER.md")
-	existing, err := os.ReadFile(linerPath)
-	if err != nil && !os.IsNotExist(err) {
-		return auditFile{}, fmt.Errorf("Could not read LINER.md: %w", err)
-	}
-	backupRel := ""
-	if err == nil {
-		backupRel = filepath.Join("working", "audits", time.Now().Format("2006-01-02-150405")+"-contradiction-cleanup-LINER-backup.md")
-		if err := os.MkdirAll(filepath.Join(project, filepath.Dir(backupRel)), 0o755); err != nil {
-			return auditFile{}, err
-		}
-		if err := os.WriteFile(filepath.Join(project, backupRel), existing, 0o644); err != nil {
-			return auditFile{}, fmt.Errorf("Could not back up LINER.md: %w", err)
-		}
-	}
-	updated := applyContradictionCleanupSection(string(existing), string(draft))
-	if err := os.WriteFile(linerPath, []byte(updated), 0o644); err != nil {
-		return auditFile{}, fmt.Errorf("Could not write LINER.md: %w", err)
-	}
-	return writeContradictionCleanupApplyAudit(project, draftRel, backupRel, len(draft))
+	return auditFile{}, legacyCoreWriterError("apply contradiction cleanup")
 }
 
 func applyContradictionCleanupSection(existing string, draft string) string {

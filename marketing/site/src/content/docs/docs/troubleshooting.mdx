@@ -1,0 +1,48 @@
+---
+title: Troubleshooting
+description: Fix common Liner install, compile, rendering, and transcript issues.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+
+## Check The Installed Version
+
+<CommandSnippet command="npx linersh@latest --version" />
+
+Expected current output:
+
+<CommandSnippet command="liner 1.1.0 (tui) · 1.1.0 (core)" prompt=">" label="Copy" />
+
+If the platform core binary cannot be resolved, the version command prints only the TUI package version.
+
+## JavaScript Rendering Needed
+
+If compile says a page needs headless Chromium, run:
+
+<CommandSnippet command={`npx --yes linersh@latest setup-js
+liner setup-js`} />
+
+Use the `npx` form for one-shot installs, or `liner setup-js` after a global install. The terminal UI can also run this from the compile screen when it shows the JS rendering callout.
+
+## YouTube Transcript Problems
+
+YouTube can block transcript fetching for age-restricted, region-locked, or rate-limited videos. Use a Netscape-format cookies file:
+
+<CommandSnippet command="liner compile mobile-design-foundations --cookies ~/cookies.txt" />
+
+You can also set a default in `~/.liner/config.toml`.
+
+## TUI Cannot Find The Core
+
+For local development, point the npm TUI at a specific Python core binary:
+
+<CommandSnippet command="LINER_BIN=/path/to/liner liner" />
+
+The resolver tries `LINER_BIN`, the bundled platform package, the repo-local virtualenv, then `liner` on `PATH`.
+
+## Reset Local State
+
+<CommandSnippet command={`npx --yes linersh@latest uninstall --yes
+liner uninstall --yes`} />
+
+Use the `npx` form for one-shot installs, or `liner uninstall --yes` after a global install. This removes Liner's local state, Playwright Chromium cache, and npm's npx execution cache. It is useful when testing a clean `npx linersh` install.

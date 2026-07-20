@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import UUID, uuid4
 
 import yaml
 
@@ -37,7 +38,7 @@ def validate_tape(raw: dict[str, Any]) -> Tape:
             raise TapeValidationError(required, "required field missing")
 
     version = raw["version"]
-    if not isinstance(version, int):
+    if type(version) is not int:
         raise TapeValidationError("version", "must be an integer")
     if version != SUPPORTED_TAPE_VERSION:
         raise TapeValidationError(
@@ -87,9 +88,7 @@ def validate_tape(raw: dict[str, Any]) -> Tape:
             )
         for i, entry in enumerate(clarifications_raw):
             if not isinstance(entry, dict):
-                raise TapeValidationError(
-                    f"jtbd_clarifications[{i}]", "must be a mapping"
-                )
+                raise TapeValidationError(f"jtbd_clarifications[{i}]", "must be a mapping")
             q = entry.get("question")
             a = entry.get("answer")
             if not isinstance(q, str) or not isinstance(a, str):
@@ -131,6 +130,8 @@ def _validate_source(src: Any, path_prefix: str) -> SourceSpec:
             f"must be one of {sorted(ALLOWED_SOURCE_TYPES)}, got {s_type!r}",
         )
 
+    source_id = _validate_source_id(src.get("id"), path_prefix)
+
     # Shared optional fields
     priority = src.get("priority", "required")
     if priority not in ALLOWED_PRIORITIES:
@@ -155,16 +156,30 @@ def _validate_source(src: Any, path_prefix: str) -> SourceSpec:
         )
 
     if s_type == "local_file":
-        return _validate_local_file_source(src, path_prefix, note, section, priority, kind)
+        return _validate_local_file_source(
+            src, path_prefix, source_id, note, section, priority, kind
+        )
     if s_type == "skill":
-        return _validate_skill_source(src, path_prefix, note, section, priority, kind)
-    return _validate_url_source(src, path_prefix, s_type, note, section, priority, kind)
+        return _validate_skill_source(src, path_prefix, source_id, note, section, priority, kind)
+    return _validate_url_source(src, path_prefix, s_type, source_id, note, section, priority, kind)
+
+
+def _validate_source_id(value: Any, path_prefix: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TapeValidationError(f"{path_prefix}.id", "must be a UUID string if present")
+    try:
+        return str(UUID(value))
+    except ValueError as error:
+        raise TapeValidationError(f"{path_prefix}.id", "must be a valid UUID if present") from error
 
 
 def _validate_url_source(
     src: dict[str, Any],
     path_prefix: str,
     s_type: str,
+    source_id: str | None,
     note: str | None,
     section: str | None,
     priority: str,
@@ -201,6 +216,7 @@ def _validate_url_source(
 
     return SourceSpec(
         type=s_type,  # type: ignore[arg-type]
+        source_id=source_id,
         url=url,
         note=note,
         section=section,
@@ -213,6 +229,7 @@ def _validate_url_source(
 def _validate_local_file_source(
     src: dict[str, Any],
     path_prefix: str,
+    source_id: str | None,
     note: str | None,
     section: str | None,
     priority: str,
@@ -237,16 +254,12 @@ def _validate_local_file_source(
 
     raw_path = src["path"]
     if not isinstance(raw_path, str) or not raw_path.strip():
-        raise TapeValidationError(
-            f"{path_prefix}.path", "must be a non-empty string"
-        )
+        raise TapeValidationError(f"{path_prefix}.path", "must be a non-empty string")
     path_value = raw_path.strip()
 
     citation = src["citation"]
     if not isinstance(citation, str) or not citation.strip():
-        raise TapeValidationError(
-            f"{path_prefix}.citation", "must be a non-empty string"
-        )
+        raise TapeValidationError(f"{path_prefix}.citation", "must be a non-empty string")
 
     # Validate path shape only — file existence is checked at compile time.
     if Path(path_value).is_absolute():
@@ -274,6 +287,7 @@ def _validate_local_file_source(
 
     return SourceSpec(
         type="local_file",
+        source_id=source_id,
         url="",
         note=note,
         section=section,
@@ -287,6 +301,7 @@ def _validate_local_file_source(
 def _validate_skill_source(
     src: dict[str, Any],
     path_prefix: str,
+    source_id: str | None,
     note: str | None,
     section: str | None,
     priority: str,
@@ -306,7 +321,10 @@ def _validate_skill_source(
         parsed = urlparse(url.strip())
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise TapeValidationError(f"{path_prefix}.url", f"not a valid URL: {url!r}")
-        if "github.com" not in parsed.netloc.lower() and "raw.githubusercontent.com" not in parsed.netloc.lower():
+        if (
+            "github.com" not in parsed.netloc.lower()
+            and "raw.githubusercontent.com" not in parsed.netloc.lower()
+        ):
             raise TapeValidationError(
                 f"{path_prefix}.url",
                 "remote skill sources currently support GitHub URLs only",
@@ -336,6 +354,7 @@ def _validate_skill_source(
 
     return SourceSpec(
         type="skill",
+        source_id=source_id,
         url=url.strip() if isinstance(url, str) else "",
         note=note,
         section=section,
@@ -362,19 +381,28 @@ jtbd: Replace this with a single-sentence statement of what you want the AI to h
 tags: [example, starter]
 
 sources:
-  - type: youtube
+  - id: {youtube_source_id}
+    type: youtube
     url: https://www.youtube.com/watch?v=aircAruvnKk
     note: "3Blue1Brown intro to neural networks. Famously clear visual explanation."
     section: intro
 
-  - type: web
+  - id: {web_source_id}
+    type: web
     url: https://en.wikipedia.org/wiki/Mixtape
     note: "Background on the mixtape as a curation format — liner's namesake."
     section: intro
 """
 
 
+def starter_tape_with_ids() -> str:
+    return STARTER_TAPE.format(
+        youtube_source_id=uuid4(),
+        web_source_id=uuid4(),
+    )
+
+
 def write_starter_tape(path: Path, force: bool = False) -> None:
     if path.exists() and not force:
         raise FileExistsError(f"{path} already exists. Use --force to overwrite.")
-    path.write_text(STARTER_TAPE, encoding="utf-8")
+    path.write_text(starter_tape_with_ids(), encoding="utf-8")

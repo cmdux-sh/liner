@@ -5,8 +5,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/cmdux/liner/packages/go-tui/internal/source"
 )
 
 type keyBindings struct {
@@ -97,8 +95,22 @@ func (h screenHelp) FullHelp() [][]key.Binding {
 }
 
 func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
-	if key.Matches(keyMsg, bindings.Help) {
+	if m.screen == screenSynthesisReview && m.synthesisReviewEditing {
+		return m.handleSynthesisReviewKey(keyMsg)
+	}
+	if key.Matches(keyMsg, bindings.Help) && !m.activeTextInputOwns(keyMsg) {
 		m.help.ShowAll = !m.help.ShowAll
+		return m, nil
+	}
+	if m.screen == screenCreate && m.createRunning {
+		if key.Matches(keyMsg, bindings.Quit) {
+			return m, tea.Quit
+		}
+		if m.createOpenRetryPath != "" {
+			m.note = "The already-created Project is being reopened. Core creation is not running; wait for the open result."
+		} else {
+			m.note = "Project creation is already running. Additional input is disabled until Liner Core returns."
+		}
 		return m, nil
 	}
 	if m.screen == screenCompile && m.sourceRecoveryRunning {
@@ -128,6 +140,12 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 	if m.screen == screenLinerReview && m.operatingLayerRunning {
 		return m.handleLinerReviewKey(keyMsg)
+	}
+	if m.screen == screenSourceReview && m.sourceBatchRunning {
+		return m.handleSourceReviewKey(keyMsg)
+	}
+	if m.screen == screenSettings && (m.settingsCustomEditing || m.settingsPane != settingsPaneMenu) {
+		return m.handleSettingsKey(keyMsg)
 	}
 	if key.Matches(keyMsg, bindings.Home) && m.screen == screenResearch {
 		m.stopMethodology("Paused by user.")
@@ -184,8 +202,17 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.screen == screenOnboarding {
 		return m.handleOnboardingKey(keyMsg)
 	}
+	if m.screen == screenMaintenance {
+		return m.handleMaintenanceKey(keyMsg)
+	}
+	if m.screen == screenSynthesisReview {
+		return m.handleSynthesisReviewKey(keyMsg)
+	}
 	if m.screen == screenResearch && key.Matches(keyMsg, bindings.Retry) {
 		return m.retryMethodologyPhase()
+	}
+	if m.screen == screenResearch && (m.methodologyFailed || m.methodologyCancelled) && keyMsg.String() == "v" {
+		return m.openMethodologyFullLog()
 	}
 	if m.screen == screenProjects && (m.homeFiltering || (keyMsg.String() == "esc" && m.homeFilter != "")) {
 		return m.handleHomeFilterKey(keyMsg)
@@ -284,6 +311,13 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 
 	if m.screen == screenCreate {
+		if m.createOpenRetryPath != "" {
+			if keyMsg.String() == "enter" {
+				return m.submitCreate()
+			}
+			m.note = "The Project already exists. Press enter to retry opening it; Core creation will not run again."
+			return m, nil
+		}
 		switch keyMsg.String() {
 		case "enter":
 			if m.createStep < createFieldCount()-1 {
@@ -296,9 +330,11 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			}
 			return m.submitCreate()
 		case "tab", "down":
+			m.createError = ""
 			m.commitCreateInput()
 			m.setCreateField((m.createStep + 1) % createFieldCount())
 		case "shift+tab", "up":
+			m.createError = ""
 			m.commitCreateInput()
 			next := m.createStep - 1
 			if next < 0 {
@@ -358,6 +394,25 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		if key.Matches(keyMsg, bindings.Settings) {
 			return m.startSettings(), nil
 		}
+		if m.projectSnapshotDegraded() {
+			switch keyMsg.String() {
+			case "up", "shift+tab":
+				m.moveProjectPane(-1)
+			case "down", "tab":
+				m.moveProjectPane(1)
+			case "r":
+				m.projectSnapshotLoading = true
+				m.projectSnapshotErr = ""
+				m.note = "Retrying the Core Project Snapshot."
+				m.err = ""
+				return m, loadProjectSnapshot(m.runner, m.currentPath)
+			case "o":
+				return m, openPath(m.currentPath)
+			case "enter", "a", "c", "l", "m", "i":
+				m.err = "Project actions are read-only until Liner Core returns a trustworthy Project Snapshot. Press r to retry."
+			}
+			return m, nil
+		}
 		switch keyMsg.String() {
 		case "up", "shift+tab":
 			m.moveProjectPane(-1)
@@ -368,12 +423,48 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		case "o":
 			return m, openPath(m.currentPath)
 		case "a":
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only. Adding Sources is unavailable."
+				return m, nil
+			}
 			m.startSourceEntry()
 		case "c":
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only. Compile is unavailable."
+				return m, nil
+			}
 			return m.startCompile()
+		case "v":
+			if m.projectPane == 2 && m.canOpenSourceBoard() && m.projectMutationsAvailable() {
+				return m.startSourceBoard()
+			}
+		case "u":
+			if m.projectPane == 2 && m.hasDroppedCustomSources() && m.projectMutationsAvailable() {
+				return m.retryExcludedLocalSources()
+			}
+		case "p":
+			if m.hasCompiledMixtape() {
+				return m.openPreview("MIXTAPE.md")
+			}
+		case "m":
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only; maintenance planning is unavailable."
+				return m, nil
+			}
+			return m.startMaintenance()
+		case "i":
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only; corpus improvement is unavailable."
+				return m, nil
+			}
+			return m.startImprovementReview(), nil
 		case "l":
 			if m.projectCapabilities().HasLiner {
 				return m.openPreview("LINER.md")
+			}
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only. Operating Layer creation is unavailable."
+				return m, nil
 			}
 			if m.projectCompileNeedsAttention() {
 				m.err = "Review compile issues and retry compile before creating the Operating Layer."
@@ -384,7 +475,11 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			}
 			m.err = "Reach Corpus Ready before creating the Operating Layer."
 		case "r":
-			if m.canRegenerateOperatingLayer() {
+			if !m.projectMutationsAvailable() {
+				m.err = "Liner Core reports this Project as read-only. Operating Layer regeneration is unavailable."
+				return m, nil
+			}
+			if m.projectMutationsAvailable() && m.canRegenerateOperatingLayer() {
 				return m.startLinerDraftReview()
 			}
 		case "h":
@@ -464,10 +559,44 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// activeTextInputOwns keeps printable characters inside the field that has the
+// cursor. Global shortcuts must only run when no editor or filter owns them.
+func (m Model) activeTextInputOwns(keyMsg tea.KeyPressMsg) bool {
+	if keyMsg.Text == "" {
+		return false
+	}
+	switch m.screen {
+	case screenHome:
+		return m.commandListFiltering()
+	case screenProjects:
+		return m.homeFiltering
+	case screenSources:
+		return shouldEditSourceText(m, keyMsg)
+	case screenCreate:
+		return !m.createRunning && m.createStep < createFieldCount()-1
+	case screenClarify:
+		return m.canEditClarifyText()
+	case screenSettings:
+		return m.settingsCustomEditing || m.settingsPane == settingsPaneProjectsFolder
+	case screenOnboarding:
+		return m.onboardingEditingDir
+	case screenMaintenance:
+		return !m.maintenanceLoading && m.maintenancePlan == nil && m.maintenanceEditing
+	default:
+		return false
+	}
+}
+
 func (m Model) supportsHomeShortcut() bool {
 	switch m.screen {
 	case screenHome, screenSources, screenCreate, screenClarify:
 		return false
+	case screenSynthesisReview:
+		return !m.synthesisReviewEditing && !m.synthesisReviewApplying && !m.synthesisReviewReconcile
+	case screenMaintenance:
+		return !m.maintenanceEditing && !m.maintenanceLoading && !m.maintenanceApplying && !m.maintenanceReconcile && m.maintenancePlan == nil
+	case screenImprovementReview:
+		return !m.improvementLoading && !m.improvementApplying && !m.improvementReconcile && m.improvementPlan == nil
 	case screenOnboarding:
 		return false
 	case screenProjects:
@@ -478,7 +607,9 @@ func (m Model) supportsHomeShortcut() bool {
 }
 
 func (m Model) withNavigationHelp(help screenHelp) screenHelp {
-	if m.screen != screenHome && m.screen != screenOnboarding {
+	protectedSynthesisReview := m.screen == screenSynthesisReview && (m.synthesisReviewApplying || m.synthesisReviewReconcile)
+	protectedMaintenance := m.screen == screenMaintenance && (m.maintenanceApplying || m.maintenanceReconcile)
+	if m.screen != screenHome && m.screen != screenOnboarding && !protectedSynthesisReview && !protectedMaintenance {
 		help.short = insertHelpBinding(help.short, bindings.Back, bindings.Help)
 		if len(help.full) == 0 {
 			help.full = [][]key.Binding{{bindings.Back, bindings.Help}}
@@ -565,7 +696,7 @@ func (m Model) handleSourceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				m.note = "Review active sources before clarifying the job."
 				return m, nil
 			}
-			m.err = "Paste one source first, or finish without custom sources."
+			m.err = "Paste one Source into the Source Inbox first, or finish without adding one."
 			return m, nil
 		}
 		m.note = "Adding source..."
@@ -628,16 +759,43 @@ func dropLastRune(value string) string {
 }
 
 func (m Model) handleSourceReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
+	if m.sourceBatchRunning {
+		switch {
+		case key.Matches(keyMsg, bindings.Quit, bindings.Back):
+			m.sourceBatchCancelRequested = true
+			if m.sourceBatchPhase == sourceBatchPhaseApply {
+				m.note = "Cancellation requested. Atomic apply cannot be interrupted; Liner will stop after Core finishes or rolls back."
+			} else {
+				m.note = "Cancellation requested. Liner will stop at the next safe boundary before atomic apply."
+			}
+			return m, nil
+		default:
+			m.note = "The Source batch is still running. Press esc to cancel at the next safe boundary."
+			return m, nil
+		}
+	}
 	switch {
 	case key.Matches(keyMsg, bindings.Quit):
 		return m, tea.Quit
 	case key.Matches(keyMsg, bindings.Back):
+		m.sourceMaintenancePlan = nil
+		m.sourceBatchPlanValidated = false
+		m.sourceBatchPhase = ""
+		m.sourceBatchCancelRequested = false
 		m.screen = screenSources
 		return m, nil
 	case key.Matches(keyMsg, bindings.EditMore):
+		m.sourceMaintenancePlan = nil
+		m.sourceBatchPlanValidated = false
+		m.sourceBatchPhase = ""
+		m.sourceBatchCancelRequested = false
 		m.screen = screenSources
 		return m, nil
 	case key.Matches(keyMsg, bindings.Toggle):
+		m.sourceMaintenancePlan = nil
+		m.sourceBatchPlanValidated = false
+		m.sourceBatchPhase = ""
+		m.sourceBatchCancelRequested = false
 		index := m.sourceTable.Cursor()
 		if index >= 0 && index < len(m.sourceItems) {
 			m.sourceItems[index].Active = !m.sourceItems[index].Active
@@ -650,6 +808,10 @@ func (m Model) handleSourceReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m, writeSourceManifest(m.currentPath, m.sourceItems)
 		}
 	case key.Matches(keyMsg, bindings.Remove):
+		m.sourceMaintenancePlan = nil
+		m.sourceBatchPlanValidated = false
+		m.sourceBatchPhase = ""
+		m.sourceBatchCancelRequested = false
 		index := m.sourceTable.Cursor()
 		if index >= 0 && index < len(m.sourceItems) {
 			m.sourceItems = append(m.sourceItems[:index], m.sourceItems[index+1:]...)
@@ -657,15 +819,7 @@ func (m Model) handleSourceReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m, writeSourceManifest(m.currentPath, m.sourceItems)
 		}
 	case key.Matches(keyMsg, bindings.Start):
-		if len(source.ActiveSources(m.sourceItems)) == 0 {
-			m.err = "No active sources selected. Reactivate one or add more."
-			return m, nil
-		}
-		m.note = "Saving active sources."
-		if !m.sourceEntryReturnsToCompile() {
-			m.note = "Saving active sources and preparing clarification."
-		}
-		return m, saveActiveSources(m.currentPath, m.sourceItems)
+		return m.startInitialSourceBatch()
 	case key.Matches(keyMsg, bindings.OpenReview):
 		if !m.canOpenLocalSources() {
 			m.err = "No local-sources folder yet. Add a source first."
@@ -680,7 +834,7 @@ func shouldEditSourceText(m Model, keyMsg tea.KeyPressMsg) bool {
 	switch {
 	case sourceEntryHasListFocus(m) && key.Matches(keyMsg, bindings.Scroll, bindings.Toggle, bindings.Remove):
 		return false
-	case key.Matches(keyMsg, bindings.Quit, bindings.Back, bindings.Ingest, bindings.OpenFolder, bindings.Help):
+	case key.Matches(keyMsg, bindings.Quit, bindings.Back, bindings.Ingest, bindings.OpenFolder):
 		return false
 	case key.Matches(keyMsg, bindings.Finish):
 		return strings.TrimSpace(m.sourceInput.Value()) != "" && keyMsg.String() != "ctrl+d"
@@ -701,7 +855,7 @@ func shouldEditCreateText(m Model, keyMsg tea.KeyPressMsg) bool {
 	case "enter", "tab", "shift+tab", "up", "down", "esc":
 		return false
 	default:
-		return !key.Matches(keyMsg, bindings.Help, bindings.Quit)
+		return !key.Matches(keyMsg, bindings.Quit)
 	}
 }
 
@@ -710,7 +864,7 @@ func shouldEditClarifyText(keyMsg tea.KeyPressMsg) bool {
 	case "enter", "tab", "shift+tab", "up", "down", "esc":
 		return false
 	default:
-		return !key.Matches(keyMsg, bindings.Help, bindings.Quit)
+		return !key.Matches(keyMsg, bindings.Quit)
 	}
 }
 
@@ -751,6 +905,14 @@ func (m Model) baseHelpForScreen() screenHelp {
 			},
 		}
 	case screenSourceReview:
+		if m.sourceBatchRunning {
+			cancel := bindings.Back
+			cancel.SetHelp("esc", "cancel at boundary")
+			return screenHelp{
+				short: []key.Binding{cancel, helpKey},
+				full:  [][]key.Binding{{cancel, helpKey}},
+			}
+		}
 		firstRow := []key.Binding{bindings.Start, bindings.Toggle, bindings.Remove, bindings.EditMore}
 		if m.canOpenLocalSources() {
 			openFolder := bindings.OpenReview
@@ -765,6 +927,20 @@ func (m Model) baseHelpForScreen() screenHelp {
 			},
 		}
 	case screenAssemblyReview:
+		if m.sourceBatchRunning || m.assemblyAwaitingSnapshot {
+			if m.assemblyAwaitingSnapshot {
+				return screenHelp{
+					short: []key.Binding{helpKey},
+					full:  [][]key.Binding{{helpKey}},
+				}
+			}
+			cancel := bindings.Back
+			cancel.SetHelp("esc", "cancel at boundary")
+			return screenHelp{
+				short: []key.Binding{cancel, helpKey},
+				full:  [][]key.Binding{{cancel, helpKey}},
+			}
+		}
 		accept := bindings.Start
 		accept.SetHelp("enter", "accept")
 		openDraft := bindings.OpenReview
@@ -807,6 +983,20 @@ func (m Model) baseHelpForScreen() screenHelp {
 			},
 		}
 	case screenImprovementReview:
+		if m.improvementLoading {
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("", "Core is working"), key.WithDisabled())
+			return screenHelp{short: []key.Binding{wait, helpKey}, full: [][]key.Binding{{wait}, {helpKey}}}
+		}
+		if m.improvementPlan != nil {
+			apply := bindings.Next
+			apply.SetHelp("enter", "apply delta")
+			discard := key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard"))
+			scroll := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "review"))
+			return screenHelp{
+				short: []key.Binding{scroll, apply, discard, helpKey},
+				full:  [][]key.Binding{{scroll, apply, discard}, {bindings.Quit, helpKey}},
+			}
+		}
 		option := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "option"))
 		selectKey := bindings.Next
 		selectKey.SetHelp("enter", "select")
@@ -1010,16 +1200,17 @@ func (m Model) baseHelpForScreen() screenHelp {
 	case screenResearch:
 		pause := bindings.Back
 		pause.SetHelp("esc", "pause")
-		if m.methodologyFailed {
+		if m.methodologyFailed || m.methodologyCancelled {
+			logs := key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "full log"))
 			if m.methodologyLogScrollable() {
 				return screenHelp{
-					short: []key.Binding{bindings.Scroll, bindings.Retry, pause, helpKey},
-					full:  [][]key.Binding{{bindings.Scroll, bindings.Retry, pause, bindings.Quit, helpKey}},
+					short: []key.Binding{bindings.Scroll, bindings.Retry, logs, pause, helpKey},
+					full:  [][]key.Binding{{bindings.Scroll, bindings.Retry, logs, pause, bindings.Quit, helpKey}},
 				}
 			}
 			return screenHelp{
-				short: []key.Binding{bindings.Retry, pause, helpKey},
-				full:  [][]key.Binding{{bindings.Retry, pause, bindings.Quit, helpKey}},
+				short: []key.Binding{bindings.Retry, logs, pause, helpKey},
+				full:  [][]key.Binding{{bindings.Retry, logs, pause, bindings.Quit, helpKey}},
 			}
 		}
 		if m.methodologyLogScrollable() {
@@ -1047,22 +1238,45 @@ func (m Model) baseHelpForScreen() screenHelp {
 			full:  [][]key.Binding{{bindings.Scroll, bindings.Toggle, compile}, {bindings.Back, bindings.Quit, helpKey}},
 		}
 	case screenProject:
+		if m.projectSnapshotDegraded() {
+			retry := bindings.Retry
+			retry.SetHelp("r", "retry snapshot")
+			openFolder := bindings.OpenReview
+			openFolder.SetHelp("o", "open folder")
+			return screenHelp{
+				short: []key.Binding{retry, openFolder, bindings.Home, bindings.Back, bindings.Settings, bindings.QuitKey, helpKey},
+				full:  [][]key.Binding{{retry, openFolder}, {bindings.Home, bindings.Settings, bindings.Back, bindings.QuitKey, bindings.Quit, helpKey}},
+			}
+		}
 		next := bindings.Next
-		showNext := true
-		if m.hasPendingAssemblyDraft() {
-			next.SetHelp("enter", "review draft")
-		} else if m.isProjectComplete() {
+		showNext := m.projectNextKind() != projectNextUnavailable && (m.projectMutationsAvailable() || m.projectNextKind() == projectNextOpenLiner)
+		switch m.projectNextKind() {
+		case projectNextOpenLiner:
 			next.SetHelp("enter", "LINER.md")
-		} else if m.projectCompileNeedsAttention() {
-			next.SetHelp("enter", "review compile")
-		} else if m.hasCorpusReady() {
+		case projectNextCreateOperatingLayer:
 			next.SetHelp("enter", "operating layer")
-		} else if m.needsClarificationBeforeMethodology() {
-			next.SetHelp("enter", "clarify goal")
-		} else if m.primaryProjectActionIsSourceEntry() {
-			next.SetHelp("enter", "add sources")
-		} else {
-			next.SetHelp("enter", "corpus creation")
+		case projectNextReviewOperatingLayer:
+			next.SetHelp("enter", "review layer")
+		case projectNextRefreshStatus:
+			next.SetHelp("enter", "refresh status")
+		case projectNextReviewSynthesis:
+			next.SetHelp("enter", "review synthesis")
+		case projectNextCompileRefresh:
+			next.SetHelp("enter", "compile refresh")
+		case projectNextUnavailable:
+			showNext = false
+		default:
+			if m.hasPendingAssemblyDraft() {
+				next.SetHelp("enter", "review draft")
+			} else if m.projectCompileNeedsAttention() {
+				next.SetHelp("enter", "review compile")
+			} else if m.needsClarificationBeforeMethodology() {
+				next.SetHelp("enter", "clarify job")
+			} else if m.primaryProjectActionIsSourceEntry() {
+				next.SetHelp("enter", "add sources")
+			} else {
+				next.SetHelp("enter", "corpus creation")
+			}
 		}
 		capabilities := m.projectCapabilities()
 		sections := bindings.Scroll
@@ -1084,22 +1298,42 @@ func (m Model) baseHelpForScreen() screenHelp {
 				short = append(short, regenerate)
 				firstRow = append(firstRow, regenerate)
 			}
-		} else if m.canCreateOperatingLayer() {
+		} else if m.projectMutationsAvailable() && m.canCreateOperatingLayer() {
 			liner := bindings.Liner
 			liner.SetHelp("l", "create layer")
 			short = append(short, liner)
 			firstRow = append(firstRow, liner)
 		}
-		if !m.primaryProjectActionIsSourceEntry() {
+		if m.projectMutationsAvailable() && !m.primaryProjectActionIsSourceEntry() {
 			short = append(short, bindings.AddSources)
 			firstRow = append(firstRow, bindings.AddSources)
+		}
+		if m.projectMutationsAvailable() {
+			maintain := key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "maintain"))
+			improve := key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "improve corpus"))
+			short = append(short, maintain, improve)
+			firstRow = append(firstRow, maintain, improve)
 		}
 		openFolder := bindings.OpenReview
 		openFolder.SetHelp("o", "open folder")
 		short = append(short, openFolder)
 		firstRow = append(firstRow, openFolder)
-		if m.canShowManualCompileAction() {
+		if m.projectMutationsAvailable() && m.canShowManualCompileAction() {
 			firstRow = append(firstRow, bindings.Compile)
+		}
+		if m.hasCompiledMixtape() {
+			preview := key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "MIXTAPE.md"))
+			firstRow = append(firstRow, preview)
+		}
+		if m.projectMutationsAvailable() && m.projectPane == 2 && m.canOpenSourceBoard() {
+			reviewSources := key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "review sources"))
+			short = append(short, reviewSources)
+			firstRow = append(firstRow, reviewSources)
+		}
+		if m.projectMutationsAvailable() && m.projectPane == 2 && m.hasDroppedCustomSources() {
+			retrySources := key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "retry sources"))
+			short = append(short, retrySources)
+			firstRow = append(firstRow, retrySources)
 		}
 		short = append(short, bindings.Home, bindings.Back, bindings.Settings, bindings.QuitKey, helpKey)
 		return screenHelp{
@@ -1144,14 +1378,133 @@ func (m Model) baseHelpForScreen() screenHelp {
 			},
 		}
 	case screenSettings:
-		switchAgent := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "runner"))
-		selectAgent := bindings.OpenProject
-		selectAgent.SetHelp("enter", "select")
-		setup := key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "setup"))
-		return screenHelp{
-			short: []key.Binding{switchAgent, selectAgent, setup, helpKey},
-			full:  [][]key.Binding{{switchAgent, selectAgent, setup, bindings.Quit, helpKey}},
+		if m.settingsPane == settingsPaneMenu {
+			choose := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "choose"))
+			open := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open"))
+			return screenHelp{
+				short: []key.Binding{choose, open, bindings.Back, helpKey},
+				full:  [][]key.Binding{{choose, open, bindings.Back}, {bindings.Home, bindings.Quit, helpKey}},
+			}
 		}
+		if m.settingsPane == settingsPaneProjectsFolder {
+			typing := key.NewBinding(key.WithKeys("typing"), key.WithHelp("type", "folder path"))
+			save := bindings.Save
+			save.SetHelp("enter", "save & back")
+			cancel := bindings.Back
+			cancel.SetHelp("esc", "cancel")
+			return screenHelp{
+				short: []key.Binding{typing, save, cancel, helpKey},
+				full:  [][]key.Binding{{typing, save, cancel, helpKey}},
+			}
+		}
+		if m.settingsCustomEditing {
+			typing := key.NewBinding(key.WithKeys("typing"), key.WithHelp("type", "model ID"))
+			save := bindings.Save
+			save.SetHelp("enter", "save")
+			cancel := bindings.Back
+			cancel.SetHelp("esc", "cancel")
+			return screenHelp{
+				short: []key.Binding{typing, save, cancel, helpKey},
+				full:  [][]key.Binding{{typing, save, cancel, helpKey}},
+			}
+		}
+		choose := key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "choose"))
+		column := key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", "column"))
+		save := bindings.Save
+		save.SetHelp("enter", "save & back")
+		cancel := bindings.Back
+		cancel.SetHelp("esc", "back")
+		return screenHelp{
+			short: []key.Binding{choose, column, save, cancel, helpKey},
+			full:  [][]key.Binding{{choose, column, save, cancel}, {bindings.Home, bindings.Quit, helpKey}},
+		}
+	case screenMaintenance:
+		if m.maintenanceApplying {
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("", "wait for Core apply"))
+			return screenHelp{short: []key.Binding{wait, helpKey}, full: [][]key.Binding{{wait, helpKey}}}
+		}
+		if m.maintenanceReconcile {
+			replay := bindings.Save
+			replay.SetHelp("enter", "replay exact plan")
+			scroll := bindings.Scroll
+			scroll.SetHelp("↑/↓", "review preview")
+			return screenHelp{short: []key.Binding{scroll, replay, helpKey}, full: [][]key.Binding{{scroll, replay, helpKey}}}
+		}
+		if m.maintenancePlan != nil {
+			review := bindings.Scroll
+			review.SetHelp("↑/↓", "review preview")
+			apply := bindings.Save
+			apply.SetHelp("enter", "apply exact preview")
+			return screenHelp{
+				short: []key.Binding{review, apply, bindings.Back, helpKey},
+				full:  [][]key.Binding{{review, apply, bindings.Back, bindings.Quit, helpKey}},
+			}
+		}
+		apply := bindings.Save
+		apply.SetHelp("enter", "select / edit / apply")
+		preview := bindings.Preview
+		preview.SetHelp("p", "preview")
+		navigate := bindings.Scroll
+		navigate.SetHelp("↑/↓", "choose")
+		return screenHelp{
+			short: []key.Binding{navigate, apply, preview, bindings.Back, helpKey},
+			full:  [][]key.Binding{{navigate, apply, preview, bindings.Back, bindings.Quit, helpKey}},
+		}
+	case screenSynthesisReview:
+		if m.synthesisReviewLoading {
+			wait := key.NewBinding(key.WithKeys(""), key.WithHelp("", "wait for Core"))
+			if m.synthesisReviewApplying || m.synthesisReviewReconcile {
+				return screenHelp{short: []key.Binding{wait, helpKey}, full: [][]key.Binding{{wait, helpKey}}}
+			}
+			return screenHelp{short: []key.Binding{wait, helpKey}, full: [][]key.Binding{{wait, bindings.Quit, helpKey}}}
+		}
+		if m.synthesisReviewEditing {
+			finish := key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "finish revision"))
+			short := []key.Binding{finish}
+			full := []key.Binding{finish}
+			if m.operatingLayerReviewCanSwitchArtifacts() {
+				artifact := key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "artifact"))
+				short = append(short, artifact)
+				full = append(full, artifact)
+			}
+			short = append(short, bindings.Back, helpKey)
+			full = append(full, bindings.Back, bindings.Quit, helpKey)
+			return screenHelp{short: short, full: [][]key.Binding{full}}
+		}
+		if m.synthesisReviewPlan != nil {
+			approve := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "approve and continue"))
+			if m.synthesisReviewReconcile {
+				approve.SetHelp("enter", "recover receipt")
+			}
+			scroll := key.NewBinding(key.WithKeys("up", "down", "pgup", "pgdown"), key.WithHelp("↑/↓ pgup/pgdn", "review preview"))
+			if m.synthesisReviewReconcile {
+				return screenHelp{short: []key.Binding{scroll, approve, helpKey}, full: [][]key.Binding{{scroll, approve, helpKey}}}
+			}
+			return screenHelp{short: []key.Binding{scroll, approve, bindings.Back, helpKey}, full: [][]key.Binding{{scroll, approve, bindings.Back, bindings.Quit, helpKey}}}
+		}
+		scroll := key.NewBinding(key.WithKeys("up", "down", "pgup", "pgdown"), key.WithHelp("↑/↓ pgup/pgdn", "read document"))
+		choose := key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", "decision"))
+		primaryHelp := "preview approval"
+		if m.synthesisReviewChoice == synthesisReviewPatch {
+			if m.semanticReviewHasLocalChanges() {
+				primaryHelp = "preview Change Set"
+			} else {
+				primaryHelp = "edit " + m.activeSemanticReviewArtifactName()
+			}
+		}
+		plan := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", primaryHelp))
+		edit := key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit before approval"))
+		discard := key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard local edit"))
+		short := []key.Binding{scroll, choose}
+		firstRow := []key.Binding{scroll, choose}
+		if m.operatingLayerReviewCanSwitchArtifacts() {
+			artifact := key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "artifact"))
+			short = append(short, artifact)
+			firstRow = append(firstRow, artifact)
+		}
+		short = append(short, plan, edit, discard, bindings.Back, helpKey)
+		firstRow = append(firstRow, plan, edit, discard)
+		return screenHelp{short: short, full: [][]key.Binding{firstRow, {bindings.Back, bindings.Quit, helpKey}}}
 	case screenOnboarding:
 		if m.onboardingEditingDir {
 			typing := key.NewBinding(key.WithKeys("typing"), key.WithHelp("type", "folder"))
@@ -1216,8 +1569,18 @@ func (m Model) baseHelpForScreen() screenHelp {
 			full:  [][]key.Binding{{move, folder, run, bindings.Refresh}, {bindings.Home, bindings.Back, bindings.Quit, helpKey}},
 		}
 	case screenCreate:
+		if m.createRunning {
+			return screenHelp{
+				short: []key.Binding{helpKey},
+				full:  [][]key.Binding{{bindings.Quit, helpKey}},
+			}
+		}
 		next := bindings.Next
-		next.SetHelp("enter", "continue")
+		if m.createError != "" && m.createStep == createFieldCount()-1 {
+			next.SetHelp("enter", "retry")
+		} else {
+			next.SetHelp("enter", "continue")
+		}
 		field := key.NewBinding(key.WithKeys("tab", "up", "down"), key.WithHelp("tab/↑/↓", "field"))
 		short := []key.Binding{field, next, bindings.Back, helpKey}
 		full := [][]key.Binding{{field, next, bindings.Back, bindings.Quit, helpKey}}

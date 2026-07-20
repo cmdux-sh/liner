@@ -13,13 +13,11 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/cmdux/liner/packages/go-tui/internal/airunner"
 )
 
-type Agent struct {
-	ID   string
-	Name string
-	Bin  string
-}
+type Agent = airunner.Descriptor
 
 func GenerateClarifyingQuestions(cwd string, jtbd string, timeout time.Duration) ([]string, error) {
 	jtbd = strings.TrimSpace(jtbd)
@@ -35,31 +33,65 @@ func GenerateClarifyingQuestions(cwd string, jtbd string, timeout time.Duration)
 	}
 	prompt := buildClarifyPrompt(jtbd)
 
-	failures := []string{}
+	failures := []error{}
 	for attempt := 1; attempt <= 2; attempt++ {
 		questions, err := generateClarifyingQuestionsAttempt(agent, cwd, prompt, timeout)
 		if err == nil {
 			return questions, nil
 		}
-		failures = append(failures, err.Error())
+		failures = append(failures, err)
+		if clarifyExplicitEffortRejection(agent, err) {
+			if agent.EffortIsAuto && attempt == 1 {
+				agent.Model = ""
+				agent.ReasoningEffort = ""
+				agent.ModelIsAuto = false
+				agent.EffortIsAuto = false
+				continue
+			}
+			break
+		}
+		if clarifyExplicitModelRejection(agent, err) {
+			if agent.ModelIsAuto && attempt == 1 {
+				agent.Model = ""
+				agent.ModelIsAuto = false
+				if agent.EffortIsAuto {
+					agent.ReasoningEffort = ""
+					agent.EffortIsAuto = false
+				}
+				continue
+			}
+			break
+		}
 	}
-	return nil, fmt.Errorf("%s could not generate clarification questions after retry: first attempt: %s; retry: %s", agent.Name, failures[0], failures[1])
+	return nil, clarifyFailure(agent, failures)
 }
 
 func generateClarifyingQuestionsAttempt(agent Agent, cwd string, prompt string, timeout time.Duration) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	output, err := runClarifyAgent(ctx, agent, cwd, prompt)
+	response, err := runClarifyAgent(ctx, agent, cwd, prompt)
 	if ctx.Err() == context.DeadlineExceeded {
-		return nil, fmt.Errorf("%s did not return clarification questions before timeout", agent.Name)
+		cause := fmt.Errorf("%s did not return clarification questions before timeout", agent.Name)
+		if err != nil {
+			var attempt clarifyAttemptError
+			if errors.As(err, &attempt) {
+				return nil, clarifyAttemptError{kind: clarifyFailureTimeout, cause: cause, output: attempt.output, logPath: attempt.logPath}
+			}
+		}
+		return nil, clarifyAttemptError{kind: clarifyFailureTimeout, cause: cause}
 	}
 	if err != nil {
 		return nil, err
 	}
-	questions := ParseClarifyingQuestions(output)
+	questions := ParseClarifyingQuestions(response.text)
 	if len(questions) == 0 {
-		return nil, fmt.Errorf("%s did not return a JSON array of questions", agent.Name)
+		return nil, clarifyAttemptError{
+			kind:    clarifyFailureResponse,
+			cause:   fmt.Errorf("%s did not return a JSON array of questions", agent.Name),
+			output:  strings.TrimSpace(response.raw),
+			logPath: response.logPath,
+		}
 	}
 	if len(questions) > 6 {
 		questions = questions[:6]
@@ -68,71 +100,20 @@ func generateClarifyingQuestionsAttempt(agent Agent, cwd string, prompt string, 
 }
 
 func resolveAgent() (Agent, error) {
-	if preferred := strings.ToLower(strings.TrimSpace(os.Getenv("LINER_AGENT"))); preferred != "" {
-		if agent, ok := lookupAgent(preferred); ok {
-			return agent, nil
-		}
-		return Agent{}, fmt.Errorf("LINER_AGENT=%s is not available", preferred)
-	}
-	if configured := configuredAgentID(); configured != "" {
-		if agent, ok := lookupAgent(configured); ok {
-			return agent, nil
-		}
-	}
-	for _, id := range []string{"claude", "codex"} {
-		if agent, ok := lookupAgent(id); ok {
-			return agent, nil
-		}
-	}
-	return Agent{}, errors.New("no Claude Code or Codex agent found on PATH")
-}
-
-func lookupAgent(id string) (Agent, bool) {
-	switch id {
-	case "claude":
-		if bin := resolveBin("claude", "LINER_CLAUDE_BIN"); bin != "" {
-			return Agent{ID: "claude", Name: "Claude Code", Bin: bin}, true
-		}
-	case "codex":
-		if bin := resolveBin("codex", "LINER_CODEX_BIN"); bin != "" {
-			return Agent{ID: "codex", Name: "OpenAI Codex", Bin: bin}, true
-		}
-	}
-	return Agent{}, false
-}
-
-func resolveBin(name string, envVar string) string {
-	if override := strings.TrimSpace(os.Getenv(envVar)); override != "" {
-		return override
-	}
-	if path, err := exec.LookPath(name); err == nil {
-		return path
-	}
-	return ""
-}
-
-func configuredAgentID() string {
-	configPath := filepath.Join(os.Getenv("HOME"), ".liner", "config.yaml")
-	data, err := os.ReadFile(configPath)
+	agent, err := airunner.Resolve()
 	if err != nil {
-		return ""
+		return Agent{}, err
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "agent:") {
-			value := strings.TrimSpace(strings.TrimPrefix(line, "agent:"))
-			value = strings.Trim(value, `"'`)
-			if value == "claude" || value == "codex" {
-				return value
-			}
-			return ""
-		}
-	}
-	return ""
+	return airunner.ApplyAutoModelPolicy(agent, "jtbd-clarify"), nil
 }
 
-func runClarifyAgent(ctx context.Context, agent Agent, cwd string, prompt string) (string, error) {
+type clarifyAgentResponse struct {
+	text    string
+	raw     string
+	logPath string
+}
+
+func runClarifyAgent(ctx context.Context, agent Agent, cwd string, prompt string) (clarifyAgentResponse, error) {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
@@ -141,20 +122,270 @@ func runClarifyAgent(ctx context.Context, agent Agent, cwd string, prompt string
 	case "claude":
 		args = []string{"-p", "--output-format", "stream-json", "--verbose"}
 	case "codex":
-		args = []string{"exec", "--cd", cwd, "--skip-git-repo-check", "-s", "workspace-write", "--json", "-"}
+		args = []string{"exec", "--cd", cwd, "--skip-git-repo-check", "-s", "workspace-write", "--json"}
 	default:
-		return "", fmt.Errorf("unsupported agent %q", agent.ID)
+		return clarifyAgentResponse{}, fmt.Errorf("unsupported agent %q", agent.ID)
+	}
+	if agent.Model != "" {
+		args = append(args, "--model", agent.Model)
+	}
+	if agent.ID == "codex" && agent.ReasoningEffort != "" {
+		args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%q", agent.ReasoningEffort))
+	}
+	if agent.ID == "codex" {
+		args = append(args, "-")
 	}
 
+	startedAt := time.Now().UTC()
 	cmd := exec.CommandContext(ctx, agent.Bin, args...)
 	cmd.Dir = cwd
-	cmd.Env = append(os.Environ(), "MAX_THINKING_TOKENS=0")
-	cmd.Stdin = strings.NewReader(prompt)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%s failed: %w: %s", agent.Name, err, strings.TrimSpace(string(out)))
+	cmd.Env = airunner.Environment(os.Environ(), agent)
+	if agent.ID == "claude" {
+		cmd.Env = append(cmd.Env, "MAX_THINKING_TOKENS=0")
 	}
-	return extractAgentText(agent.ID, string(out)), nil
+	cmd.Stdin = strings.NewReader(prompt)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	logPath, logErr := writeClarifyRunLog(cwd, agent, startedAt, stdout.Bytes(), stderr.Bytes(), err)
+	detail := strings.TrimSpace(strings.Join(nonEmptyStrings(stdout.String(), stderr.String()), "\n"))
+	if logErr != nil {
+		return clarifyAgentResponse{}, clarifyAttemptError{kind: clarifyFailureLog, cause: logErr, output: detail}
+	}
+	if err != nil {
+		return clarifyAgentResponse{}, clarifyAttemptError{kind: clarifyFailureInvocation, cause: err, output: detail, logPath: logPath}
+	}
+	raw := stdout.String()
+	return clarifyAgentResponse{text: extractAgentText(agent.ID, raw), raw: raw, logPath: logPath}, nil
+}
+
+type clarifyFailureKind string
+
+const (
+	clarifyFailureInvocation clarifyFailureKind = "invocation"
+	clarifyFailureResponse   clarifyFailureKind = "response"
+	clarifyFailureTimeout    clarifyFailureKind = "timeout"
+	clarifyFailureLog        clarifyFailureKind = "log"
+)
+
+type clarifyAttemptError struct {
+	kind    clarifyFailureKind
+	cause   error
+	output  string
+	logPath string
+}
+
+func (e clarifyAttemptError) Error() string { return e.cause.Error() }
+
+func (e clarifyAttemptError) Unwrap() error { return e.cause }
+
+func clarifyFailure(agent Agent, failures []error) error {
+	message := clarifyPrimaryFailure(agent, failures)
+	logDir := ""
+	for _, failure := range failures {
+		var attempt clarifyAttemptError
+		if errors.As(failure, &attempt) && attempt.logPath != "" {
+			logDir = filepath.Dir(attempt.logPath)
+		}
+	}
+	if logDir != "" {
+		return errors.New(message + " Full logs: " + logDir)
+	}
+	return errors.New(message)
+}
+
+func clarifyPrimaryFailure(agent Agent, failures []error) string {
+	// Effort errors often contain the token "model_reasoning_effort", which
+	// also resembles a generic model error. Classify the more specific native
+	// setting first so Liner gives the curator the correct recovery action.
+	if agent.ReasoningEffort != "" {
+		for _, failure := range failures {
+			if clarifyExplicitEffortRejection(agent, failure) {
+				return fmt.Sprintf("%s rejected configured Thinking effort %q. Choose another effort in Settings; Liner did not substitute another effort or model.", agent.Name, agent.ReasoningEffort)
+			}
+		}
+	}
+	if agent.Model != "" {
+		for _, failure := range failures {
+			if clarifyExplicitModelRejection(agent, failure) {
+				return fmt.Sprintf("%s rejected configured model %q. Choose another model in Settings; Liner did not substitute another model.", agent.Name, agent.Model)
+			}
+		}
+	}
+	for _, failure := range failures {
+		detail := strings.ToLower(clarifyFailureDetail(failure))
+		if strings.Contains(detail, "unauthorized") || strings.Contains(detail, "missing bearer") ||
+			strings.Contains(detail, "status 401") || strings.Contains(detail, "authentication failed") ||
+			strings.Contains(detail, "authentication required") || strings.Contains(detail, "not logged in") ||
+			strings.Contains(detail, "invalid api key") || strings.Contains(detail, "authentication token expired") {
+			homeEnv := "CODEX_HOME"
+			login := "login"
+			if agent.ID == "claude" {
+				homeEnv = "CLAUDE_CONFIG_DIR"
+				login = "auth login"
+			}
+			return fmt.Sprintf("%s authentication is not ready for the configured runner profile. Verify %s in Settings, run %s %s for that profile, then retry.", agent.Name, homeEnv, agent.Bin, login)
+		}
+	}
+	if len(failures) == 0 {
+		return agent.Name + " could not generate Clarify Job questions. Retry from Settings."
+	}
+	var attempt clarifyAttemptError
+	if !errors.As(failures[len(failures)-1], &attempt) {
+		return agent.Name + " could not generate Clarify Job questions. Verify the runner in Settings, then retry."
+	}
+	switch attempt.kind {
+	case clarifyFailureInvocation:
+		return fmt.Sprintf("%s invocation failed (%s). Verify the executable and CLI version in Settings, then retry.", agent.Name, attempt.cause)
+	case clarifyFailureResponse:
+		return agent.Name + " returned an invalid Clarify Job response. Retry; if it repeats, inspect the full runner logs."
+	case clarifyFailureTimeout:
+		return agent.Name + " timed out before returning Clarify Job questions. Check the runner connection, then retry."
+	case clarifyFailureLog:
+		return fmt.Sprintf("Liner could not write the private Clarify Job run log (%s). Check project-folder permissions, then retry.", attempt.cause)
+	default:
+		return agent.Name + " could not generate Clarify Job questions. Verify the runner in Settings, then retry."
+	}
+}
+
+func clarifyExplicitModelRejection(agent Agent, failure error) bool {
+	if strings.TrimSpace(agent.Model) == "" || failure == nil {
+		return false
+	}
+	detail := strings.ToLower(clarifyFailureDetail(failure))
+	model := strings.ToLower(strings.TrimSpace(agent.Model))
+	mentionsModel := strings.Contains(detail, model) || strings.Contains(detail, "model")
+	if !mentionsModel {
+		return false
+	}
+	for _, signature := range []string{
+		"model not found",
+		"model_not_found",
+		"unknown model",
+		"unsupported model",
+		"invalid model",
+		"does not exist",
+		"not have access to model",
+		"do not have access to model",
+		"not available for this account",
+	} {
+		if strings.Contains(detail, signature) {
+			return true
+		}
+	}
+	return false
+}
+
+func clarifyExplicitEffortRejection(agent Agent, failure error) bool {
+	if strings.TrimSpace(agent.ReasoningEffort) == "" || failure == nil {
+		return false
+	}
+	detail := strings.ToLower(clarifyFailureDetail(failure))
+	mentionsEffort := strings.Contains(detail, "reasoning effort") ||
+		strings.Contains(detail, "reasoning_effort") ||
+		strings.Contains(detail, "model_reasoning_effort")
+	if !mentionsEffort {
+		return false
+	}
+	for _, signature := range []string{"invalid", "unsupported", "unknown", "not supported", "does not support", "not available", "unrecognized"} {
+		if strings.Contains(detail, signature) {
+			return true
+		}
+	}
+	return false
+}
+
+func writeClarifyRunLog(cwd string, agent Agent, startedAt time.Time, stdout []byte, stderr []byte, runErr error) (string, error) {
+	dir := filepath.Join(cwd, ".liner-runs", "jtbd-clarify")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	stamp := strings.ReplaceAll(startedAt.Format("2006-01-02T15-04-05.000000000Z"), ":", "-")
+	path := filepath.Join(dir, stamp+".jsonl")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	if err := encoder.Encode(map[string]any{
+		"type":      "_liner_meta",
+		"taskLabel": "jtbd-clarify",
+		"agent":     agent.ID,
+		"resume":    false,
+		"startedAt": startedAt.Format(time.RFC3339Nano),
+	}); err != nil {
+		return "", err
+	}
+	if err := writeClarifyJSONLLines(file, encoder, stdout, "_liner_raw"); err != nil {
+		return "", err
+	}
+	if err := writeClarifyJSONLLines(file, encoder, stderr, "_liner_stderr"); err != nil {
+		return "", err
+	}
+	var exitCode any = 0
+	stderrBytes := len(stderr)
+	if runErr != nil {
+		exitCode = nil
+		var exitError *exec.ExitError
+		if errors.As(runErr, &exitError) {
+			exitCode = exitError.ExitCode()
+		}
+	}
+	if err := encoder.Encode(map[string]any{
+		"type":        "_liner_close",
+		"exitCode":    exitCode,
+		"stderrBytes": stderrBytes,
+		"endedAt":     time.Now().UTC().Format(time.RFC3339Nano),
+	}); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func writeClarifyJSONLLines(file *os.File, encoder *json.Encoder, raw []byte, fallbackType string) error {
+	lines := bytes.Split(raw, []byte("\n"))
+	for index, line := range lines {
+		if index == len(lines)-1 && len(line) == 0 {
+			continue
+		}
+		if json.Valid(line) {
+			if _, err := file.Write(line); err != nil {
+				return err
+			}
+			if _, err := file.WriteString("\n"); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := encoder.Encode(map[string]any{"type": fallbackType, "text": string(line)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func nonEmptyStrings(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			out = append(out, strings.TrimSpace(value))
+		}
+	}
+	return out
+}
+
+func clarifyFailureDetail(err error) string {
+	var attempt clarifyAttemptError
+	if errors.As(err, &attempt) {
+		if attempt.output == "" {
+			return attempt.cause.Error()
+		}
+		return attempt.cause.Error() + ": " + attempt.output
+	}
+	return err.Error()
 }
 
 func extractAgentText(agentID string, output string) string {

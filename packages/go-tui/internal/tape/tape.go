@@ -9,15 +9,17 @@ import (
 )
 
 type Source struct {
-	Type     string  `yaml:"type"`
-	URL      string  `yaml:"url,omitempty"`
-	Path     *string `yaml:"path,omitempty"`
-	Citation *string `yaml:"citation,omitempty"`
-	Note     *string `yaml:"note,omitempty"`
-	Section  *string `yaml:"section,omitempty"`
-	Priority string  `yaml:"priority"`
-	Render   *string `yaml:"render,omitempty"`
-	Kind     *string `yaml:"kind,omitempty"`
+	ID          *string `yaml:"id,omitempty"`
+	Type        string  `yaml:"type"`
+	URL         string  `yaml:"url,omitempty"`
+	Path        *string `yaml:"path,omitempty"`
+	Citation    *string `yaml:"citation,omitempty"`
+	Note        *string `yaml:"note,omitempty"`
+	Section     *string `yaml:"section,omitempty"`
+	Priority    string  `yaml:"priority"`
+	Render      *string `yaml:"render,omitempty"`
+	Kind        *string `yaml:"kind,omitempty"`
+	ContentHash *string `yaml:"content_hash,omitempty"`
 }
 
 type Tape struct {

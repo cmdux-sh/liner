@@ -41,6 +41,12 @@ Keep the product model artifact-first.
   use that context.
 - The Project Skill is root `SKILL.md`, created by default so future AI sessions
   can invoke the project directly.
+- Project and Source maintenance uses immutable IDs, a read-only Project
+  Snapshot, a write-free Project Change Set, exact-plan apply, and a durable
+  Change Receipt.
+- The optional Maintenance Adapter delegates Codex or Claude to the installed
+  CLI. It does not replace the Project Skill, and a `type: skill` Source remains
+  inert evidence.
 - Audit is later maintenance work, not part of default Operating Layer
   creation.
 - Composition is an advanced project-combination model and should not leak into
@@ -171,6 +177,25 @@ already inside the object.
 
 Settings is for choosing the local projects folder and AI runner. It should not
 become a config dump or command reference.
+
+Settings opens on a two-item preference list: Projects folder and AI runner.
+Projects folder opens a focused path editor and changes where Liner finds and
+creates projects. It discloses that saving creates the folder if needed and does
+not move existing files. AI runner opens the model and Thinking effort selector.
+Escape returns one level at a time.
+
+Runner preferences use one spatial keyboard model: Provider, Model, and the
+OpenAI-only Thinking effort are vertical columns. Up and Down choose within a
+column; Left and Right change the focused column; Enter saves the staged
+combination and returns to Settings; Escape returns to Settings without writing
+it. Claude stops at Model. Runtime paths and diagnostics stay below the selector
+so they support the decision instead of dominating it.
+
+Auto is the recommended OpenAI Model choice. It pairs Luna + High with Clarify
+Job, Candidate discovery, and Evaluation, and Sol + Medium with Framing,
+Quality, Synthesis, Improvement, and Assembly. OpenAI default remains a distinct
+manual choice. Concrete model and Thinking effort selections apply globally to
+fresh runs, while explicit per-phase configuration remains authoritative.
 
 Add Sources is for source ingress, not source judgment. It may accept URLs,
 YouTube links, GitHub skill URLs, installed skill names, local files, existing
@@ -437,6 +462,24 @@ Preview, open, and render paths must not create files or directories. For
 example, `local-sources/` should not be created merely by opening or viewing a
 project.
 
+For supported post-creation maintenance, Liner Core is the sole canonical-file
+writer. The TUI renders Core's Project Snapshot and Change Set; it must not
+recompute risk, approval, file effects, lifecycle invalidation, compatibility,
+or identity rules. Apply is bound to that exact plan and must fail closed when
+the Project revision, content, path, compatibility, or approval no longer
+matches.
+
+Show immutable Project and Source IDs when selecting a maintenance target.
+Rename and move preserve Project identity. Source metadata and locator updates
+preserve Source identity; semantic replacement creates successor identity and
+lineage. Remove retains content in the Retention Vault, while purge is a
+separate destructive action with explicit approval.
+
+After apply, show the durable Change Receipt, refreshed Project Snapshot, stale
+derived artifacts, and exact next actions. A transient success message is not
+sufficient proof. Optional Maintenance Adapters follow the same CLI contract
+and own only their managed content.
+
 Views should not shell out or mutate files. Status loading should happen through
 explicit commands or cached state, not during render.
 
@@ -554,6 +597,9 @@ These are the main decisions that shaped the current framework:
   usable and the user has reviewed the issues.
 - Made Project Complete Enter open `LINER.md`, so the visible `Next` action and
   the keyboard behavior agree.
+- Moved supported Project and Source maintenance behind Core-issued Snapshots,
+  Change Sets, exact-plan apply, and durable Change Receipts. Added
+  `Maintain project` without creating a second writer in the Go app.
 
 ## How Future Agents Should Use This
 

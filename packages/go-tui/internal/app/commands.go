@@ -80,53 +80,7 @@ func (m Model) commandItems() []list.Item {
 		}},
 		commandItem{"Settings", "Change projects folder and AI runner", func(m Model) (Model, tea.Cmd) { return m.startSettings(), nil }},
 	)
-	if hasProject {
-		items = append(items, commandItem{"Add sources", "Paste URLs, files, articles, and local documents", func(m Model) (Model, tea.Cmd) {
-			m.startSourceEntry()
-			return m, nil
-		}})
-	}
-	if m.canOpenSourceBoard() {
-		items = append(items, commandItem{"Review Sources", "Review and toggle saved sources", func(m Model) (Model, tea.Cmd) {
-			return m.startSourceBoard()
-		}})
-	}
-	if hasProject {
-		items = append(items, commandItem{"Build Corpus", "Run or resume corpus creation", func(m Model) (Model, tea.Cmd) {
-			return m.startResearch()
-		}})
-	}
-	if hasProject {
-		items = append(items, commandItem{"Compile MIXTAPE.md", "Build MIXTAPE.md from saved sources", func(m Model) (Model, tea.Cmd) { return m.startCompile() }})
-	}
-	if hasProject && m.hasDroppedCustomSources() {
-		items = append(items, commandItem{"Retry unavailable sources", "Retry missing custom URL sources without rebuilding the corpus", func(m Model) (Model, tea.Cmd) {
-			return m.retryExcludedLocalSources()
-		}})
-	}
-	if m.hasCompiledMixtape() {
-		items = append(items, commandItem{"Preview MIXTAPE.md", "Render the compiled mixtape", func(m Model) (Model, tea.Cmd) { return m.openPreview("MIXTAPE.md") }})
-	}
-	if m.projectCapabilities().HasLiner {
-		items = append(items, commandItem{"Preview LINER.md", "Render project instructions", func(m Model) (Model, tea.Cmd) {
-			return m.openPreview("LINER.md")
-		}})
-		if m.canRegenerateOperatingLayer() {
-			items = append(items, commandItem{"Regenerate Operating Layer", "Rewrite LINER.md and SKILL.md from the current corpus", func(m Model) (Model, tea.Cmd) {
-				return m.startLinerDraftReview()
-			}})
-		}
-	} else if m.canCreateOperatingLayer() {
-		items = append(items, commandItem{"Create Operating Layer", "Write LINER.md, SKILL.md, and local status", func(m Model) (Model, tea.Cmd) {
-			return m.startLinerDraftReview()
-		}})
-	}
-	if hasProject && projectDirExists(m.currentPath, "local-sources") {
-		items = append(items, commandItem{"Open local-sources", "Open the local drop folder", func(m Model) (Model, tea.Cmd) {
-			return m, openPath(projectAbsPath(m.currentPath, "local-sources"))
-		}})
-	}
-	if hasProject && globalEstimateHistoryHasEntries() {
+	if globalEstimateHistoryHasEntries() {
 		items = append(items, commandItem{"Reset cost estimates", "Forget saved corpus-build token samples", func(m Model) (Model, tea.Cmd) {
 			return m.clearEstimateHistory()
 		}})

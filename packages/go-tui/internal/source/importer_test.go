@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/cmdux/liner/packages/go-tui/internal/tape"
 )
 
 func TestImportURLsAndSkills(t *testing.T) {
@@ -149,34 +147,6 @@ func TestImportCopiesLocalFilesIntoCanonicalMixtapeLayout(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(project, "local-sources", "paper.md")); !os.IsNotExist(err) {
 		t.Fatalf("did not expect legacy local source path, stat err=%v", err)
-	}
-}
-
-func TestAppendToTape(t *testing.T) {
-	project := t.TempDir()
-	if err := tape.EnsureLocalFolders(project); err != nil {
-		t.Fatal(err)
-	}
-	initial := tape.Tape{Title: "Demo", Description: "Demo", Version: 1, Curator: "A", Sources: []tape.Source{}}
-	if err := tape.WriteProject(project, initial); err != nil {
-		t.Fatal(err)
-	}
-	preview, err := Import("https://example.com", project, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := AppendToTape(project, preview.Sources); err != nil {
-		t.Fatal(err)
-	}
-	updated, err := tape.ReadProject(project)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(updated.Sources) != 1 || updated.Sources[0].Type != "web" {
-		t.Fatalf("unexpected tape sources: %+v", updated.Sources)
-	}
-	if updated.Sources[0].Kind == nil || *updated.Sources[0].Kind != "principle" {
-		t.Fatalf("expected appended source kind to persist, got %+v", updated.Sources[0])
 	}
 }
 

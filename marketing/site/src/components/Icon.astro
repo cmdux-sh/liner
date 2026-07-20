@@ -1,0 +1,63 @@
+---
+interface Props {
+  name: "arrow-up-right" | "cassette-tape" | "check" | "copy";
+  size?: number;
+  strokeWidth?: number;
+  class?: string;
+  style?: string;
+  "aria-hidden"?: string | boolean;
+}
+
+const {
+  name,
+  size = 24,
+  strokeWidth = 2,
+  class: className,
+  style,
+  "aria-hidden": ariaHidden = "true",
+} = Astro.props;
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width={strokeWidth}
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class={className}
+  style={style}
+  aria-hidden={ariaHidden}
+>
+  {
+    name === "arrow-up-right" && (
+      <>
+        <path d="M7 7h10v10" />
+        <path d="M7 17 17 7" />
+      </>
+    )
+  }
+  {
+    name === "cassette-tape" && (
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <circle cx="8" cy="10" r="2" />
+        <circle cx="16" cy="10" r="2" />
+        <path d="M8 12h8" />
+        <path d="m6 18 .7-2.9A2 2 0 0 1 8.6 13h6.8a2 2 0 0 1 1.9 2.1L18 18" />
+      </>
+    )
+  }
+  {name === "check" && <path d="M20 6 9 17l-5-5" />}
+  {
+    name === "copy" && (
+      <>
+        <rect x="8" y="8" width="14" height="14" rx="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      </>
+    )
+  }
+</svg>

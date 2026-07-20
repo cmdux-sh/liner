@@ -19,6 +19,75 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(here, "..");
 const argv = process.argv.slice(2);
 
+const COMMAND_GROUPS = [
+  {
+    title: "Common workflow commands:",
+    commands: [
+      { name: "init", description: "Create a Liner Project", owner: "core" },
+      { name: "compile", description: "Build MIXTAPE.md from a Liner Project", owner: "core" },
+      { name: "share", description: "Create a shareable .mixtape file", owner: "core" },
+      {
+        name: "import",
+        description: "Import a .mixtape file as a Liner Project",
+        owner: "core",
+      },
+      { name: "list", description: "List Liner Projects", owner: "core" },
+      { name: "status", description: "Show Liner Project status", owner: "core" },
+      { name: "setup-js", description: "Set up JavaScript rendering support", owner: "core" },
+      { name: "uninstall", description: "Remove local Liner state and caches", owner: "launcher" },
+      {
+        name: "--version",
+        description: "Show installed launcher and core versions (-v)",
+        owner: "launcher",
+      },
+    ],
+  },
+  {
+    title: "Advanced maintenance commands:",
+    commands: [
+      {
+        name: "replay",
+        description: "Clone project inputs with lineage for later comparison",
+        owner: "core",
+      },
+      { name: "clone", description: "Fetch or copy a project recipe", owner: "core" },
+      {
+        name: "skills",
+        description: "Find installed skills that can be used as Sources",
+        owner: "core",
+      },
+      {
+        name: "sources",
+        description: "Plan and apply Source maintenance",
+        owner: "core",
+      },
+      {
+        name: "adapters",
+        description: "Manage optional Maintenance Adapters",
+        owner: "core",
+      },
+      {
+        name: "project",
+        description: "Inspect, plan, and apply Project maintenance",
+        owner: "core",
+      },
+      { name: "cache", description: "Inspect or clear the Source cache", owner: "core" },
+      { name: "manifest", description: "Build or inspect a Source manifest", owner: "core" },
+    ],
+  },
+];
+
+const CLI_COMMANDS = new Set(
+  COMMAND_GROUPS.flatMap((group) =>
+    group.commands.filter((command) => command.owner === "core").map((command) => command.name),
+  ),
+);
+
+if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
+  printHelp();
+  process.exit(0);
+}
+
 // `liner --version` used to forward straight to the Python core, so it
 // reported the core version (e.g. 0.5.0) regardless of which TUI package was
 // installed — confusing when verifying an npm publish. Report the npm/TUI
@@ -34,25 +103,10 @@ if (argv[0] === "uninstall") {
   process.exit(code);
 }
 
-const CLI_COMMANDS = new Set([
-  "init",
-  "replay",
-  "compile",
-  "share",
-  "import",
-  "clone",
-  "setup-js",
-  "list",
-  "skills",
-  "cache",
-  "manifest",
-  "status",
-]);
-
 function wantsCli(args) {
   if (args.length === 0) return false;
   const first = args[0];
-  return first === "--help" || first === "--version" || first === "-h" || CLI_COMMANDS.has(first);
+  return first === "--version" || CLI_COMMANDS.has(first);
 }
 
 if (wantsCli(argv)) {
@@ -343,6 +397,33 @@ function readTuiVersion() {
   } catch {
     return "unknown";
   }
+}
+
+function printHelp() {
+  const lines = [
+    "Liner — build and use source-grounded Liner Projects.",
+    "",
+    "Usage:",
+    "  liner                         Open the Go TUI",
+    "  liner <command> [options]     Run a command",
+    "",
+    "liner with no arguments opens the Go TUI.",
+    "Run `liner <command> --help` for detailed command help.",
+    "",
+  ];
+  for (const group of COMMAND_GROUPS) {
+    lines.push(group.title);
+    for (const command of group.commands) {
+      lines.push(`  ${command.name.padEnd(10)} ${command.description}`);
+    }
+    lines.push("");
+  }
+  lines.push(
+    "Options:",
+    "  -h, --help     Show this help",
+    "  -v, --version  Show version information",
+  );
+  console.log(lines.join("\n"));
 }
 
 // Like resolveCliBinary() but non-fatal: returns null instead of exiting when

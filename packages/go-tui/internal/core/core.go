@@ -222,6 +222,21 @@ func (r Runner) InitProject(path string) error {
 	return err
 }
 
+// InitProjectWithMetadata keeps first-run Project creation inside Liner Core.
+// The TUI passes user-reviewed setup values as CLI arguments and never rewrites
+// the canonical tape after Core creates it.
+func (r Runner) InitProjectWithMetadata(path string, title string, description string, curator string, jtbd string) error {
+	_, err := r.Run(
+		"init", path,
+		"--title", title,
+		"--description", description,
+		"--curator", curator,
+		"--jtbd", jtbd,
+		"--tui-construction",
+	)
+	return err
+}
+
 func (r Runner) SetupJS() error {
 	_, err := r.Run("setup-js", "--yes")
 	return err
@@ -230,22 +245,19 @@ func (r Runner) SetupJS() error {
 func (r Runner) ProjectStatus(path string) (ProjectStatus, error) {
 	out, err := r.Run("status", path, "--json", "--no-write")
 	if err != nil {
-		if !statusNoWriteUnsupported(out, err) {
-			return ProjectStatus{}, err
-		}
-		out, err = r.Run("status", path, "--json")
-		if err != nil {
-			return ProjectStatus{}, err
-		}
+		return ProjectStatus{}, err
 	}
 	return parseProjectStatus(out)
 }
 
-func statusNoWriteUnsupported(out []byte, err error) bool {
-	message := strings.ToLower(strings.TrimSpace(string(out) + " " + err.Error()))
-	return strings.Contains(message, "no such option: --no-write") ||
-		strings.Contains(message, "unknown option: --no-write") ||
-		strings.Contains(message, "unknown flag: --no-write")
+// RefreshProjectStatus asks Core to update only the durable Status Snapshot.
+// Unlike ProjectStatus, this deliberately omits --no-write.
+func (r Runner) RefreshProjectStatus(path string) (ProjectStatus, error) {
+	out, err := r.Run("status", path, "--json", "--status-only")
+	if err != nil {
+		return ProjectStatus{}, err
+	}
+	return parseProjectStatus(out)
 }
 
 func parseProjectStatus(out []byte) (ProjectStatus, error) {

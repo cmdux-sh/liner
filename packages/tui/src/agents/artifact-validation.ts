@@ -36,13 +36,19 @@ export function validatePhaseArtifact(
     case "candidates":
       return validateCandidateLonglist(join(project, "working/02-candidate-longlist.md"));
     case "evaluation":
-      return validateEvaluation(join(project, "working/03-evaluation.yaml"), {
-        expectedCandidateCount: countCandidateUrlsFromLonglist(
-          join(project, "working/02-candidate-longlist.md"),
-        ),
-      });
-    case "quality":
-      return validateQualityChecks(join(project, "working/04-quality-checks.md"));
+      return validateProjectEvaluation(project);
+    case "quality": {
+      const quality = validateQualityChecks(join(project, "working/04-quality-checks.md"));
+      if (!quality.ok) return quality;
+      const evaluation = validateProjectEvaluation(project);
+      if (!evaluation.ok) {
+        return {
+          ok: false,
+          message: `working/03-evaluation.yaml is invalid after quality checks: ${evaluation.message}`,
+        };
+      }
+      return quality;
+    }
     case "synthesis":
       return validateSynthesis(join(project, "synthesis.md"));
     case "assembly":
@@ -51,9 +57,67 @@ export function validatePhaseArtifact(
         evaluationPath: join(project, "working/03-evaluation.yaml"),
         sourceManifestPath: join(project, "local-sources/sources-manifest.yaml"),
       });
+    case "improvement":
+      return validateImprovementDelta(join(project, ".liner-runs/improvement/delta.yaml"));
     default:
       return { ok: true };
   }
+}
+
+function validateProjectEvaluation(project: string): ArtifactValidationResult {
+  return validateEvaluation(join(project, "working/03-evaluation.yaml"), {
+    expectedCandidateCount: countCandidateUrlsFromLonglist(
+      join(project, "working/02-candidate-longlist.md"),
+    ),
+  });
+}
+
+export function validateImprovementDelta(path: string): ArtifactValidationResult {
+  const parsed = parseYaml(path, "improvement delta");
+  if (!parsed.ok) return parsed;
+  if (!isRecord(parsed.value)) {
+    return { ok: false, message: ".liner-runs/improvement/delta.yaml is not a YAML mapping" };
+  }
+  if (stringField(parsed.value, "contract") !== "liner.improvement_delta" || parsed.value["version"] !== 1) {
+    return { ok: false, message: ".liner-runs/improvement/delta.yaml has an unsupported contract or version" };
+  }
+  if (!stringField(parsed.value, "summary")) {
+    return { ok: false, message: ".liner-runs/improvement/delta.yaml summary is required" };
+  }
+  const removals = parsed.value["removals"];
+  const replacements = parsed.value["replacements"];
+  if (!Array.isArray(removals) || removals.length !== 0 || !Array.isArray(replacements) || replacements.length !== 0) {
+    return { ok: false, message: "Improve Corpus requires separate explicit curator intent for removals or replacements" };
+  }
+  const additions = parsed.value["additions"];
+  if (!Array.isArray(additions) || additions.length === 0) {
+    return { ok: false, message: ".liner-runs/improvement/delta.yaml must contain at least one focused addition" };
+  }
+  for (let i = 0; i < additions.length; i++) {
+    const source = additions[i];
+    if (!isRecord(source)) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}] is not a mapping` };
+    }
+    const type = stringField(source, "type");
+    if (!SOURCE_TYPES.has(type)) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}].type is invalid: ${type || "(empty)"}` };
+    }
+    if ((type === "web" || type === "youtube") && !stringField(source, "url")) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}].url is required` };
+    }
+    if (type === "local_file" && !stringField(source, "path")) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}].path is required` };
+    }
+    if (type === "skill" && !stringField(source, "path") && !stringField(source, "url")) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}] needs path or url` };
+    }
+    const priority = stringField(source, "priority");
+    const kind = stringField(source, "kind");
+    if (!PRIORITIES.has(priority) || !KINDS.has(kind)) {
+      return { ok: false, message: `.liner-runs/improvement/delta.yaml additions[${i}] needs valid priority and kind` };
+    }
+  }
+  return { ok: true };
 }
 
 export function validateCandidateLonglist(path: string): ArtifactValidationResult {

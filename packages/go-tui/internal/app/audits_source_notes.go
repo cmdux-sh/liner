@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cmdux/liner/packages/go-tui/internal/core"
 	"github.com/cmdux/liner/packages/go-tui/internal/tape"
 )
 
@@ -94,7 +95,11 @@ func writeSourceNoteCleanupDraft(project string) (auditFile, error) {
 	}, nil
 }
 
-func applySourceNoteCleanup(project string, draftRel string) (auditFile, int, error) {
+func applySourceNoteCleanup(runner core.Runner, project string, draftRel string) (auditFile, int, error) {
+	return applySourceNoteCleanupWithAuditWriter(runner, project, draftRel, os.WriteFile)
+}
+
+func applySourceNoteCleanupWithAuditWriter(runner core.Runner, project string, draftRel string, writeAudit func(string, []byte, os.FileMode) error) (auditFile, int, error) {
 	draftRel = filepath.Clean(strings.TrimSpace(draftRel))
 	if draftRel == "" || draftRel == "." || filepath.IsAbs(draftRel) || draftRel == ".." || strings.HasPrefix(draftRel, ".."+string(filepath.Separator)) {
 		return auditFile{}, 0, fmt.Errorf("No reviewed source-note cleanup draft is selected.")
@@ -116,8 +121,13 @@ func applySourceNoteCleanup(project string, draftRel string) (auditFile, int, er
 		return auditFile{}, 0, fmt.Errorf("No saved sources found in tape.yaml. Save an assembly draft before applying source-note cleanup.")
 	}
 
+	snapshot, err := runner.InspectMaintenanceProject(project)
+	if err != nil {
+		return auditFile{}, 0, err
+	}
 	findings := sourceNoteQualityFindings(t.Sources)
 	changes := make([]sourceNoteAppliedChange, 0, len(findings))
+	receipts := []string{}
 	for index, finding := range findings {
 		if finding.Status == "strong" {
 			continue
@@ -126,7 +136,22 @@ func applySourceNoteCleanup(project string, draftRel string) (auditFile, int, er
 		if optionalString(t.Sources[index].Note) == note {
 			continue
 		}
-		t.Sources[index].Note = &note
+		sourceID, err := sourceNoteCleanupSourceID(snapshot, compositionMergeSourceLabel(t.Sources[index]), finding.Source, receipts)
+		if err != nil {
+			return auditFile{}, 0, err
+		}
+		plan, err := runner.PlanMaintenance(project, core.SourceOperation("source.update", sourceID, map[string]any{"note": note}))
+		if err != nil {
+			return auditFile{}, 0, sourceNotePartialError(err, receipts)
+		}
+		if plan.ApprovalRequired {
+			return auditFile{}, 0, sourceNotePartialError(fmt.Errorf("Liner Core classified the Source update as approval-required. No implicit approval was granted; open Maintain project and review the exact Change Set for Source %s", sourceID), receipts)
+		}
+		receipt, err := runner.ApplyMaintenance(project, plan, false)
+		if err != nil {
+			return auditFile{}, 0, sourceNotePartialError(err, receipts)
+		}
+		receipts = append(receipts, receipt.ReceiptPath)
 		changes = append(changes, sourceNoteAppliedChange{
 			Source: finding.Source,
 			Status: finding.Status,
@@ -140,25 +165,13 @@ func applySourceNoteCleanup(project string, draftRel string) (auditFile, int, er
 	now := time.Now()
 	dir := filepath.Join(project, "working", "audits")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return auditFile{}, 0, err
+		return auditFile{}, 0, sourceNotePartialError(err, receipts)
 	}
-	backupRel := filepath.Join("working", "audits", now.Format("2006-01-02-150405")+"-source-note-cleanup-tape-backup.yaml")
-	original, err := os.ReadFile(tape.ProjectAt(project).TapePath)
-	if err != nil {
-		return auditFile{}, 0, err
-	}
-	if err := os.WriteFile(filepath.Join(project, backupRel), original, 0o644); err != nil {
-		return auditFile{}, 0, err
-	}
-	if err := tape.WriteProject(project, t); err != nil {
-		return auditFile{}, 0, err
-	}
-
 	name := now.Format("2006-01-02-150405") + "-source-note-cleanup-apply"
 	rel := filepath.Join("working", "audits", name+".md")
 	path := filepath.Join(project, rel)
-	if err := os.WriteFile(path, []byte(renderSourceNoteCleanupApplyAudit(now, draftRel, backupRel, changes)), 0o644); err != nil {
-		return auditFile{}, 0, err
+	if err := writeAudit(path, []byte(renderSourceNoteCleanupApplyAudit(now, draftRel, receipts, changes)), 0o644); err != nil {
+		return auditFile{}, 0, sourceNotePartialError(err, receipts)
 	}
 	return auditFile{
 		Name:    name,
@@ -167,6 +180,24 @@ func applySourceNoteCleanup(project string, draftRel string) (auditFile, int, er
 		Type:    "source notes",
 		Updated: now.Format("2006-01-02"),
 	}, len(changes), nil
+}
+
+func sourceNoteCleanupSourceID(snapshot core.MaintenanceProjectSnapshot, locator string, sourceLabel string, receiptPaths []string) (string, error) {
+	sourceIDs := maintenanceSourceIDsForLocator(snapshot, locator)
+	if len(sourceIDs) == 0 {
+		return "", sourceNotePartialError(fmt.Errorf("Core did not return an immutable Source ID for %s", sourceLabel), receiptPaths)
+	}
+	if len(sourceIDs) > 1 {
+		return "", sourceNotePartialError(fmt.Errorf("Core returned ambiguous Source IDs for %s: %s", sourceLabel, strings.Join(sourceIDs, ", ")), receiptPaths)
+	}
+	return sourceIDs[0], nil
+}
+
+func sourceNotePartialError(err error, receiptPaths []string) error {
+	if len(receiptPaths) == 0 {
+		return err
+	}
+	return fmt.Errorf("Liner Core applied %d source-note update(s) before a later update failed. Durable receipts: %s. Refresh the Project before retrying: %w", len(receiptPaths), strings.Join(receiptPaths, ", "), err)
 }
 
 func sourceNoteQualityFindings(sources []tape.Source) []sourceNoteFinding {
@@ -337,23 +368,25 @@ func renderSourceNoteCleanupDraft(now time.Time, sources []tape.Source, findings
 		b.WriteString("\n")
 	}
 	b.WriteString("## How To Apply\n\n")
-	b.WriteString("- Edit `tape.yaml` manually or rerun Assembly Review with better source notes.\n")
+	b.WriteString("- Review this draft in the TUI, then accept it to request Source metadata Change Sets from Liner Core.\n")
 	b.WriteString("- Each revised note should say how to use the source and where its advice stops applying.\n")
-	b.WriteString("- After editing, run the source-note audit again and keep both reports for provenance.\n\n")
+	b.WriteString("- Never edit `tape.yaml` directly; keep the Core receipts and rerun the source-note audit after apply.\n\n")
 	b.WriteString("## Decision Log\n\n")
 	b.WriteString("- No files were changed except this cleanup draft.\n")
 	b.WriteString("- Do not copy these briefs blindly; review them against the source before editing accepted notes.\n")
 	return b.String()
 }
 
-func renderSourceNoteCleanupApplyAudit(now time.Time, draftRel string, backupRel string, changes []sourceNoteAppliedChange) string {
+func renderSourceNoteCleanupApplyAudit(now time.Time, draftRel string, receiptPaths []string, changes []sourceNoteAppliedChange) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Source-Note Cleanup Apply Audit\n\nDate: %s\n\n", now.Format("2006-01-02 15:04:05"))
 	b.WriteString("## Scope\n\n")
 	b.WriteString("This audit records reviewed source-note cleanup changes applied to `tape.yaml`.\n\n")
 	b.WriteString("## Inputs\n\n")
 	fmt.Fprintf(&b, "- Reviewed draft: `%s`\n", draftRel)
-	fmt.Fprintf(&b, "- Previous tape backup: `%s`\n", backupRel)
+	for _, receiptPath := range receiptPaths {
+		fmt.Fprintf(&b, "- Core Change Receipt: `%s`\n", receiptPath)
+	}
 	fmt.Fprintf(&b, "- Updated source note(s): %d\n\n", len(changes))
 	b.WriteString("## Applied Changes\n\n")
 	b.WriteString("| Source | Previous Status | Applied Note |\n")
@@ -366,8 +399,7 @@ func renderSourceNoteCleanupApplyAudit(now time.Time, draftRel string, backupRel
 		)
 	}
 	b.WriteString("\n## Decision Log\n\n")
-	b.WriteString("- `tape.yaml` was updated only after the cleanup draft review step.\n")
-	fmt.Fprintf(&b, "- The previous `tape.yaml` was backed up to `%s`.\n", backupRel)
+	b.WriteString("- Source notes were updated by atomic Liner Core Change Sets only after the cleanup draft review step.\n")
 	b.WriteString("- No source files were changed by this apply action.\n")
 	return b.String()
 }

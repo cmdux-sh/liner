@@ -722,6 +722,63 @@ describe("validatePhaseArtifact", () => {
     if (!result.ok) expect(result.message).toContain("TODO");
   });
 
+  it("rejects evaluation YAML corrupted while quality checks enrich source metadata", () => {
+    const project = join(TMP, "project-with-quality-evaluation-corruption");
+    write(
+      join(project, "working/02-candidate-longlist.md"),
+      "## foundations\n- https://example.com/a — A\n",
+    );
+    write(
+      join(project, "working/03-evaluation.yaml"),
+      [
+        "candidates:",
+        "  - url: https://example.com/a",
+        "    decision: kept",
+        "    rating: 5",
+        "    jtbd_fit: direct",
+        "    kind: reference",
+        "    kind: reference",
+        "    fetch_status: readable",
+        "    content_quality: high",
+        "    evidence:",
+        "      - The source defines a concrete workflow.",
+        "      - The source names a material limitation.",
+        "    section: Foundations",
+        "    note: Useful.",
+      ].join("\n"),
+    );
+    write(
+      join(project, "working/04-quality-checks.md"),
+      [
+        "# Quality checks",
+        "## Test 0 — Core-action fit",
+        "Distribution: 1 direct / 0 bridge / 0 background",
+        "## Test 1 — Redundancy",
+        "No overlap.",
+        "## Test 2 — Coverage",
+        "Covered.",
+        "## Test 3 — Disagreement",
+        "Represented.",
+        "## Test 4 — Framing-gap",
+        "### Perspectives audit",
+        "- Operator — stance-represented.",
+        "## Test 5 — Source-kind balance",
+        "Distribution: 1 reference / 0 principle / 0 prescription / 0 example",
+        "## Test 6 — Note-quality",
+        "Checked: 1 kept/trim notes",
+        "Repaired: 0 notes",
+        "## Test 7 — Source-role fit",
+        "Required roles: pass",
+        "## Test 8 — Capability-pattern fit",
+        "Pattern: none",
+      ].join("\n\n"),
+    );
+
+    const result = validatePhaseArtifact(project, "quality");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain("Map keys must be unique");
+  });
+
   it("requires one evaluation decision per longlist URL", () => {
     const project = join(TMP, "project-with-longlist");
     write(

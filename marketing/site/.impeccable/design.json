@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-01T00:00:00.000Z",
+  "title": "Design System: Liner Marketing Landing Page",
+  "extensions": {
+    "colorMeta": {
+      "accent-orange": {
+        "role": "primary",
+        "displayName": "Install Orange",
+        "canonical": "#ff4500",
+        "tonalRamp": ["#3a1208", "#8f2600", "#ff4500", "#ff8b59", "#ffd5c4"]
+      },
+      "bg-workspace": {
+        "role": "neutral",
+        "displayName": "Workspace Black",
+        "canonical": "#0f0f0f",
+        "tonalRamp": ["#050505", "#0a0a0a", "#0f0f0f", "#181716", "#242322"]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "canonical": "#d4d4d8",
+        "tonalRamp": ["#7a7a83", "#8a8a93", "#a1a1aa", "#d4d4d8", "#f4f3ed"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Inter Light Display",
+        "purpose": "Hero and major campaign claims only."
+      },
+      "label": {
+        "displayName": "JetBrains Mono Label",
+        "purpose": "Commands, nav, metadata, version markers, terminal states."
+      }
+    },
+    "elevationMeta": {
+      "philosophy": "Flat, structural depth through tonal layers, hairlines, grid seams, and corner markers.",
+      "shadows": {
+        "record-pulse": "0 0 0 0 rgb(255 69 0 / 0.65)"
+      }
+    },
+    "motion": {
+      "reveal": "Masked headline reveal with cubic-bezier(0.16, 1, 0.3, 1).",
+      "system": "WebGL blocks, rail scans, marquee tracks, progress bars, and terminal cursor blink.",
+      "reducedMotion": "Animations must become static or settle under prefers-reduced-motion: reduce."
+    },
+    "componentMeta": {
+      "install-command": {
+        "displayName": "Install Command",
+        "description": "Dark copyable command pill with selectable code and fixed-width copy state."
+      },
+      "file-tree": {
+        "displayName": "File Tree",
+        "description": "Dark mono artifact panel for mixtape folder output and source structure."
+      },
+      "workspace-panel": {
+        "displayName": "Workspace Panel",
+        "description": "Square dark panel with 1px hairline border, no shadow, optional corner marker."
+      }
+    },
+    "rules": {
+      "do": [
+        "Use orange for commands, active state, progress, proof links, and installation.",
+        "Show concrete artifacts: commands, files, source notes, terminal states, folder output, and compiled mixtape details.",
+        "Keep command snippets copyable and stable in width."
+      ],
+      "dont": [
+        "Do not make Liner look like generic AI tool marketing with pastel gradients, floating chat bubbles, soft cards, and vague productivity claims.",
+        "Do not add purple-blue gradients, glassmorphism, decorative orbs, abstract AI sparkle visuals, or bokeh backgrounds.",
+        "Do not use em dashes or Not this, but this contrast framing in marketing copy."
+      ]
+    }
+  }
+}

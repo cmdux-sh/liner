@@ -1,0 +1,605 @@
+---
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import CommandSnippet from "../components/CommandSnippet.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+
+type Entry = {
+  version: string;
+  items: string[];
+};
+
+type ParsedItem = {
+  title?: string;
+  body: string;
+};
+
+type VersionLabel = {
+  number: string;
+  note?: string;
+};
+
+const changelog = readFileSync(resolve(process.cwd(), "../../docs/project/CHANGELOG.md"), "utf8");
+const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "utf8").trim();
+const entries: Entry[] = [];
+let current: Entry | null = null;
+let activeItem = "";
+
+function pushItem() {
+  if (!current || !activeItem.trim()) return;
+  current.items.push(activeItem.trim());
+  activeItem = "";
+}
+
+for (const line of changelog.split("\n")) {
+  const heading = line.match(/^##\s+(.+)/);
+  if (heading) {
+    pushItem();
+    if (current) entries.push(current);
+    current = { version: heading[1].trim(), items: [] };
+    continue;
+  }
+
+  if (!current) continue;
+
+  const bullet = line.match(/^-\s+(.+)/);
+  if (bullet) {
+    pushItem();
+    activeItem = bullet[1].trim();
+    continue;
+  }
+
+  if (activeItem && line.trim()) {
+    activeItem += " " + line.trim();
+  }
+}
+
+pushItem();
+if (current) entries.push(current);
+
+const releaseIntros: Record<string, string> = {
+  "1.1.0":
+    "Liner Projects can now be inspected and maintained through one versioned Core contract, including optional Codex and Claude adapters that keep previews, approvals, and receipts visible.",
+  "1.0.2":
+    "Compile became easier to trust when sources are missing or blocked. The terminal app now summarizes the result first, keeps source review close by, and guides recovery for custom web and YouTube sources.",
+  "1.0.0":
+    "The first complete project-builder release. The Go terminal UI is now the default path, the npm package includes the CLI and TUI, and completed folders carry instructions future AI sessions can use.",
+  "0.5.7":
+    "A focused PDF recovery fix for web sources that only expose the file through a browser download.",
+  "0.5.6":
+    "Source fetching became stricter about PDFs, JavaScript shells, cookie banners, stale cache entries, and partial compile reporting.",
+  "0.5.5":
+    "A broad reliability pass for terminal scrolling, JavaScript-rendered pages, partial compiles, and clean reinstall testing.",
+  "0.5.4":
+    "Fresh `npx linersh` installs became easier to verify, and Windows x64 support moved closer to the same install path as macOS and Linux.",
+  "0.5.3":
+    "Version reporting became clearer: the command now shows the installed TUI version and the command-line core version together.",
+  "0.5.2":
+    "The terminal hub became more direct: one status view, clearer navigation, and fewer misleading run summaries.",
+  "0.5.1":
+    "The first polish pass after the npm TUI release improved startup reliability, terminal color, navigation, and folder opening.",
+  "0.5.0":
+    "The interactive terminal UI became available through npm for clean machines.",
+};
+
+const shippedEntries = entries.filter((entry) => {
+  const version = entry.version.toLowerCase();
+  return version !== "unreleased" && !version.includes("unreleased");
+});
+
+function versionLabel(value: string): VersionLabel {
+  const match = value.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/);
+  if (!match) return { number: value };
+  return { number: match[1].trim(), note: match[2].trim() };
+}
+
+function parseItem(value: string): ParsedItem {
+  const match = value.match(/^\*\*([^*]+)\*\*\s*(.*)$/);
+  if (!match) return { body: value };
+
+  return {
+    title: match[1].trim().replace(/[.:]\s*$/, ""),
+    body: match[2].trim().replace(/^[,;:]\s*/, ""),
+  };
+}
+
+function inlineMarkdown(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+const releaseIsShipped = shippedEntries.some(
+  (entry) => versionLabel(entry.version).number === releaseVersion,
+);
+const candidateEntry = entries.find((entry) => entry.version.toLowerCase() === "unreleased");
+const publicEntries =
+  !releaseIsShipped && candidateEntry
+    ? [
+        { version: `${releaseVersion} — candidate`, items: candidateEntry.items },
+        ...shippedEntries,
+      ]
+    : shippedEntries;
+
+const renderedEntries = publicEntries.map((entry) => {
+  const label = versionLabel(entry.version);
+
+  return {
+    version: entry.version,
+    label,
+    intro: releaseIntros[label.number] ?? "",
+    changes: entry.items.map(parseItem),
+    isCurrent: releaseIsShipped && label.number === releaseVersion,
+    isCandidate: !releaseIsShipped && label.number === releaseVersion,
+  };
+});
+---
+
+<BaseLayout
+  title="Liner Changelog"
+  description="Track shipped and candidate changes to the local CLI, terminal UI, and safe maintenance workflow for reusable AI context projects."
+>
+  <main class="changelog-page min-h-screen">
+    <SiteHeader current="changelog" />
+
+    <section class="changelog-hero">
+      <div class="changelog-hero-inner">
+        <p class="eyebrow eyebrow--accent">Changelog</p>
+        <h1>What changed in the local AI project builder.</h1>
+        <p>
+          Liner is a local CLI and terminal UI for turning focused research sources into files
+          an AI assistant can use and maintain later. This page tracks changes to the install
+          path, source handling, terminal workflow, and reviewed Project maintenance contract.
+        </p>
+
+        <div class="release-strip" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} release summary`}>
+          <div>
+            <span>{releaseIsShipped ? "Current" : "Candidate"}</span>
+            <strong>{releaseVersion}</strong>
+          </div>
+          <div>
+            <span>Install</span>
+            <code>npx linersh</code>
+          </div>
+          <div>
+            <span>Writes</span>
+            <strong>MIXTAPE.md + LINER.md</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="current-release-section" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} ${releaseVersion} release spotlight`}>
+      <div class="release-focus">
+        <div class="release-focus-copy">
+          <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Current release" : "Release candidate"} /// {releaseVersion}</p>
+          <h2>Projects can stay current through the same safe maintenance authority.</h2>
+          <p>
+            Version {releaseVersion} adds durable Project and Source identity, write-free
+            previews, guarded apply, and redacted receipts. An optional Maintenance Adapter
+            lets Codex or Claude follow that installed CLI contract without becoming a second
+            writer.
+          </p>
+          <ul class="release-highlights">
+            <li>
+              <span>01</span>
+              <p>Every supported change begins with a versioned Project Snapshot and Project Change Set.</p>
+            </li>
+            <li>
+              <span>02</span>
+              <p>Approval-required operations stop on the exact preview before any canonical Project write.</p>
+            </li>
+            <li>
+              <span>03</span>
+              <p>A durable Change Receipt records the applied plan and its effects without copying private Source content.</p>
+            </li>
+          </ul>
+        </div>
+
+        <aside class="release-install" aria-label="Install command">
+          <p class="eyebrow">Install Liner</p>
+          <CommandSnippet command="npx linersh" label="Copy" />
+          <p>
+            Runs locally. No account, hosted compilation, or telemetry is required by the tool.
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="changelog-list-section">
+      <div class="changelog-list-shell">
+        <div class="changelog-section-intro">
+          <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Shipped changes" : "Candidate and shipped changes"}</p>
+          <h2>Each entry explains what changed in the installed tool.</h2>
+          <p>
+            Candidate work is labeled until publishing. Historical entries remain the record
+            of shipped app behavior.
+          </p>
+        </div>
+
+        <div class="changelog-list">
+          {renderedEntries.map((entry) => (
+            <article class:list={["changelog-entry", { "is-current": entry.isCurrent || entry.isCandidate }]}>
+              <div>
+                <p>{entry.isCandidate ? "Candidate" : entry.isCurrent ? "Current" : "Version"}</p>
+                <h2>
+                  <span>{entry.label.number}</span>
+                  {entry.label.note && <small>{entry.label.note}</small>}
+                </h2>
+                {entry.intro && <p class="entry-intro" set:html={inlineMarkdown(entry.intro)} />}
+              </div>
+              <ul class="changelog-items">
+                {entry.changes.map((item) => (
+                  <li>
+                    {item.title && <strong set:html={inlineMarkdown(item.title)} />}
+                    {item.body && <span set:html={inlineMarkdown(item.body)} />}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <style>
+    .changelog-page {
+      position: relative;
+      overflow-x: clip;
+      background:
+        linear-gradient(90deg, transparent 7.95%, var(--color-line-soft) 8%, transparent 8.05%),
+        linear-gradient(90deg, transparent 39.95%, var(--color-line-soft) 40%, transparent 40.05%),
+        linear-gradient(90deg, transparent 91.95%, var(--color-line-soft) 92%, transparent 92.05%),
+        var(--color-bg-workspace);
+    }
+
+    .changelog-hero,
+    .changelog-list-section {
+      padding-inline: 1.5rem;
+    }
+
+    .changelog-hero {
+      border-bottom: 1px solid var(--color-line-medium);
+      padding-block: clamp(4rem, 7vw, 5.5rem) clamp(2.5rem, 4vw, 3.5rem);
+    }
+
+    .changelog-hero-inner,
+    .changelog-list-shell {
+      max-width: 64rem;
+      margin-inline: auto;
+    }
+
+    .changelog-hero .eyebrow {
+      margin-bottom: 1rem;
+    }
+
+    .changelog-hero h1 {
+      max-width: 21ch;
+      color: var(--color-text-primary);
+      font-size: clamp(2.35rem, 4.8vw, 4.65rem);
+      font-weight: 400;
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .changelog-hero p:not(.eyebrow) {
+      max-width: 42rem;
+      margin-top: 1.35rem;
+      color: var(--color-text-secondary);
+      font-size: 1.05rem;
+      line-height: 1.75;
+    }
+
+    .release-strip {
+      display: grid;
+      gap: 1px;
+      margin-top: clamp(2rem, 5vw, 3rem);
+      border: 1px solid var(--color-line-medium);
+      background: var(--color-line-medium);
+    }
+
+    .release-strip > div {
+      display: grid;
+      gap: 0.55rem;
+      min-width: 0;
+      padding: 1rem;
+      background: var(--color-bg-workspace);
+    }
+
+    .release-strip span,
+    .release-install .eyebrow {
+      color: var(--color-text-dim);
+    }
+
+    .release-strip span {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.2;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .release-strip strong,
+    .release-strip code {
+      min-width: 0;
+      color: var(--color-text-primary);
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: 1.25;
+    }
+
+    .release-strip code {
+      width: fit-content;
+      border: 1px solid var(--color-line-medium);
+      border-radius: 4px;
+      padding: 0.14rem 0.38rem;
+      background: var(--color-bg-deep);
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+    }
+
+    .current-release-section {
+      border-bottom: 1px solid var(--color-line-medium);
+      padding: clamp(2.75rem, 6vw, 4.5rem) 1.5rem;
+    }
+
+    .release-focus {
+      display: grid;
+      max-width: 64rem;
+      margin-inline: auto;
+      border: 1px solid var(--color-line-medium);
+      background: var(--color-line-medium);
+      gap: 1px;
+    }
+
+    .release-focus-copy,
+    .release-install {
+      min-width: 0;
+      background: var(--color-bg-workspace);
+      padding: clamp(1.25rem, 3vw, 2rem);
+    }
+
+    .release-focus h2 {
+      max-width: 15ch;
+      margin-top: 0.75rem;
+      color: var(--color-text-primary);
+      font-size: clamp(1.75rem, 3.2vw, 2.85rem);
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .release-focus-copy > p:not(.eyebrow) {
+      max-width: 42rem;
+      margin-top: 1.15rem;
+      color: var(--color-text-secondary);
+      font-size: 1rem;
+      line-height: 1.75;
+    }
+
+    .release-focus code {
+      border: 1px solid var(--color-line-medium);
+      border-radius: 4px;
+      padding: 0.1rem 0.28rem;
+      background: var(--color-bg-deep);
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    .release-highlights {
+      display: grid;
+      gap: 1px;
+      margin: clamp(1.5rem, 3vw, 2rem) 0 0;
+      padding: 0;
+      list-style: none;
+      background: var(--color-line-medium);
+    }
+
+    .release-highlights li {
+      display: grid;
+      grid-template-columns: 2.5rem minmax(0, 1fr);
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--color-bg-deep);
+    }
+
+    .release-highlights span {
+      color: var(--color-accent);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+
+    .release-highlights p {
+      margin: 0;
+      color: var(--color-text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .release-install {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .release-install p:last-child {
+      max-width: 26rem;
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: 0.9rem;
+      line-height: 1.65;
+    }
+
+    .changelog-list-section {
+      padding-block: clamp(2rem, 5vw, 3.5rem);
+    }
+
+    .changelog-section-intro {
+      max-width: 42rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .changelog-section-intro h2 {
+      margin-top: 0.75rem;
+      color: var(--color-text-primary);
+      font-size: clamp(1.45rem, 2.6vw, 2rem);
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .changelog-section-intro p:not(.eyebrow) {
+      margin-top: 0.85rem;
+      color: var(--color-text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    .changelog-list {
+      border: 1px solid var(--color-line-medium);
+      background: var(--color-line-medium);
+    }
+
+    .changelog-entry {
+      display: grid;
+      gap: 1.25rem;
+      padding: clamp(1.15rem, 2vw, 1.65rem);
+      background: var(--color-bg-workspace);
+    }
+
+    .changelog-entry.is-current {
+      box-shadow: inset 3px 0 0 var(--color-accent);
+    }
+
+    .changelog-entry + .changelog-entry {
+      margin-top: 1px;
+    }
+
+    .changelog-entry > div > p {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.2;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+    }
+
+    .changelog-entry h2 {
+      display: grid;
+      gap: 0.4rem;
+      margin-top: 0.45rem;
+      color: var(--color-text-primary);
+      font-size: clamp(1.35rem, 2vw, 1.75rem);
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .changelog-entry h2 small {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    .entry-intro {
+      margin-top: 0.9rem;
+      color: var(--color-text-muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .changelog-items {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 0.8rem;
+      max-width: 68ch;
+    }
+
+    .changelog-items li {
+      position: relative;
+      padding-left: 1.25rem;
+      color: var(--color-text-secondary);
+      font-size: 0.9375rem;
+      line-height: 1.65;
+    }
+
+    .changelog-items li strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--color-text-primary);
+      font-weight: 500;
+      line-height: 1.35;
+    }
+
+    .changelog-items li span {
+      display: block;
+    }
+
+    .changelog-items li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.65rem;
+      width: 0.35rem;
+      height: 0.35rem;
+      background: var(--color-accent);
+    }
+
+    .entry-intro code,
+    .changelog-items code {
+      border: 1px solid var(--color-line-medium);
+      border-radius: 4px;
+      padding: 0.1rem 0.28rem;
+      background: var(--color-bg-deep);
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    .changelog-items strong {
+      color: var(--color-text-primary);
+      font-weight: 500;
+    }
+
+    @media (min-width: 48rem) {
+      .changelog-hero,
+      .current-release-section,
+      .changelog-list-section {
+        padding-inline: 3rem;
+      }
+
+      .release-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .release-focus {
+        grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+      }
+
+      .changelog-entry {
+        grid-template-columns: 10rem minmax(0, 1fr);
+      }
+    }
+
+    @media (min-width: 64rem) {
+      .changelog-hero,
+      .current-release-section,
+      .changelog-list-section {
+        padding-inline: 5rem;
+      }
+    }
+  </style>
+</BaseLayout>

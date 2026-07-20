@@ -45,6 +45,8 @@ describe("buildPhasePrompt", () => {
     expect(prompt).toContain("The user should not have to know research lanes");
     expect(prompt).toContain("Capability pattern: reference-translation");
     expect(prompt).toContain("runtime output contract");
+    expect(prompt).toContain("### Exact runtime output contract");
+    expect(prompt).toContain("### Runtime autonomy, abstention, and escalation");
   });
 
   it("bounds Phase 2 candidate discovery so custom-source runs write the long-list", () => {
@@ -71,6 +73,37 @@ describe("buildPhasePrompt", () => {
     expect(prompt).toContain("focused second pass");
     expect(prompt).toContain("source ecology");
     expect(prompt).toContain("input/reference domains outside the target output medium");
+  });
+
+  it("scopes an improvement pass to a reviewed incremental Source delta", () => {
+    const prompt = buildPhasePrompt({
+      phaseId: "improvement",
+      project: "/tmp/terminal-craft",
+      skillPath: "/tmp/skill",
+      tape: {
+        ...tape,
+        sources: [{
+          id: "src_existing",
+          type: "web",
+          url: "https://example.com/existing",
+          priority: "required",
+        }],
+      },
+    });
+
+    expect(prompt).toContain(".liner-runs/improvement/delta.yaml");
+    expect(prompt).toContain(".liner-current-snapshot.json");
+    expect(prompt).toContain("fixed Core-owned baseline");
+    expect(prompt).toContain("missing source roles");
+    expect(prompt).toContain("preserve every accepted Source");
+    expect(prompt).toContain("immutable Source ID");
+    expect(prompt).toContain("add/dedupe");
+    expect(prompt).toContain("explicit curator intent");
+    expect(prompt).toContain("Do not modify `tape.yaml`");
+    expect(prompt).toContain("Do not modify `synthesis.md`");
+    expect(prompt).toContain("Do not modify anything under `working/`");
+    expect(prompt).toContain("removals: []");
+    expect(prompt).toContain("replacements: []");
   });
 
   it("bounds Phase 4 fetch recovery so evaluation writes decisions under flaky network access", () => {
@@ -108,6 +141,9 @@ describe("buildPhasePrompt", () => {
 
     expect(prompt).toContain("Bounded quality discipline");
     expect(prompt).toContain("Missing `kind` metadata is not itself a reason to backfill");
+    expect(prompt).toContain("never insert a second copy of an existing YAML key");
+    expect(prompt).toContain("strict duplicate-key-rejecting YAML parser");
+    expect(prompt).toContain("Ruby `YAML.load_file`");
     expect(prompt).toContain("Search budget for Phase 5");
     expect(prompt).toContain("Do not exceed four external search/fetch attempts");
     expect(prompt).toContain("On resume after a paused/cancelled Quality run, do not continue a search loop");

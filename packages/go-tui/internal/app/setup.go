@@ -25,7 +25,7 @@ func (m *Model) currentCreateFieldValid() bool {
 		}
 	case 1:
 		if strings.TrimSpace(m.createDraft.JTBD) == "" {
-			m.err = "AI-agent goal is required."
+			m.err = "Job to Be Done is required."
 			return false
 		}
 	case 2:
@@ -45,6 +45,9 @@ func (m *Model) startCreate() {
 	m.screen = screenCreate
 	m.createStep = 0
 	m.createDraft = createDraft{AddSources: true}
+	m.createRunning = false
+	m.createError = ""
+	m.createOpenRetryPath = ""
 	m.createInput.SetValue("")
 	m.createInput.Placeholder = "..."
 	m.createInput.Focus()
@@ -152,14 +155,25 @@ func (m *Model) setClarifyField(step int) {
 }
 
 func (m Model) submitCreate() (Model, tea.Cmd) {
+	if m.createRunning {
+		return m, nil
+	}
+	if m.createOpenRetryPath != "" {
+		m.createRunning = true
+		m.createError = ""
+		m.err = ""
+		m.note = "Retrying the created Project open."
+		return m, readCreatedProject(m.createOpenRetryPath)
+	}
 	m.commitCreateInput()
+	m.createError = ""
 	if strings.TrimSpace(m.createDraft.Title) == "" {
 		m.err = "Title is required."
 		m.setCreateField(0)
 		return m, nil
 	}
 	if strings.TrimSpace(m.createDraft.JTBD) == "" {
-		m.err = "AI-agent goal is required."
+		m.err = "Job to Be Done is required."
 		m.setCreateField(1)
 		return m, nil
 	}
@@ -183,6 +197,10 @@ func (m Model) submitCreate() (Model, tea.Cmd) {
 		m.err = fmt.Sprintf("Could not inspect %s: %s", path, err)
 		return m, nil
 	}
+	m.createRunning = true
+	m.createError = ""
+	m.err = ""
+	m.note = "Project creation accepted."
 	return m, createProject(m.runner, m.baseDir, m.createDraft)
 }
 
@@ -216,6 +234,31 @@ func applyClarificationAnswers(current tape.Tape, questions []clarifyQuestion, a
 
 func (m Model) viewCreate() string {
 	width := setupContentWidth(m.width)
+	if m.createRunning {
+		title := "Creating Liner Project"
+		section := "Accepted submission"
+		status := "Liner Core is creating this Project. Additional submit input is disabled until the result returns."
+		rows := []labelValueRow{
+			{Label: "Name", Value: m.createDraft.Title},
+			{Label: "Job to Be Done", Value: m.createDraft.JTBD},
+			{Label: "Curator", Value: m.createDraft.Curator},
+			{Label: "Source Inbox", Value: customSourcesValue(m.createDraft.AddSources)},
+		}
+		if m.createOpenRetryPath != "" {
+			title = "Opening Created Liner Project"
+			section = "Created Project"
+			status = "Liner is reading the already-created Project. Core creation is not running. Additional input is disabled until the open result returns."
+			rows = append([]labelValueRow{{Label: "Path", Value: m.createOpenRetryPath}}, rows...)
+		}
+		return lipgloss.JoinVertical(lipgloss.Left,
+			m.renderLoadingTitle(title, true),
+			styles.Subtitle.Render("Working"),
+			"",
+			styles.Section.Render(section),
+			renderLabelValueBlock(width, rows, 1, 1),
+			styles.MutedText.Render(strings.Join(wrapWords(status, width), "\n")),
+		)
+	}
 	title := m.createDraft.Title
 	jtbd := m.createDraft.JTBD
 	curator := m.createDraft.Curator
@@ -230,18 +273,33 @@ func (m Model) viewCreate() string {
 	prompt := strings.Join(wrapWords(createStepPrompt(m.createStep), width), "\n")
 	rows := strings.Join([]string{
 		m.setupInlineRow("Name", title, m.createStep == 0, width),
-		m.setupInlineRow("AI-agent goal", jtbd, m.createStep == 1, width),
+		m.setupInlineRow("Job to Be Done", jtbd, m.createStep == 1, width),
 		m.setupInlineRow("Curator", curator, m.createStep == 2, width),
-		m.setupInlineRow("Custom sources", customSourcesValue(m.createDraft.AddSources), m.createStep == 3, width),
+		m.setupInlineRow("Source Inbox", customSourcesValue(m.createDraft.AddSources), m.createStep == 3, width),
 	}, "\n")
-	return lipgloss.JoinVertical(lipgloss.Left,
+	parts := []string{
 		styles.Title.Render("Setup"),
 		styles.Subtitle.Render(createStepSubtitle(m.createStep)),
+	}
+	if m.createError != "" {
+		guidance := "The reviewed draft is preserved. Press enter to retry."
+		if m.createOpenRetryPath != "" {
+			guidance = "The Project was created at " + m.createOpenRetryPath + ". Press enter to retry opening it; Core creation will not run again."
+		}
+		parts = append(parts,
+			"",
+			styles.ReportSection.Render("Creation failed"),
+			styles.ErrorText.Render(strings.Join(wrapWords(m.createError, width), "\n")),
+			styles.MutedText.Render(strings.Join(wrapWords(guidance, width), "\n")),
+		)
+	}
+	parts = append(parts,
 		"",
 		styles.Section.Render(prompt),
 		"",
 		rows,
 	)
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m Model) viewClarify() string {
@@ -255,19 +313,19 @@ func (m Model) viewClarify() string {
 	switch {
 	case m.clarifyLoading:
 		body = lipgloss.JoinVertical(lipgloss.Left,
-			styles.Section.Render("AI-agent goal"),
+			styles.Section.Render("Job to Be Done"),
 			job,
 			"",
 			styles.Section.Render("AI is working on it."),
 			m.clarifySpin.View()+" "+clarifyLoaderView(m.fxFrame),
 		)
 	case len(m.clarifyQuestions) == 0:
-		message := "No clarification questions were generated."
+		message := "No Clarify Job questions were generated."
 		if m.clarifyError != "" {
-			message = "Could not generate clarification questions: " + m.clarifyError
+			message = "Could not generate Clarify Job questions: " + m.clarifyError
 		}
 		body = lipgloss.JoinVertical(lipgloss.Left,
-			styles.Section.Render("AI-agent goal"),
+			styles.Section.Render("Job to Be Done"),
 			job,
 			"",
 			styles.ErrorText.Render(message),
@@ -277,7 +335,7 @@ func (m Model) viewClarify() string {
 		question := m.clarifyQuestions[m.clarifyStep].question
 		progress := fmt.Sprintf("Question %d of %d", m.clarifyStep+1, len(m.clarifyQuestions))
 		body = lipgloss.JoinVertical(lipgloss.Left,
-			styles.Section.Render("AI-agent goal"),
+			styles.Section.Render("Job to Be Done"),
 			job,
 			"",
 			styles.Subtitle.Render(progress),
@@ -287,8 +345,8 @@ func (m Model) viewClarify() string {
 		)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,
-		m.renderLoadingTitle("Clarify Goal", m.clarifyLoading),
-		styles.Subtitle.Render("Step 2 of 4 - Tune the future-agent capability."),
+		m.renderLoadingTitle("Clarify Job", m.clarifyLoading),
+		styles.Subtitle.Render("Refine the Job Story before corpus creation."),
 		"",
 		lipgloss.NewStyle().Width(width).Render(body),
 	)
@@ -362,7 +420,7 @@ func renderCustomSourceSelector(addSources bool, _ int) string {
 	return yes + "  " + no
 }
 
-const clarifyLoaderCopy = "Reading the AI-agent goal and preparing clarification questions."
+const clarifyLoaderCopy = "Reading the Job to Be Done and preparing Clarify Job questions."
 
 func clarifyLoaderMessage(frame int) string {
 	return clarifyLoaderCopy
@@ -416,7 +474,6 @@ func newClarifyArea(width int) textarea.Model {
 	clarifyArea.DynamicHeight = true
 	clarifyArea.MinHeight = 1
 	clarifyArea.MaxHeight = 6
-	clarifyArea.MaxContentHeight = 10
 	clarifyArea.SetWidth(width)
 	clarifyArea.SetHeight(1)
 	areaStyles := textarea.DefaultDarkStyles()
@@ -438,34 +495,34 @@ func newClarifyArea(width int) textarea.Model {
 func createStepPrompt(step int) string {
 	switch step {
 	case 0:
-		return "Name this mixtape."
+		return "Name this Liner Project."
 	case 1:
-		return "What do you want this Liner to help your AI agent do? Be as specific as you can; Liner will infer the research lanes."
+		return "Describe the Job to Be Done. A useful Job Story names the situation, motivation, and outcome; Liner will infer the research lanes."
 	case 2:
-		return "Who is curating this mixtape?"
+		return "Who is the Curator for this Liner Project?"
 	case 3:
-		return "Would you like to add your own sources before research starts?"
+		return "Would you like to add Sources before research starts?"
 	default:
 		return ""
 	}
 }
 
 func createStepSubtitle(step int) string {
-	return fmt.Sprintf("Step %d of %d - %s", min(max(step, 0), createFieldCount()-1)+1, createFieldCount(), createStepName(step))
+	return fmt.Sprintf("Setup %d of %d - %s", min(max(step, 0), createFieldCount()-1)+1, createFieldCount(), createStepName(step))
 }
 
 func createStepName(step int) string {
 	switch step {
 	case 0:
-		return "Name the mixtape."
+		return "Name the Liner Project."
 	case 1:
-		return "Define the AI-agent goal."
+		return "Define the Job to Be Done."
 	case 2:
-		return "Name the curator."
+		return "Name the Curator."
 	case 3:
 		return "Choose source capture."
 	default:
-		return "Set up the mixtape."
+		return "Set up the Liner Project."
 	}
 }
 
@@ -499,23 +556,24 @@ func clarifyAreaWidth(width int) int {
 func createProject(r core.Runner, baseDir string, draft createDraft) tea.Cmd {
 	return func() tea.Msg {
 		path := filepath.Join(baseDir, draft.Slug)
-		if err := r.InitProject(path); err != nil {
+		if err := r.InitProjectWithMetadata(
+			path,
+			draft.Title,
+			createDraftDescription(draft),
+			draft.Curator,
+			draft.JTBD,
+		); err != nil {
 			return projectCreatedMsg{path: path, err: err}
 		}
 		t, err := tape.ReadProject(path)
-		if err != nil {
-			return projectCreatedMsg{path: path, err: err}
-		}
-		t.Title = draft.Title
-		t.Description = createDraftDescription(draft)
-		t.Curator = draft.Curator
-		t.Sources = []tape.Source{}
-		if draft.JTBD != "" {
-			jtbd := draft.JTBD
-			t.JTBD = &jtbd
-		}
-		err = tape.WriteProject(path, t)
-		return projectCreatedMsg{path: path, tape: t, err: err}
+		return projectCreatedMsg{path: path, tape: t, created: true, err: err}
+	}
+}
+
+func readCreatedProject(path string) tea.Cmd {
+	return func() tea.Msg {
+		t, err := tape.ReadProject(path)
+		return projectCreatedMsg{path: path, tape: t, created: true, err: err}
 	}
 }
 

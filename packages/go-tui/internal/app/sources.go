@@ -1,15 +1,35 @@
 package app
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/cmdux/liner/packages/go-tui/internal/core"
 	"github.com/cmdux/liner/packages/go-tui/internal/source"
 	"github.com/cmdux/liner/packages/go-tui/internal/styles"
+	"github.com/cmdux/liner/packages/go-tui/internal/tape"
+)
+
+func sourceApplyNeedsFreshPlan(err error) bool {
+	var maintenanceErr *core.MaintenanceError
+	return errors.As(err, &maintenanceErr) && maintenanceErr.Report != nil && maintenanceErr.Report.Code == "stale_project"
+}
+
+const (
+	sourceBatchPhasePlanning   = "planning"
+	sourceBatchPhaseValidation = "validation"
+	sourceBatchPhaseApply      = "apply"
+	sourceBatchPhaseCancelled  = "cancelled"
+	sourceBatchPhaseFailed     = "failed"
+	sourceBatchPhaseComplete   = "complete"
 )
 
 func newSourceTable(width int, height int) table.Model {
@@ -312,10 +332,16 @@ func (m Model) viewSourceReview() string {
 		warnings = styles.ErrorText.Render(strings.Join(m.sourceWarnings[:min(5, len(m.sourceWarnings))], "\n"))
 	}
 	summaryView := styles.Section.Render(strings.Join(wrapWords(strings.Join(summary, "  "), width), "\n"))
-	return lipgloss.JoinVertical(lipgloss.Left,
-		styles.Title.Render("Review Local Sources"),
-		styles.Subtitle.Render("Choose which pasted, local, and custom sources Liner should use."),
+	sections := []string{
+		styles.Title.Render("Review User-Provided Sources"),
+		styles.Subtitle.Render("Choose which Sources from the Source Inbox Liner should use."),
 		summaryView,
+		"",
+	}
+	if progress := m.sourceBatchProgressView(); progress != "" {
+		sections = append(sections, progress, "")
+	}
+	sections = append(sections,
 		reviewTable.View(),
 		"",
 		styles.ReportSection.Render("Selected"),
@@ -325,6 +351,36 @@ func (m Model) viewSourceReview() string {
 		m.sourceReviewActionsTable(width).View(),
 		warnings,
 	)
+	if m.sourceMaintenancePlan != nil {
+		sections = append(sections, "", maintenancePlanView(width, *m.sourceMaintenancePlan, "Enter"))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func (m Model) sourceBatchProgressView() string {
+	if !m.sourceBatchRunning && m.sourceBatchPhase != sourceBatchPhaseCancelled && m.sourceBatchPhase != sourceBatchPhaseFailed {
+		return ""
+	}
+	phase := map[string]string{
+		sourceBatchPhasePlanning:   "Planning Core Change Set",
+		sourceBatchPhaseValidation: "Validating atomic batch",
+		sourceBatchPhaseApply:      "Atomic apply",
+		sourceBatchPhaseCancelled:  "Cancelled before atomic apply",
+		sourceBatchPhaseFailed:     "Paused on failure",
+	}[m.sourceBatchPhase]
+	lines := []string{
+		styles.ReportSection.Render("Source batch"),
+		styles.Subtitle.Render(fmt.Sprintf("%d/%d Sources prepared", m.sourceBatchPrepared, m.sourceBatchTotal)),
+		styles.NextActionText.Render("Phase: " + phase),
+	}
+	if m.sourceBatchRunning {
+		cue := "Press esc to cancel at the next safe boundary."
+		if m.sourceBatchPhase == sourceBatchPhaseApply {
+			cue = "Atomic apply cannot be interrupted. Press esc to stop after Core finishes or rolls back."
+		}
+		lines = append(lines, styles.MutedText.Render(cue))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 func visibleSourceType(sourceType string) string {
@@ -336,11 +392,25 @@ func visibleSourceType(sourceType string) string {
 
 func (m Model) sourceReviewActionsTable(width int) table.Model {
 	return newActionTable(width, []actionTableRow{
-		{Key: "enter", Action: "Save active sources", Writes: "tape.yaml"},
+		{Key: "enter", Action: "Save active sources", Writes: "Liner Core Change Set"},
 		{Key: "space", Action: "Toggle selected source", Writes: "active flag"},
 		{Key: "d", Action: "Remove selected source", Writes: "review list"},
 		{Key: "a", Action: "Add more sources", Writes: "source inbox"},
 	})
+}
+
+func maintenancePlanView(width int, plan core.ProjectChangeSet, approvalKey string) string {
+	lines := core.MaintenancePreviewLines(plan)
+	for index, line := range lines {
+		lines[index] = strings.Join(wrapSynthesisReviewLine(line, width), "\n")
+	}
+	reviewRequirement := "Review this change, then press " + approvalKey + " to apply it."
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Core Change Set preview"),
+		styles.AccentText.Render(reviewRequirement),
+		styles.Subtitle.Render(strings.Join(lines, "\n")),
+	)
 }
 
 func (m Model) sourceReviewSelectedDetail(width int) string {
@@ -397,26 +467,320 @@ func writeSourceManifest(project string, items []source.StagedSource) tea.Cmd {
 	}
 }
 
-func saveSources(project string, input string) tea.Cmd {
-	return func() tea.Msg {
-		preview, err := source.Import(input, project, true)
-		if err == nil {
-			err = source.AppendToTape(project, preview.Sources)
-		}
-		return sourceSavedMsg{preview: preview, err: err}
-	}
-}
-
-func saveActiveSources(project string, items []source.StagedSource) tea.Cmd {
+func saveActiveSources(runner core.Runner, project string, items []source.StagedSource, pending *core.ProjectChangeSet, approved bool) tea.Cmd {
 	return func() tea.Msg {
 		active := source.ActiveSources(items)
-		err := source.WriteManifests(project, items)
-		if err == nil {
-			err = source.AppendToTape(project, active)
+		plan, receipt, err := applySourceAdds(runner, project, active, pending, approved)
+		if err == nil && plan == nil {
+			err = source.WriteManifests(project, items)
 		}
 		return sourceSavedMsg{
 			preview: source.Preview{Sources: active},
+			plan:    plan,
+			receipt: receipt,
 			err:     err,
 		}
 	}
+}
+
+func (m Model) startInitialSourceBatch() (Model, tea.Cmd) {
+	active := source.ActiveSources(m.sourceItems)
+	if len(active) == 0 {
+		m.err = "No active sources selected. Reactivate one or add more."
+		return m, nil
+	}
+	m.sourceBatchRunID++
+	runID := m.sourceBatchRunID
+	m.sourceBatchRunning = true
+	m.sourceBatchCancelRequested = false
+	m.sourceBatchTotal = len(active)
+	m.sourceBatchPrepared = len(active)
+	m.err = ""
+	if m.sourceMaintenancePlan != nil {
+		if !m.sourceBatchPlanValidated {
+			m.sourceBatchPhase = sourceBatchPhaseValidation
+			m.note = "Validating the retained Core Change Set before atomic apply."
+			return m, validateInitialSourceBatch(
+				m.sourceItems,
+				m.currentTape.Sources,
+				m.currentProjectID(),
+				*m.sourceMaintenancePlan,
+				runID,
+			)
+		}
+		m.sourceBatchPhase = sourceBatchPhaseApply
+		m.note = "Applying the reviewed atomic Source batch. Core commit cannot be interrupted."
+		return m, applyInitialSourceBatch(
+			m.runner,
+			m.currentPath,
+			m.sourceItems,
+			*m.sourceMaintenancePlan,
+			m.sourceMaintenancePlan.ApprovalRequired,
+			runID,
+		)
+	}
+	m.sourceBatchPhase = sourceBatchPhasePlanning
+	m.sourceBatchPlanValidated = false
+	m.note = fmt.Sprintf("Preparing %d Sources and planning one atomic Core Change Set.", len(active))
+	return m, planInitialSourceBatch(m.runner, m.currentPath, m.sourceItems, runID)
+}
+
+func planInitialSourceBatch(runner core.Runner, project string, items []source.StagedSource, runID uint64) tea.Cmd {
+	return func() tea.Msg {
+		active := source.ActiveSources(items)
+		payloads := make([]map[string]any, 0, len(active))
+		for _, item := range active {
+			payloads = append(payloads, sourceMaintenancePayload(item))
+		}
+		plan, err := runner.PlanMaintenance(project, core.SourceBatchOperation(payloads))
+		return sourceBatchPlannedMsg{
+			preview: source.Preview{Sources: active},
+			plan:    plan,
+			err:     err,
+			runID:   runID,
+		}
+	}
+}
+
+func validateInitialSourceBatch(
+	items []source.StagedSource,
+	existing []tape.Source,
+	projectID *string,
+	plan core.ProjectChangeSet,
+	runID uint64,
+) tea.Cmd {
+	return func() tea.Msg {
+		active := source.ActiveSources(items)
+		err := validateInitialSourceBatchPlan(plan, active, existing, projectID)
+		return sourceBatchValidatedMsg{
+			preview: source.Preview{Sources: active},
+			plan:    plan,
+			err:     err,
+			runID:   runID,
+		}
+	}
+}
+
+func validateInitialSourceBatchPlan(
+	plan core.ProjectChangeSet,
+	sources []tape.Source,
+	existing []tape.Source,
+	projectID *string,
+) error {
+	operationIndex := 0
+	if operationIndex < len(plan.Operations) && plan.Operations[operationIndex]["type"] == "identity.assign_project" {
+		if projectID != nil && strings.TrimSpace(*projectID) != "" {
+			return fmt.Errorf("Core batch plan unexpectedly reassigns existing Project identity")
+		}
+		if assigned, _ := plan.Operations[operationIndex]["project_id"].(string); strings.TrimSpace(assigned) == "" || assigned != plan.ProjectID {
+			return fmt.Errorf("Core batch plan assigns an unexpected Project identity")
+		}
+		operationIndex++
+	}
+
+	knownSourceIDs := make(map[string]string, len(existing)+len(sources))
+	for index, item := range existing {
+		assignedID := ""
+		if item.ID != nil {
+			assignedID = strings.TrimSpace(*item.ID)
+		}
+		if assignedID == "" {
+			if operationIndex >= len(plan.Operations) {
+				return fmt.Errorf("Core batch plan omits required identity for existing Source %d", index+1)
+			}
+			operation := plan.Operations[operationIndex]
+			assignedIndex, ok := operationInteger(operation["index"])
+			assignedID, _ = operation["source_id"].(string)
+			if operation["type"] != "identity.assign_source" || !ok || assignedIndex != index || strings.TrimSpace(assignedID) == "" {
+				return fmt.Errorf("Core batch plan has an unexpected identity operation for existing Source %d", index+1)
+			}
+			operationIndex++
+		}
+		knownSourceIDs[sourceIdentityKey(item)] = assignedID
+	}
+
+	if remaining := len(plan.Operations) - operationIndex; remaining != len(sources) {
+		return fmt.Errorf("Core batch plan has %d Source outcomes for %d active Sources", remaining, len(sources))
+	}
+	for index, item := range sources {
+		operation := plan.Operations[operationIndex+index]
+		if operation["type"] != "source.add" && operation["type"] != "source.noop" {
+			return fmt.Errorf("Core batch plan contains unrelated operation %q", operation["type"])
+		}
+		sourceID, _ := operation["source_id"].(string)
+		if strings.TrimSpace(sourceID) == "" {
+			return fmt.Errorf("Core batch plan Source outcome %d has no immutable Source ID", index+1)
+		}
+		switch operation["type"] {
+		case "source.add":
+			payload, ok := operation["source"].(map[string]any)
+			if !ok || !reflect.DeepEqual(payload, sourceMaintenancePayload(item)) {
+				return fmt.Errorf("Core batch plan operation %d does not match the reviewed Source", index+1)
+			}
+			identity := sourceIdentityKey(item)
+			if knownID, exists := knownSourceIDs[identity]; exists && knownID != sourceID {
+				return fmt.Errorf("Core batch plan adds duplicate reviewed Source %d instead of returning a no-op", index+1)
+			}
+			knownSourceIDs[identity] = sourceID
+		case "source.noop":
+			if operation["duplicate_classification"] != "exact_duplicate" {
+				return fmt.Errorf("Core batch plan Source no-op %d is not an exact duplicate", index+1)
+			}
+			if knownSourceIDs[sourceIdentityKey(item)] != sourceID {
+				return fmt.Errorf("Core batch plan Source no-op %d does not match the reviewed Source", index+1)
+			}
+		}
+	}
+	return nil
+}
+
+func (m Model) currentProjectID() *string {
+	snapshot := m.currentProjectSnapshot()
+	if snapshot == nil {
+		return nil
+	}
+	return snapshot.ProjectID
+}
+
+func operationInteger(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case float64:
+		if typed == float64(int(typed)) {
+			return int(typed), true
+		}
+	case string:
+		integer, err := strconv.Atoi(typed)
+		return integer, err == nil
+	case json.Number:
+		integer, err := strconv.Atoi(string(typed))
+		return integer, err == nil
+	}
+	return 0, false
+}
+
+func sourceIdentityKey(item tape.Source) string {
+	payload := sourceMaintenancePayload(item)
+	if _, ok := payload["priority"]; !ok {
+		payload["priority"] = "required"
+	}
+	if payload["type"] == "web" {
+		if _, ok := payload["render"]; !ok {
+			payload["render"] = "server"
+		}
+	}
+	sourceType, _ := payload["type"].(string)
+	if sourceType == "local_file" || sourceType == "skill" {
+		if value, ok := payload["path"].(string); ok {
+			payload["path"] = strings.TrimSpace(value)
+		}
+	}
+	if sourceType == "local_file" {
+		if value, ok := payload["citation"].(string); ok {
+			payload["citation"] = strings.TrimSpace(value)
+		}
+	}
+	if sourceType == "skill" {
+		if value, ok := payload["url"].(string); ok {
+			payload["url"] = strings.TrimSpace(value)
+		}
+	}
+	encoded, _ := json.Marshal(payload)
+	return string(encoded)
+}
+
+func applyInitialSourceBatch(runner core.Runner, project string, items []source.StagedSource, plan core.ProjectChangeSet, approved bool, runID uint64) tea.Cmd {
+	return func() tea.Msg {
+		active := source.ActiveSources(items)
+		receipt, err := runner.ApplyMaintenance(project, plan, approved)
+		var saved *core.ChangeReceipt
+		if err == nil {
+			saved = &receipt
+			err = source.WriteManifests(project, items)
+		}
+		return sourceSavedMsg{
+			preview: source.Preview{Sources: active},
+			receipt: saved,
+			err:     err,
+			batch:   true,
+			runID:   runID,
+		}
+	}
+}
+
+func applySourceAdds(runner core.Runner, project string, sources []tape.Source, pending *core.ProjectChangeSet, approved bool) (*core.ProjectChangeSet, *core.ChangeReceipt, error) {
+	var lastReceipt *core.ChangeReceipt
+	if pending != nil {
+		receipt, err := runner.ApplyMaintenance(project, *pending, approved)
+		if err != nil {
+			return nil, nil, err
+		}
+		lastReceipt = &receipt
+	}
+	skippedAppliedSource := false
+	for _, item := range sources {
+		payload := sourceMaintenancePayload(item)
+		if pending != nil && !skippedAppliedSource && changeSetAddsSource(*pending, payload) {
+			skippedAppliedSource = true
+			continue
+		}
+		plan, err := runner.PlanMaintenance(project, core.SourceOperation("source.add", "", payload))
+		if err != nil {
+			return nil, lastReceipt, err
+		}
+		if plan.ApprovalRequired {
+			return &plan, lastReceipt, nil
+		}
+		receipt, err := runner.ApplyMaintenance(project, plan, false)
+		if err != nil {
+			return nil, lastReceipt, err
+		}
+		lastReceipt = &receipt
+	}
+	return nil, lastReceipt, nil
+}
+
+func changeSetAddsSource(plan core.ProjectChangeSet, source map[string]any) bool {
+	for _, operation := range plan.Operations {
+		if operation["type"] != "source.add" {
+			continue
+		}
+		candidate, ok := operation["source"].(map[string]any)
+		if ok && reflect.DeepEqual(candidate, source) {
+			return true
+		}
+	}
+	return false
+}
+
+func sourceMaintenancePayload(item tape.Source) map[string]any {
+	payload := map[string]any{"type": item.Type}
+	if strings.TrimSpace(item.URL) != "" {
+		payload["url"] = item.URL
+	}
+	for key, value := range map[string]*string{
+		"path": item.Path, "citation": item.Citation, "note": item.Note,
+		"section": item.Section, "render": item.Render, "kind": item.Kind,
+		"content_hash": item.ContentHash,
+	} {
+		if value != nil {
+			payload[key] = *value
+		}
+	}
+	if strings.TrimSpace(item.Priority) != "" {
+		payload["priority"] = item.Priority
+	}
+	return payload
+}
+
+func maintenanceReceiptNote(receipt *core.ChangeReceipt, fallback string) string {
+	if receipt == nil {
+		return fallback
+	}
+	lines := core.ReceiptSummaryLines(*receipt)
+	if len(lines) == 0 {
+		return fallback
+	}
+	return fallback + " " + strings.Join(lines, " · ")
 }

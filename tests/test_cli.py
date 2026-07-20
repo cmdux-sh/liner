@@ -74,6 +74,29 @@ def test_init_accepts_metadata_flags(tmp_path: Path) -> None:
     assert "TODO — a single specific Job Story" not in working
 
 
+def test_init_tui_construction_creates_one_shot_empty_assembly_boundary(tmp_path: Path) -> None:
+    target = tmp_path / "tui-construction"
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            str(target),
+            "--title",
+            "TUI Construction",
+            "--jtbd",
+            "When assembling, I want a guarded first run, so identities stay safe.",
+            "--curator",
+            "Arturo",
+            "--tui-construction",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    project = ProjectFolder(target)
+    assert len(load_tape(project.tape_path).sources) == 0
+    assert (project.working_dir / ".liner-initial-assembly").is_file()
+
+
 def test_init_rejects_invalid_mode_before_scaffolding(tmp_path: Path) -> None:
     target = tmp_path / "demo"
 
@@ -226,6 +249,24 @@ def test_status_json_no_write_refreshes_without_process_manifest(tmp_path: Path)
     assert not (project.corpus_path / "process.json").exists()
     after = read_liner_metadata(project)
     assert after["status"]["updated"] == before["status"]["updated"]
+
+
+def test_status_only_refreshes_liner_snapshot_without_process_manifest(tmp_path: Path) -> None:
+    target = tmp_path / "demo"
+    runner.invoke(app, ["init", str(target)])
+    project = ProjectFolder(target)
+    before = read_liner_metadata(project)
+    project.mixtape_path.write_text("# MIXTAPE\n\nReady corpus.\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["status", str(target), "--json", "--status-only"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["status_snapshot"]["milestone"] == "corpus_ready"
+    assert not (project.corpus_path / "process.json").exists()
+    after = read_liner_metadata(project)
+    assert after["status"]["milestone"] == "corpus_ready"
+    assert after["status"]["updated"] != before["status"]["updated"]
 
 
 def test_share_requires_existing_folder(tmp_path: Path) -> None:

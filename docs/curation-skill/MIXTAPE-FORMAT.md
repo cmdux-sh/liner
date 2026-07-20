@@ -29,8 +29,9 @@ Every Liner project is a directory. The directory name is a slug — lowercase, 
 mobile-design-foundations/
 ├── liner.yaml            # v2 project marker
 ├── LINER.md              # project instructions for using the corpus
-├── skills/               # reusable project capabilities
-├── working/              # audits, impact tests, composition drafts
+├── SKILL.md              # default Project Skill entrypoint
+├── skills/               # optional reusable Project capabilities
+├── working/              # audits, external-use evidence, composition drafts
 ├── children/             # optional child project references
 ├── lineage.yaml          # optional composition history
 └── mixtape/
@@ -43,7 +44,13 @@ mobile-design-foundations/
     └── working/          # methodology working files
 ```
 
-The root folder is the canonical unit. Any operation that reads or writes a Liner project works on the project folder, not on individual files. Corpus-specific readers resolve through `mixtape/`; legacy folders with root-level `tape.yaml` still resolve at the root.
+The root folder is the canonical unit. Any operation that reads or writes a
+Liner Project works on the Project folder, not on an arbitrary individual file.
+Corpus-specific readers resolve through `mixtape/`; legacy folders with
+root-level `tape.yaml` still resolve at the root. After initial curation,
+supported Project and Source maintenance must use Liner Core's versioned
+Snapshot, Change Set, apply, and Change Receipt contract rather than direct
+canonical-file edits.
 
 A minimal compiled v2 project contains `liner.yaml`, `mixtape/tape.yaml`, `mixtape/synthesis.md`, `mixtape/MIXTAPE.md`, and `mixtape/sources/` with at least one file. The methodology `mixtape/working/` folder is recommended but not required. `mixtape/local-sources/` exists only when local or captured sources are saved.
 
@@ -269,6 +276,7 @@ be consulted when specific detail is needed.]
 - **Render:** {server|js} *(for web sources, only when explicitly set)*
 - **Author:** {author if known}
 - **Published:** {date if known}
+- **Updated:** {date if known}
 - **Curator note:** {note}
 - **Content file:** [sources/{nn}-{slug}.md](./sources/{nn}-{slug}.md)
 ```
@@ -288,18 +296,31 @@ Each source file contains:
 ```markdown
 # {source title or citation}
 
-**Source type:** {youtube|web|local_file}
-**URL:** {url}             *(for youtube/web)*
+**Source type:** {youtube|web|local_file|skill}
+**URL:** {url}             *(for youtube/web or remote skill Sources)*
 **Citation:** {citation}   *(for local_file)*
-**Local path:** {path}     *(for local_file)*
+**Local path:** {path}     *(for local_file or local/installed skill Sources)*
 **Author:** {author if known}
 **Published:** {date if known}
+**Updated:** {date if known}
 **Fetched:** {ISO timestamp}
 
 {extracted content}
 ```
 
-For YouTube sources, the extracted content is the transcript, cleaned and joined into paragraphs. For web sources, it's the article text extracted via readability tools, stripped of navigation and boilerplate. For `local_file` sources, the content is extracted by type: `.md`/`.txt` files are read as-is; `.html` is extracted via the same readability pipeline as web sources; `.pdf` is extracted page-by-page via pdfplumber.
+For web Sources, `Published` and `Updated` are emitted only from explicit page
+metadata such as citation or article fields. `Fetched` always means when Liner
+retrieved the content. If a title, author, or date cannot be established from
+trustworthy metadata, Liner omits it rather than treating navigation text or an
+extraction guess as bibliographic fact.
+
+For YouTube sources, the extracted content is the transcript, cleaned and joined
+into paragraphs. For web sources, it is the article text extracted via
+readability tools, stripped of navigation and boilerplate. For `local_file`
+sources, content is extracted by type: `.md` and `.txt` files are read as-is,
+`.html` uses the web readability pipeline, and `.pdf` is extracted page by page.
+For `skill` Sources, Liner snapshots the referenced `SKILL.md` and related text
+as inert source material; it does not install or execute those instructions.
 
 Source content is stored at full extracted length. The master file pattern handles in-context efficiency by referencing sources on demand rather than embedding them in `MIXTAPE.md`.
 

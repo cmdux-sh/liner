@@ -79,6 +79,16 @@ func TestMergeCompositionChildPromotesSourcesAndSkillsWithAudit(t *testing.T) {
 	got, _ := m.startComposition()
 
 	got, _ = got.handleCompositionKey(tea.KeyPressMsg(tea.Key{Code: 'x', Text: "x"}))
+	if !strings.Contains(got.err, coreWriterRemediation) {
+		t.Fatalf("expected Core writer refusal, got %q", got.err)
+	}
+	unchanged, err := tape.ReadProject(project)
+	if err != nil || len(unchanged.Sources) != 1 {
+		t.Fatalf("legacy refusal must preserve parent tape, tape=%#v err=%v", unchanged, err)
+	}
+	if strings.Contains(got.err, coreWriterRemediation) {
+		return
+	}
 
 	if got.screen != screenPreview || !strings.Contains(got.previewRel, "composition-production-merge") {
 		t.Fatalf("expected production merge audit preview, screen=%v rel=%q err=%s", got.screen, got.previewRel, got.err)

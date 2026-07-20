@@ -28,12 +28,21 @@ export function readCandidateLonglist(path: string): LonglistCandidate[] {
   const candidates: LonglistCandidate[] = [];
   const seen = new Set<string>();
   let section = "";
+  let candidateTitle = "";
   let current: LonglistCandidate | undefined;
 
   for (const line of readFileSync(path, "utf8").split("\n")) {
-    const heading = line.match(/^##+\s+(.+?)\s*$/);
-    if (heading) {
-      section = cleanSection(heading[1] ?? "");
+    const sectionHeading = line.match(/^##\s+(.+?)\s*$/);
+    if (sectionHeading) {
+      section = cleanSection(sectionHeading[1] ?? "");
+      candidateTitle = "";
+      current = undefined;
+      continue;
+    }
+
+    const candidateHeading = line.match(/^###\s+(.+?)\s*$/);
+    if (candidateHeading) {
+      candidateTitle = candidateHeading[1]?.trim() ?? "";
       current = undefined;
       continue;
     }
@@ -46,15 +55,16 @@ export function readCandidateLonglist(path: string): LonglistCandidate[] {
       }
       current = {
         url,
-        title: titleFromCandidateLine(line, url),
+        title: candidateTitle || titleFromCandidateLine(line, url),
         section: section || undefined,
       };
       candidates.push(current);
       seen.add(url);
+      candidateTitle = "";
       continue;
     }
 
-    const reason = line.match(/^\s*[-*]\s*(?:Reason|Rationale):\s*(.+?)\s*$/i);
+    const reason = line.match(/^\s*[-*]\s*(?:Candidate\s+reason|Reason|Rationale):\s*(.+?)\s*$/i);
     if (reason && current) {
       current.reason = reason[1]?.trim();
     }

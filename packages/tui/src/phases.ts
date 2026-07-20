@@ -27,6 +27,7 @@ export type PhaseId =
   | "gate2"
   | "synthesis"
   | "assembly"
+  | "improvement"
   | "compile";
 
 export type PhaseStatus =
@@ -183,6 +184,13 @@ const PHASE_TEMPLATES: Record<PhaseId, Omit<PhaseRecord, "status" | "detail">> =
     label: "Assembly",
     summary: "Write tape.yaml — sources with curator notes, sections, order.",
     artifact: "tape.yaml",
+  },
+  improvement: {
+    id: "improvement",
+    number: "↻",
+    label: "Improve Corpus",
+    summary: "Stage a focused Source delta against the accepted corpus.",
+    artifact: ".liner-runs/improvement/delta.yaml",
   },
   compile: {
     id: "compile",
@@ -341,6 +349,11 @@ function detailFor(
         return `${n} source${n === 1 ? "" : "s"} on tape`;
       if (status === "in_progress") return "press enter — agent proposes a draft to review";
       return "not yet";
+    }
+    case "improvement": {
+      const chars = readChars(join(folder.path, ".liner-runs/improvement/delta.yaml"));
+      if (chars > 0) return `${chars.toLocaleString()} chars in staged delta`;
+      return "not staged";
     }
     case "compile": {
       if (status === "complete") return "MIXTAPE.md on disk";

@@ -69,6 +69,13 @@ class WebHandler:
         title = extraction.title or url
         fetched_at = datetime.now(UTC).isoformat()
 
+        if looks_like_bot_challenge(response.text):
+            raise JsRenderingRequired(
+                f"{url} returned a security challenge instead of source content — "
+                "retrying via render: js.",
+                url,
+            )
+
         if extraction.body is not None and looks_like_js_stub(extraction.body):
             raise JsRenderingRequired(
                 f"{url} is JavaScript-rendered — server-rendered HTML is just a noscript stub.",
@@ -106,8 +113,14 @@ class WebHandler:
                 fetched_at=fetched_at,
                 author=str(extraction.author) if extraction.author else None,
                 published_at=str(extraction.published_at) if extraction.published_at else None,
+                updated_at=str(extraction.updated_at) if extraction.updated_at else None,
                 metadata={
                     "extraction": "soft-fallback",
+                    **(
+                        {"metadata_source": extraction.metadata_source}
+                        if extraction.metadata_source
+                        else {}
+                    ),
                     **(
                         {"trafilatura_error": extraction.extraction_error}
                         if extraction.extraction_error
@@ -132,7 +145,15 @@ class WebHandler:
             fetched_at=fetched_at,
             author=str(extraction.author) if extraction.author else None,
             published_at=str(extraction.published_at) if extraction.published_at else None,
-            metadata={"extraction": "trafilatura"},
+            updated_at=str(extraction.updated_at) if extraction.updated_at else None,
+            metadata={
+                "extraction": "trafilatura",
+                **(
+                    {"metadata_source": extraction.metadata_source}
+                    if extraction.metadata_source
+                    else {}
+                ),
+            },
         )
 
     def close(self) -> None:

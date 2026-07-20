@@ -1,0 +1,49 @@
+---
+title: Sharing
+description: Package, import, and safely share saved research folders.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+import FileTree from "../../../components/FileTree.astro";
+
+Projects are shared as `.mixtape` archives.
+
+## Export
+
+<CommandSnippet command="liner share mobile-design-foundations" />
+
+This writes:
+
+<FileTree
+  root="."
+  label="Archive Output"
+  items={[
+    { name: "mobile-design-foundations.mixtape", kind: "file", accent: true },
+  ]}
+/>
+
+The archive is a zip file with the saved folder contents.
+
+## Import
+
+<CommandSnippet command="liner import mobile-design-foundations.mixtape" />
+
+The CLI unzips the archive and refetches uncached web and YouTube sources unless you pass:
+
+<CommandSnippet command="liner import mobile-design-foundations.mixtape --no-refetch" />
+
+The terminal UI import flow skips refetching. It extracts the archive into your Liner workspace, then you can open the folder and compile when you want fresh extracted source files.
+
+## Export Options
+
+<CommandSnippet command={`liner share mobile-design-foundations --minimal
+liner share mobile-design-foundations --no-working-notes
+liner share mobile-design-foundations --no-source-content
+liner share mobile-design-foundations --no-personal
+liner share mobile-design-foundations --out ~/Desktop/mobile.mixtape`} />
+
+## Private Material
+
+The `local-sources/` folder is included by default when sharing. Legacy `personal/` folders are included too. Use care before publishing or sending archives that contain local PDFs, exports, or company material.
+
+For library-style submissions, use public sources and pass `--no-personal` so private local-source files are not included.
