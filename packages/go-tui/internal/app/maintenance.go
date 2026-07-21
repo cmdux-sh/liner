@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"charm.land/bubbles/v2/table"
@@ -40,6 +41,7 @@ const (
 	maintenanceOperationUpdate
 	maintenanceOperationRename
 	maintenanceOperationMove
+	maintenanceOperationDelete
 	maintenanceOperationReplace
 	maintenanceOperationRemove
 	maintenanceOperationPurge
@@ -64,6 +66,7 @@ var maintenanceSourceFields = []maintenanceField{
 
 var maintenanceRenameFields = []maintenanceField{{key: "name", label: "Display name"}}
 var maintenanceMoveFields = []maintenanceField{{key: "destination", label: "Destination"}}
+var maintenanceDeleteFields = []maintenanceField{{key: "confirmation", label: "Type Project name"}}
 var maintenanceReplacementFields = []maintenanceField{
 	{key: "type", label: "Type"},
 	{key: "locator", label: "URL or path"},
@@ -293,6 +296,12 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				m.maintenanceStage = maintenanceStageOperation
 			}
 		case maintenanceStageReceipt:
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				m.currentPath = ""
+				m.screen = screenProjects
+				m.note = "Project moved to recoverable Liner Trash."
+				return m, loadProjects(m.runner, m.baseDir)
+			}
 			m.screen = screenProject
 		default:
 			m.screen = screenProject
@@ -395,6 +404,13 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			m.beginMaintenanceFieldEdit()
 			return m, nil
 		case maintenanceStageReceipt:
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				m.maintenanceReceipt = nil
+				m.currentPath = ""
+				m.screen = screenProjects
+				m.note = "Project moved to recoverable Liner Trash."
+				return m, loadProjects(m.runner, m.baseDir)
+			}
 			m.maintenanceReceipt = nil
 			m.maintenanceStage = maintenanceStageOperation
 			m.maintenanceOperation = maintenanceOperationAdd
@@ -457,6 +473,10 @@ func (m *Model) beginMaintenanceFields(source *core.MaintenanceSourceSnapshot) {
 		m.note = "Type the destination root, then press p to review validation, collision checks, and identity effects from Core."
 		return
 	}
+	if m.maintenanceOperation == maintenanceOperationDelete {
+		m.note = "Type the exact Project name, then press p. Delete moves the whole Project to recoverable Liner Trash; it does not erase files."
+		return
+	}
 	if m.maintenanceOperation == maintenanceOperationPurge {
 		m.note = "Type the immutable ID of a previously retained Source, then press p to review Core's irreversible delete effects."
 		return
@@ -501,6 +521,8 @@ func (m Model) maintenanceFields() []maintenanceField {
 		return maintenanceRenameFields
 	case maintenanceOperationMove:
 		return maintenanceMoveFields
+	case maintenanceOperationDelete:
+		return maintenanceDeleteFields
 	case maintenanceOperationReplace:
 		return maintenanceReplacementFields
 	case maintenanceOperationRemove:
@@ -611,6 +633,19 @@ func (m Model) guidedMaintenanceOperation() (map[string]any, error) {
 			return nil, fmt.Errorf("Project destination is required before preview")
 		}
 		return core.ProjectMoveOperation(destination), nil
+	case maintenanceOperationDelete:
+		if m.maintenanceSnapshot == nil {
+			return nil, fmt.Errorf("Refresh the Core Project snapshot before deleting")
+		}
+		confirmation := strings.TrimSpace(values["confirmation"])
+		if confirmation != m.maintenanceSnapshot.Name {
+			return nil, fmt.Errorf("Type the exact Project name %q before preview", m.maintenanceSnapshot.Name)
+		}
+		destination, err := maintenanceDeleteDestination(*m.maintenanceSnapshot)
+		if err != nil {
+			return nil, err
+		}
+		return core.ProjectMoveOperation(destination), nil
 	case maintenanceOperationReplace:
 		source := m.selectedMaintenanceSource()
 		if source == nil || source.SourceID == nil || strings.TrimSpace(*source.SourceID) == "" {
@@ -689,6 +724,7 @@ func (m Model) maintenanceOperationView(width int) string {
 		{"Update Source", "Change metadata or locator; preserve immutable identity"},
 		{"Rename Project", "Change display name; preserve immutable Project ID"},
 		{"Move Project", "Validate and atomically activate a new root for the same Project ID"},
+		{"Delete Project", "Move whole Project to recoverable Liner Trash; preserve identity and receipt"},
 		{"Replace Source", "Create a reviewed successor with predecessor lineage"},
 		{"Remove Source", "Detach into the Retention Vault; retain content and provenance"},
 		{"Purge Retained", "Separately approve and irreversibly delete retained Source material"},
@@ -829,11 +865,32 @@ func (m Model) viewMaintenance() string {
 		} else {
 			sections = append(sections, "", styles.ReportSection.Render("Core Snapshot refresh unavailable"), styles.SoftText.Render("The durable receipt remains valid. Refresh Project Flow before starting another maintenance operation."))
 		}
-		sections = append(sections, "", styles.SoftText.Render("Enter maintain another Project element · Esc return to Project Flow"))
+		if m.maintenanceOperation == maintenanceOperationDelete {
+			sections = append(sections, "", styles.SoftText.Render("Enter or Esc return to Projects · Files remain recoverable from the reviewed trash root"))
+		} else {
+			sections = append(sections, "", styles.SoftText.Render("Enter maintain another Project element · Esc return to Project Flow"))
+		}
 	default:
 		sections = append(sections, "", styles.ReportSection.Render("Choose operation"), m.maintenanceOperationView(width))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func maintenanceDeleteDestination(snapshot core.MaintenanceProjectSnapshot) (string, error) {
+	root := strings.TrimSpace(snapshot.Root)
+	if root == "" {
+		return "", fmt.Errorf("Core Project root is required before deleting")
+	}
+	if snapshot.ProjectID == nil || strings.TrimSpace(*snapshot.ProjectID) == "" {
+		return "", fmt.Errorf("Immutable Project ID is required before deleting")
+	}
+	cleanRoot := filepath.Clean(root)
+	base := filepath.Base(cleanRoot)
+	parent := filepath.Dir(cleanRoot)
+	if base == "." || base == string(filepath.Separator) || parent == cleanRoot {
+		return "", fmt.Errorf("Refusing to delete an unsafe Project root %q", root)
+	}
+	return filepath.Join(parent, ".liner-trash-"+base+"-"+strings.TrimSpace(*snapshot.ProjectID)), nil
 }
 
 func maintenanceLifecycleState(lifecycle core.MaintenanceProjectLifecycle) string {

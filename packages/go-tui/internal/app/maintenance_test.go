@@ -160,6 +160,73 @@ func TestMaintenanceGuidesProjectRenameAndMoveThroughRealCore(t *testing.T) {
 	}
 }
 
+func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
+	runner := testCoreRunner(t)
+	base := t.TempDir()
+	project := filepath.Join(base, "mistaken-project")
+	if err := runner.InitProjectWithMetadata(project, "Mistaken Project", "Deletion safety test", "Test Curator", "Safely remove mistaken projects"); err != nil {
+		t.Fatal(err)
+	}
+	userFile := filepath.Join(project, "notes", "keep.md")
+	if err := os.MkdirAll(filepath.Dir(userFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(userFile, []byte("recoverable\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	input := textinput.New()
+	m := Model{runner: runner, baseDir: base, currentPath: project, screen: screenProject, maintenanceInput: input, width: 100, height: 32}
+	m, snapshotCmd := m.startMaintenance()
+	snapshot := snapshotCmd().(maintenanceSnapshotMsg)
+	if snapshot.err != nil || snapshot.snapshot.ProjectID == nil {
+		t.Fatalf("initial maintenance inspection: snapshot=%#v err=%v", snapshot.snapshot, snapshot.err)
+	}
+	m = applyMaintenanceSnapshotForTest(m, snapshot)
+	m.maintenanceOperation = maintenanceOperationDelete
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+
+	m.maintenanceFieldValues["confirmation"] = "wrong name"
+	if _, err := m.guidedMaintenanceOperation(); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%q", snapshot.snapshot.Name)) {
+		t.Fatalf("delete accepted a mismatched Project name: %v", err)
+	}
+	m.maintenanceFieldValues["confirmation"] = snapshot.snapshot.Name
+	operation, err := m.guidedMaintenanceOperation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination, _ := operation["destination"].(string)
+	if operation["type"] != "project.move" || filepath.Dir(destination) != filepath.Dir(snapshot.snapshot.Root) || !strings.HasPrefix(filepath.Base(destination), ".liner-trash-mistaken-project-") {
+		t.Fatalf("delete did not map to a hidden recoverable sibling move: %#v", operation)
+	}
+
+	m = planAndApplyGuidedMaintenance(t, m, "project.move")
+	if _, err := os.Stat(project); !os.IsNotExist(err) {
+		t.Fatalf("original Project root still exists after receipt: %v", err)
+	}
+	kept, err := os.ReadFile(filepath.Join(destination, "notes", "keep.md"))
+	if err != nil || string(kept) != "recoverable\n" {
+		t.Fatalf("recoverable delete lost user content: %q err=%v", kept, err)
+	}
+	if m.maintenanceReceipt == nil || m.maintenanceReceipt.ReceiptPath == "" {
+		t.Fatal("recoverable delete did not preserve the Core receipt")
+	}
+
+	m, cmd := m.handleMaintenanceKey(keyPress("enter"))
+	if m.screen != screenProjects || m.currentPath != "" || cmd == nil {
+		t.Fatalf("delete receipt did not return to Projects: screen=%v path=%q cmd=%v", m.screen, m.currentPath, cmd)
+	}
+	projects := cmd().(projectsLoadedMsg)
+	if projects.err != nil {
+		t.Fatal(projects.err)
+	}
+	for _, listed := range projects.projects {
+		if listed.Path == destination {
+			t.Fatalf("recoverable trash root remained in the active Projects list: %#v", listed)
+		}
+	}
+}
+
 func TestMaintenanceGuidesReplaceRetainAndSeparateDestructivePurge(t *testing.T) {
 	runner := testCoreRunner(t)
 	project := filepath.Join(t.TempDir(), "guided-source-lifecycle")
