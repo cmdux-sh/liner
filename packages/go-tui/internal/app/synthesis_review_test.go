@@ -375,8 +375,10 @@ func TestSynthesisReviewPlannedStateScrollsExactPreviewAboveShortFooter(t *testi
 	plannedModel, _ := planning.Update(plannedMsg)
 	planned := plannedModel.(Model)
 	top := stripANSICodesForTest(planned.View().Content)
-	if !strings.Contains(top, "Ready to approve") || !strings.Contains(top, "enter approve and continue") || !strings.Contains(top, "pgup/pgdn review preview") || !strings.Contains(top, "Preview lines 1–4") || !strings.Contains(top, "more below") {
-		t.Fatalf("short planned view must expose preview and scroll/approval controls:\n%s", top)
+	for _, expected := range []string{"Sources approved", "Confirm Synthesis approval", "enter record approval", "pgup/pgdn review preview", "Preview lines 1–4", "more below"} {
+		if !strings.Contains(top, expected) {
+			t.Fatalf("short planned view missing %q:\n%s", expected, top)
+		}
 	}
 	if planned.synthesisReviewPlanView.AtBottom() {
 		t.Fatal("short planned preview should have scrollable Core details")
@@ -389,7 +391,7 @@ func TestSynthesisReviewPlannedStateScrollsExactPreviewAboveShortFooter(t *testi
 		planned, _ = planned.handleSynthesisReviewKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	}
 	bottom := stripANSICodesForTest(planned.View().Content)
-	if !strings.Contains(bottom, "Compile MIXTAPE.md") || !strings.Contains(bottom, "enter approve and continue") {
+	if !strings.Contains(bottom, "Compile MIXTAPE.md") || !strings.Contains(bottom, "enter record approval") {
 		t.Fatalf("scrolling must reveal the bottom of the exact Core preview while keeping approval visible:\n%s", bottom)
 	}
 }
@@ -412,11 +414,13 @@ func TestSynthesisReviewShortApprovalPreviewFitsContentWithoutTerminalHeightPadd
 		t.Fatalf("short approval preview should fit its %d content lines instead of padding to terminal height; got height %d", total, got)
 	}
 	plain := stripANSICodesForTest(planned.viewSynthesisReview())
-	if !strings.Contains(plain, "Ready to approve") || strings.Contains(plain, "Review required.") {
+	if !strings.Contains(plain, "Confirm Synthesis approval") || !strings.Contains(plain, "Sources approved") || strings.Contains(plain, "Review required.") {
 		t.Fatalf("expected approval should read as a neutral checkpoint, not an error:\n%s", plain)
 	}
-	if !strings.Contains(plain, "Text") || !strings.Contains(plain, "Unchanged") {
-		t.Fatalf("still-current preview must explain the effect of approval:\n%s", plain)
+	for _, expected := range []string{"Synthesis text", "No changes", "This action", "Record curator approval", "After approval", "Compile MIXTAPE.md"} {
+		if !strings.Contains(plain, expected) {
+			t.Fatalf("still-current approval missing %q:\n%s", expected, plain)
+		}
 	}
 	for _, internal := range []string{"Core Change Set details", "Operation payload", "Expected revision", "Change Set", "Hash"} {
 		if strings.Contains(plain, internal) {

@@ -1472,7 +1472,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 			return screenHelp{short: short, full: [][]key.Binding{full}}
 		}
 		if m.synthesisReviewPlan != nil {
-			approve := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "approve and continue"))
+			approve := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "record approval"))
 			if m.synthesisReviewReconcile {
 				approve.SetHelp("enter", "recover receipt")
 			}

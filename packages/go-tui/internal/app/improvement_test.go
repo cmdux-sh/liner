@@ -304,7 +304,7 @@ func TestImprovementAcceptAppliesOnceAndRoutesToSynthesisReview(t *testing.T) {
 		plannedModel, _ := completed.Update(plannedMsg)
 		completed = plannedModel.(Model)
 	}
-	if completed.screen != screenSynthesisReview || completed.improvementPlan != nil || completed.synthesisReviewPlan == nil || !strings.Contains(completed.note, "Review the Synthesis approval") {
+	if completed.screen != screenSynthesisReview || completed.improvementPlan != nil || completed.synthesisReviewPlan == nil || !strings.Contains(completed.note, "Sources are already approved") {
 		t.Fatalf("successful improvement should route from refreshed Snapshot into Review Synthesis: screen=%v err=%q note=%q", completed.screen, completed.err, completed.note)
 	}
 	refreshed, err := tape.ReadProject(m.currentPath)

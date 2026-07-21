@@ -411,9 +411,9 @@ func (m Model) viewSynthesisReview() string {
 	width := styles.ClampWidth(m.width - 4)
 	title := "Review " + m.semanticReviewName()
 	if m.synthesisReviewPlan != nil {
-		subtitle := "The accepted Sources are saved. Confirm the current synthesis before Liner compiles the Project."
+		subtitle := "Sources approved. This separate confirmation records approval of synthesis.md without changing its text."
 		if len(m.synthesisReviewPlan.Operations) == 1 && m.synthesisReviewPlan.Operations[0]["disposition"] == "patch" {
-			subtitle = "Review the replacement text below. Nothing changes until you press Enter."
+			subtitle = "Sources approved. This separate confirmation replaces synthesis.md with the reviewed text below. Nothing changes until you press Enter."
 		} else if m.synthesisReviewKind == semanticReviewOperatingLayer {
 			subtitle = "Confirm the current operating-layer artifacts. Nothing is rewritten until you press Enter."
 		}
@@ -528,24 +528,26 @@ func (m *Model) syncSynthesisReviewPlanView() {
 
 func semanticReviewApprovalSummary(kind semanticReviewKind, disposition string, width int) string {
 	artifact := "Synthesis"
+	textField := "Synthesis text"
 	next := "Compile MIXTAPE.md"
-	textEffect := "Unchanged"
+	textEffect := "No changes"
 	if disposition == "patch" {
 		textEffect = "Replace with reviewed text below"
 	}
 	if kind == semanticReviewOperatingLayer {
 		artifact = "Operating Layer"
+		textField = "Artifact text"
 		next = "Finish Project refresh"
 	}
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		styles.ReportSection.Render("Ready to approve"),
-		styles.AccentText.Render(strings.Join(wrapWords("Press Enter to approve the current "+artifact+" and continue.", width), "\n")),
+		styles.ReportSection.Render("Confirm "+artifact+" approval"),
+		styles.AccentText.Render(strings.Join(wrapWords("Press Enter to record this approval, then continue to "+next+".", width), "\n")),
 		"",
 		newMetadataTable(width, []metadataTableRow{
-			{Field: "Text", Value: textEffect},
-			{Field: "Records", Value: "Curator approval"},
-			{Field: "Next", Value: next},
+			{Field: textField, Value: textEffect},
+			{Field: "This action", Value: "Record curator approval"},
+			{Field: "After approval", Value: next},
 		}).View(),
 	)
 }

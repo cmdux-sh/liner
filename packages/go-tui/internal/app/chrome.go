@@ -258,7 +258,10 @@ func (m Model) nextAction() string {
 			return "Wait for Liner Core to finish the synthesis review request."
 		}
 		if m.synthesisReviewPlan != nil {
-			return "Approve the reviewed content, or go back without changing the Project."
+			if m.synthesisReviewKind == semanticReviewSynthesis {
+				return "Record Synthesis approval, then compile MIXTAPE.md."
+			}
+			return "Record Operating Layer approval, then finish the Project refresh."
 		}
 		if m.synthesisReviewEditing {
 			return "Finish the proposed revision, then request a Core preview."

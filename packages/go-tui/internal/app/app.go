@@ -601,7 +601,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.synthesisReviewReconcile = false
 		m.syncSynthesisReviewPlanView()
 		m.err = ""
-		m.note = "Review the " + m.semanticReviewName() + " approval, then press Enter to continue."
+		if m.synthesisReviewKind == semanticReviewSynthesis {
+			m.note = "Sources are already approved. Press Enter to record Synthesis approval and start Compile."
+		} else {
+			m.note = "Press Enter to record Operating Layer approval and finish the Project refresh."
+		}
 	case synthesisReviewAppliedMsg:
 		m.synthesisReviewLoading = false
 		m.synthesisReviewApplying = false
