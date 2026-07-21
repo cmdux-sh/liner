@@ -352,9 +352,47 @@ func (m Model) viewSourceReview() string {
 		warnings,
 	)
 	if m.sourceMaintenancePlan != nil {
-		sections = append(sections, "", maintenancePlanView(width, *m.sourceMaintenancePlan, "Enter"))
+		next := "Continue to Clarify Job"
+		if m.sourceEntryReturnsToCompile() {
+			next = "Return to Compile and retry with the saved Sources"
+		}
+		sections = append(sections, "", sourceApprovalView(width, *m.sourceMaintenancePlan, len(source.ActiveSources(m.sourceItems)), next))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func sourceApprovalView(width int, plan core.ProjectChangeSet, active int, next string) string {
+	adds := 0
+	unchanged := 0
+	for _, operation := range plan.Operations {
+		switch operation["type"] {
+		case "source.add":
+			adds++
+		case "source.noop":
+			unchanged++
+		}
+	}
+	result := fmt.Sprintf("%d new %s", adds, pluralize(adds, "Source", "Sources"))
+	if unchanged > 0 {
+		result += fmt.Sprintf(" · %d already present", unchanged)
+	}
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Ready to save Sources"),
+		styles.AccentText.Render(fmt.Sprintf("Press Enter to save %d active %s for this Project.", active, pluralize(active, "Source", "Sources"))),
+		renderLabelValueBlock(width, []labelValueRow{
+			{Label: "Result", Value: result},
+			{Label: "Change", Value: "Additive only; existing Sources stay unchanged"},
+			{Label: "Next", Value: next},
+		}, 0, 0),
+	)
+}
+
+func pluralize(count int, singular string, plural string) string {
+	if count == 1 {
+		return singular
+	}
+	return plural
 }
 
 func (m Model) sourceBatchProgressView() string {

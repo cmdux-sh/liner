@@ -10837,6 +10837,37 @@ func TestSourceReviewUsesPlainTableWithoutOuterBox(t *testing.T) {
 	}
 }
 
+func TestSourceReviewShowsCuratorConfirmationInsteadOfCoreProtocol(t *testing.T) {
+	plan := core.ProjectChangeSet{
+		Risk:             "additive",
+		ApprovalRequired: false,
+		Operations: []map[string]any{{
+			"type": "source.add",
+			"source": map[string]any{
+				"type": "youtube",
+				"url":  "https://www.youtube.com/watch?v=example",
+			},
+		}},
+	}
+	m := Model{
+		screen: screenSourceReview, width: 118, currentPath: t.TempDir(),
+		sourceTable: newSourceTable(100, 8), sourceMaintenancePlan: &plan,
+	}
+	m.applySourceItems(source.Stage([]tape.Source{{Type: "youtube", URL: "https://www.youtube.com/watch?v=example"}}, true))
+
+	view := stripANSICodesForTest(m.viewSourceReview())
+	for _, expected := range []string{"Ready to save Sources", "Press Enter to save 1 active Source", "1 new Source", "Additive only", "Continue to Clarify Job"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("custom Source confirmation missing %q:\n%s", expected, view)
+		}
+	}
+	for _, internal := range []string{"Core Change Set preview", "Operation payload", "Approval required", "expected_revision", "source_id"} {
+		if strings.Contains(view, internal) {
+			t.Fatalf("custom Source confirmation exposed Core protocol %q:\n%s", internal, view)
+		}
+	}
+}
+
 func TestSourceReviewShowsSelectedSourceDetail(t *testing.T) {
 	width := 80
 	m := Model{
