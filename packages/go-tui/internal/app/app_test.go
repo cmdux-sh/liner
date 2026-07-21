@@ -11812,6 +11812,69 @@ func TestAcceptAssemblyDraftWritesTapeAndRoutesToSynthesisReview(t *testing.T) {
 	}
 }
 
+func TestApprovedAssemblyKeepsOneStableTransitionUntilSynthesisReview(t *testing.T) {
+	runner := testCoreRunner(t)
+	project := filepath.Join(t.TempDir(), "stable-assembly-transition")
+	if err := runner.InitProjectWithMetadata(project, "Launch", "Demo", "Arturo", "Assemble initial Sources safely."); err != nil {
+		t.Fatal(err)
+	}
+	current, err := tape.ReadProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(projectAbsPath(project, assemblyDraftRelPath), []byte("sources:\n  - type: web\n    url: https://new.example.com\n    priority: required\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := linerprogress.Write(projectCorpusPath(project), linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseAssembly)}); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		runner: runner, currentPath: project, currentTape: current, width: 118, height: 40,
+		sourceTable: newSourceTable(100, 8), compileBar: newCompileProgress(48),
+		synthesisReviewCurrent: newSynthesisReviewViewport(80, 8), synthesisReviewPlanView: newSynthesisReviewViewport(80, 12), synthesisReviewArea: newSynthesisReviewArea(80),
+	}
+	m, planCmd := m.startPreparedAssemblyReview()
+	plannedMsg := commandMessage[sourceBatchPlannedMsg](t, planCmd)
+	validating, validationCmd := m.Update(plannedMsg)
+	m = validating.(Model)
+	validatedMsg := commandMessage[sourceBatchValidatedMsg](t, validationCmd)
+	ready, _ := m.Update(validatedMsg)
+	m = ready.(Model)
+	if m.sourceMaintenancePlan == nil || m.sourceBatchRunning {
+		t.Fatalf("expected visible Source approval before apply: plan=%v running=%v", m.sourceMaintenancePlan != nil, m.sourceBatchRunning)
+	}
+
+	applying, applyCmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = applying.(Model)
+	assertStableAssemblyTransition(t, m)
+	appliedMsg := commandMessage[sourceSavedMsg](t, applyCmd)
+	waiting, snapshotCmd := m.Update(appliedMsg)
+	m = waiting.(Model)
+	assertStableAssemblyTransition(t, m)
+	snapshotMsg := commandMessage[projectSnapshotMsg](t, snapshotCmd)
+	preparing, synthesisPlanCmd := m.Update(snapshotMsg)
+	m = preparing.(Model)
+	assertStableAssemblyTransition(t, m)
+
+	synthesisPlanMsg := commandMessage[synthesisReviewPlannedMsg](t, synthesisPlanCmd)
+	completed, _ := m.Update(synthesisPlanMsg)
+	m = completed.(Model)
+	if m.screen != screenSynthesisReview {
+		t.Fatalf("stable transition did not land on Synthesis Review: screen=%v note=%q", m.screen, m.note)
+	}
+}
+
+func assertStableAssemblyTransition(t *testing.T, m Model) {
+	t.Helper()
+	if m.screen != screenAssemblyReview {
+		t.Fatalf("transition left Source Review before Synthesis was ready: screen=%v", m.screen)
+	}
+	view := stripANSICodesForTest(m.viewAssemblyReview())
+	if !strings.Contains(view, "Sources accepted") || !strings.Contains(view, "Preparing Synthesis approval") {
+		t.Fatalf("Source approval rendered a transient intermediate frame:\n%s", view)
+	}
+}
+
 func TestAssemblyReviewMarksAndTogglesSelectedDraftSource(t *testing.T) {
 	reference := "reference"
 	example := "example"

@@ -177,11 +177,14 @@ func (m Model) viewAssemblyReview() string {
 		styles.Subtitle.Render("Assembly proposed the source list for MIXTAPE.md."),
 		styles.Section.Render(counts),
 	}
-	if progress := m.sourceBatchProgressView(); progress != "" {
+	transitioning := m.assemblyApprovalTransitioning()
+	if progress := m.sourceBatchProgressView(); progress != "" && !transitioning {
 		sections = append(sections, progress)
 	}
 	sections = append(sections, reviewTable.View())
-	if m.sourceMaintenancePlan != nil && !m.sourceBatchRunning {
+	if transitioning {
+		sections = append(sections, "", assemblyApprovalTransitionView(width))
+	} else if m.sourceMaintenancePlan != nil && !m.sourceBatchRunning {
 		sections = append(sections, "", assemblyApprovalView(width, *m.sourceMaintenancePlan, len(source.ActiveSources(m.sourceItems))))
 	} else {
 		sections = append(sections,
@@ -191,6 +194,25 @@ func (m Model) viewAssemblyReview() string {
 		)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func (m Model) assemblyApprovalTransitioning() bool {
+	return m.screen == screenAssemblyReview && ((m.sourceBatchRunning && m.sourceBatchPhase == sourceBatchPhaseApply) ||
+		m.assemblyAwaitingSnapshot ||
+		m.synthesisReviewLoading)
+}
+
+func assemblyApprovalTransitionView(width int) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Sources accepted"),
+		styles.AccentText.Render("Preparing Synthesis approval…"),
+		renderLabelValueBlock(width, []labelValueRow{
+			{Label: "In progress", Value: "Save the approved Sources and verify the Project state"},
+			{Label: "Next", Value: "Review Synthesis before Compile"},
+			{Label: "Input", Value: "No additional action needed"},
+		}, 0, 0),
+	)
 }
 
 func assemblyApprovalView(width int, plan core.ProjectChangeSet, checked int) string {
