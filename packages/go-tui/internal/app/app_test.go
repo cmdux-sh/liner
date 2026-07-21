@@ -11923,14 +11923,21 @@ func TestAcceptAssemblyDraftPreservesUserProvidedSourceAndAddsResearch(t *testin
 	if len(current.Sources) != 1 {
 		t.Fatalf("expected the User-Provided Source to be saved before Assembly, got %#v", current.Sources)
 	}
-	if err := os.WriteFile(projectAbsPath(project, assemblyDraftRelPath), []byte(`sources:
-  - type: web
+	if current.Sources[0].ID == nil {
+		t.Fatalf("expected the User-Provided Source to have immutable identity, got %#v", current.Sources[0])
+	}
+	draft := fmt.Sprintf(`sources:
+  - id: %s
+    type: web
     url: https://provided.example.com
     priority: required
+    section: enriched-by-assembly
+    note: Assembly proposed metadata that must not duplicate or replace the saved Source.
   - type: web
     url: https://researched.example.com
     priority: required
-`), 0o644); err != nil {
+`, *current.Sources[0].ID)
+	if err := os.WriteFile(projectAbsPath(project, assemblyDraftRelPath), []byte(draft), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := linerprogress.Write(projectCorpusPath(project), linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseAssembly)}); err != nil {
@@ -11952,6 +11959,9 @@ func TestAcceptAssemblyDraftPreservesUserProvidedSourceAndAddsResearch(t *testin
 	if got.screen != screenAssemblyReview {
 		t.Fatalf("expected assembly review screen, got %v: %s", got.screen, got.err)
 	}
+	if !reflect.DeepEqual(got.sourceItems[0].Source, current.Sources[0]) {
+		t.Fatalf("Assembly must preserve the canonical User-Provided Source instead of staging enriched metadata as a duplicate: before=%#v staged=%#v", current.Sources[0], got.sourceItems[0].Source)
+	}
 	got = completeAssemblyAcceptanceForTest(t, got)
 
 	updated, err := tape.ReadProject(project)
@@ -11966,6 +11976,9 @@ func TestAcceptAssemblyDraftPreservesUserProvidedSourceAndAddsResearch(t *testin
 	}
 	if updated.Sources[0].ID == nil || current.Sources[0].ID == nil || *updated.Sources[0].ID != *current.Sources[0].ID {
 		t.Fatalf("the User-Provided Source must retain its immutable identity: before=%#v after=%#v", current.Sources[0], updated.Sources[0])
+	}
+	if updated.Sources[0].Section != nil || updated.Sources[0].Note != nil {
+		t.Fatalf("Assembly must not silently overwrite User-Provided Source metadata: %#v", updated.Sources[0])
 	}
 	if _, err := os.Stat(projectAbsPath(project, assemblyDraftRelPath)); !os.IsNotExist(err) {
 		t.Fatalf("expected accepted Assembly draft to be retired, stat err=%v", err)

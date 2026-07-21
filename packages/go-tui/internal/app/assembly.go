@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
@@ -31,11 +32,59 @@ func (m Model) startAssemblyReview() (Model, tea.Cmd) {
 		m.err = err.Error()
 		return m, nil
 	}
+	sources = preserveExistingAssemblySources(sources, m.currentTape.Sources)
 	m.sourceItems = source.Stage(sources, true)
 	m.applySourceItems(m.sourceItems)
 	m.screen = screenAssemblyReview
 	m.note = "Loaded proposed sources for review."
 	return m, nil
+}
+
+func preserveExistingAssemblySources(reviewed []tape.Source, existing []tape.Source) []tape.Source {
+	preserved := append([]tape.Source(nil), reviewed...)
+	matched := make(map[int]bool, len(existing))
+	for _, current := range existing {
+		match := assemblySourceMatchIndex(current, reviewed, matched)
+		if match < 0 {
+			continue
+		}
+		preserved[match] = current
+		matched[match] = true
+	}
+	return preserved
+}
+
+func assemblySourceMatchIndex(current tape.Source, reviewed []tape.Source, matched map[int]bool) int {
+	currentID := sourceImmutableID(current)
+	if currentID != "" {
+		for index, candidate := range reviewed {
+			if !matched[index] && sourceImmutableID(candidate) == currentID {
+				return index
+			}
+		}
+	}
+	matches := []int{}
+	for index, candidate := range reviewed {
+		if matched[index] || sourceImmutableID(candidate) != "" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(candidate.Type), strings.TrimSpace(current.Type)) &&
+			strings.TrimSpace(sourceLocator(candidate)) != "" &&
+			maintenanceLocatorsMatch(sourceLocator(candidate), sourceLocator(current)) {
+			matches = append(matches, index)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	return -1
+}
+
+func sourceImmutableID(item tape.Source) string {
+	if item.ID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*item.ID)
 }
 
 func (m Model) startPreparedAssemblyReview() (Model, tea.Cmd) {
