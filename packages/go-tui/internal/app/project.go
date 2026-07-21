@@ -138,6 +138,13 @@ func (m Model) primaryProjectAction() (Model, tea.Cmd) {
 		m.err = "Project actions are read-only until Liner Core returns a trustworthy Project Snapshot. Press r to retry."
 		return m, nil
 	}
+	if m.hasPendingAssemblyDraft() {
+		if !m.projectMutationsAvailable() {
+			m.err = "Liner Core reports this Project as read-only. Project writes are unavailable."
+			return m, nil
+		}
+		return m.startPreparedAssemblyReview()
+	}
 	nextKind := m.projectNextKind()
 	if nextKind != projectNextOpenLiner && !m.projectMutationsAvailable() {
 		m.err = "Liner Core reports this Project as read-only. Project writes are unavailable."
@@ -159,9 +166,6 @@ func (m Model) primaryProjectAction() (Model, tea.Cmd) {
 		return m.startPreparedSynthesisReview()
 	case projectNextCompileRefresh:
 		return m.startCompile()
-	}
-	if m.hasPendingAssemblyDraft() {
-		return m.startPreparedAssemblyReview()
 	}
 	if m.currentProjectSnapshot() == nil && m.projectCompileNeedsAttention() {
 		return m.startCompileReviewFromArtifacts()

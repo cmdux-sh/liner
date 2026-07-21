@@ -107,7 +107,7 @@ func (m Model) acceptAssemblyDraft() (Model, tea.Cmd) {
 		m.err = err.Error()
 		return m, nil
 	}
-	if err := requireInitialAssemblyBoundary(m.currentPath, current); err != nil {
+	if err := requireInitialAssemblyBoundary(m.currentPath, current, active); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}
@@ -133,14 +133,22 @@ func (m Model) finalizeAssemblyAcceptance() (Model, error) {
 	return m, nil
 }
 
-func requireInitialAssemblyBoundary(project string, current tape.Tape) error {
+func requireInitialAssemblyBoundary(project string, current tape.Tape, reviewed []tape.Source) error {
 	marker := filepath.Join(projectCorpusPath(project), initialAssemblyMarkerRelPath)
 	info, err := os.Lstat(marker)
 	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 		return legacyCoreWriterError("replace Project Sources from an assembly draft")
 	}
-	if len(current.Sources) != 0 {
-		return legacyCoreWriterError("replace accepted Project Sources from an assembly draft")
+	reviewedIdentities := make(map[string]int, len(reviewed))
+	for _, item := range reviewed {
+		reviewedIdentities[sourceIdentityKey(item)]++
+	}
+	for _, item := range current.Sources {
+		identity := sourceIdentityKey(item)
+		if reviewedIdentities[identity] == 0 {
+			return legacyCoreWriterError("replace accepted Project Sources from an assembly draft")
+		}
+		reviewedIdentities[identity]--
 	}
 	return nil
 }

@@ -2677,6 +2677,63 @@ func TestProjectPrimaryActionRoutesPendingAssemblyDraft(t *testing.T) {
 	}
 }
 
+func TestProjectPrimaryActionRoutesPendingAssemblyDraftBeforeSynthesisReview(t *testing.T) {
+	project := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(project, "working"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, assemblyDraftRelPath), []byte(`sources:
+  - type: web
+    url: https://provided.example.com
+    priority: required
+  - type: web
+    url: https://researched.example.com
+    priority: required
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "synthesis.md"), []byte("# Current synthesis\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	current := tape.Tape{
+		Title: "Launch",
+		Sources: []tape.Source{
+			{Type: "web", URL: "https://provided.example.com", Priority: "required"},
+		},
+	}
+	m := Model{
+		runner:                   testCoreRunner(t),
+		screen:                   screenProject,
+		width:                    100,
+		currentPath:              project,
+		currentTape:              current,
+		sourceTable:              newSourceTable(100, 8),
+		projectSnapshotPath:      project,
+		projectSnapshotAttempted: true,
+		synthesisReviewCurrent:   newSynthesisReviewViewport(80, 8),
+		synthesisReviewPlanView:  newSynthesisReviewViewport(80, 12),
+		synthesisReviewArea:      newSynthesisReviewArea(80),
+		projectSnapshot: &core.MaintenanceProjectSnapshot{
+			Capabilities: map[string]bool{"plan": true, "apply": true},
+			Lifecycle: core.MaintenanceProjectLifecycle{
+				Stale: true,
+				Refresh: &core.MaintenanceProjectRefresh{
+					Synthesis: core.MaintenanceRefreshGate{State: "review_required"},
+				},
+			},
+		},
+	}
+
+	got, cmd := m.primaryProjectAction()
+
+	if got.screen != screenAssemblyReview || !got.sourceBatchRunning || cmd == nil {
+		t.Fatalf("pending initial Assembly must precede Synthesis review: screen=%v running=%v cmd=%v err=%q", got.screen, got.sourceBatchRunning, cmd, got.err)
+	}
+	if len(got.sourceItems) != 2 {
+		t.Fatalf("expected both the provided and researched Sources to be staged, got %#v", got.sourceItems)
+	}
+}
+
 func TestProjectViewShowsPendingAssemblyDraftAsPrimaryAction(t *testing.T) {
 	project := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(project, "working"), 0o755); err != nil {
@@ -11840,6 +11897,81 @@ func TestAcceptAssemblyDraftWritesTapeAndRoutesToSynthesisReview(t *testing.T) {
 	}
 	if got.screen != screenSynthesisReview {
 		t.Fatalf("accepted Sources should route to required Synthesis Review, got screen %v err=%q note=%q", got.screen, got.err, got.note)
+	}
+}
+
+func TestAcceptAssemblyDraftPreservesUserProvidedSourceAndAddsResearch(t *testing.T) {
+	runner := testCoreRunner(t)
+	project := filepath.Join(t.TempDir(), "provided-source-before-assembly")
+	if err := runner.InitProjectWithMetadata(project, "Launch", "Demo", "Arturo", "Keep a User-Provided Source through initial Assembly."); err != nil {
+		t.Fatal(err)
+	}
+	provided := tape.Source{Type: "web", URL: "https://provided.example.com", Priority: "required"}
+	plan, err := runner.PlanMaintenance(project, core.SourceBatchOperation([]map[string]any{
+		sourceMaintenancePayload(provided),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.ApplyMaintenance(project, plan, plan.ApprovalRequired); err != nil {
+		t.Fatal(err)
+	}
+	current, err := tape.ReadProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(current.Sources) != 1 {
+		t.Fatalf("expected the User-Provided Source to be saved before Assembly, got %#v", current.Sources)
+	}
+	if err := os.WriteFile(projectAbsPath(project, assemblyDraftRelPath), []byte(`sources:
+  - type: web
+    url: https://provided.example.com
+    priority: required
+  - type: web
+    url: https://researched.example.com
+    priority: required
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := linerprogress.Write(projectCorpusPath(project), linerprogress.Progress{Step: linerprogress.PhaseIndex(linerprogress.PhaseAssembly)}); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		runner:                  runner,
+		currentPath:             project,
+		currentTape:             current,
+		sourceTable:             newSourceTable(100, 8),
+		compileBar:              newCompileProgress(48),
+		clarifyArea:             newClarifyArea(64),
+		synthesisReviewCurrent:  newSynthesisReviewViewport(80, 8),
+		synthesisReviewPlanView: newSynthesisReviewViewport(80, 12),
+		synthesisReviewArea:     newSynthesisReviewArea(80),
+	}
+
+	got, _ := m.startAssemblyReview()
+	if got.screen != screenAssemblyReview {
+		t.Fatalf("expected assembly review screen, got %v: %s", got.screen, got.err)
+	}
+	got = completeAssemblyAcceptanceForTest(t, got)
+
+	updated, err := tape.ReadProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.Sources) != 2 {
+		t.Fatalf("expected the provided Source plus researched Source, got %#v", updated.Sources)
+	}
+	if updated.Sources[0].URL != "https://provided.example.com" || updated.Sources[1].URL != "https://researched.example.com" {
+		t.Fatalf("initial Assembly changed or omitted Sources: %#v", updated.Sources)
+	}
+	if updated.Sources[0].ID == nil || current.Sources[0].ID == nil || *updated.Sources[0].ID != *current.Sources[0].ID {
+		t.Fatalf("the User-Provided Source must retain its immutable identity: before=%#v after=%#v", current.Sources[0], updated.Sources[0])
+	}
+	if _, err := os.Stat(projectAbsPath(project, assemblyDraftRelPath)); !os.IsNotExist(err) {
+		t.Fatalf("expected accepted Assembly draft to be retired, stat err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(projectCorpusPath(project), initialAssemblyMarkerRelPath)); !os.IsNotExist(err) {
+		t.Fatalf("expected one-shot Assembly marker to be retired, stat err=%v", err)
 	}
 }
 
