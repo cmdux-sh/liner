@@ -2728,6 +2728,9 @@ func TestProjectPrimaryActionRoutesPendingAssemblyDraftBeforeSynthesisReview(t *
 	if got := m.projectMilestoneNextAction(); got != "Review the assembly draft sources." {
 		t.Fatalf("pending initial Assembly must be the visible next step before Synthesis, got %q", got)
 	}
+	if help := m.helpForScreen().ShortHelp(); !hasHelpDesc(help, "review draft") {
+		t.Fatalf("pending initial Assembly help must advertise the real Enter action, got %#v", help)
+	}
 
 	got, cmd := m.primaryProjectAction()
 

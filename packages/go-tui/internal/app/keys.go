@@ -1249,33 +1249,36 @@ func (m Model) baseHelpForScreen() screenHelp {
 			}
 		}
 		next := bindings.Next
-		showNext := m.projectNextKind() != projectNextUnavailable && (m.projectMutationsAvailable() || m.projectNextKind() == projectNextOpenLiner)
-		switch m.projectNextKind() {
-		case projectNextOpenLiner:
-			next.SetHelp("enter", "LINER.md")
-		case projectNextCreateOperatingLayer:
-			next.SetHelp("enter", "operating layer")
-		case projectNextReviewOperatingLayer:
-			next.SetHelp("enter", "review layer")
-		case projectNextRefreshStatus:
-			next.SetHelp("enter", "refresh status")
-		case projectNextReviewSynthesis:
-			next.SetHelp("enter", "review synthesis")
-		case projectNextCompileRefresh:
-			next.SetHelp("enter", "compile refresh")
-		case projectNextUnavailable:
-			showNext = false
-		default:
-			if m.hasPendingAssemblyDraft() {
-				next.SetHelp("enter", "review draft")
-			} else if m.projectCompileNeedsAttention() {
-				next.SetHelp("enter", "review compile")
-			} else if m.needsClarificationBeforeMethodology() {
-				next.SetHelp("enter", "clarify job")
-			} else if m.primaryProjectActionIsSourceEntry() {
-				next.SetHelp("enter", "add sources")
-			} else {
-				next.SetHelp("enter", "corpus creation")
+		nextKind := m.projectNextKind()
+		showNext := nextKind != projectNextUnavailable && (m.projectMutationsAvailable() || nextKind == projectNextOpenLiner)
+		if m.hasPendingAssemblyDraft() && m.projectMutationsAvailable() {
+			next.SetHelp("enter", "review draft")
+		} else {
+			switch nextKind {
+			case projectNextOpenLiner:
+				next.SetHelp("enter", "LINER.md")
+			case projectNextCreateOperatingLayer:
+				next.SetHelp("enter", "operating layer")
+			case projectNextReviewOperatingLayer:
+				next.SetHelp("enter", "review layer")
+			case projectNextRefreshStatus:
+				next.SetHelp("enter", "refresh status")
+			case projectNextReviewSynthesis:
+				next.SetHelp("enter", "review synthesis")
+			case projectNextCompileRefresh:
+				next.SetHelp("enter", "compile refresh")
+			case projectNextUnavailable:
+				showNext = false
+			default:
+				if m.projectCompileNeedsAttention() {
+					next.SetHelp("enter", "review compile")
+				} else if m.needsClarificationBeforeMethodology() {
+					next.SetHelp("enter", "clarify job")
+				} else if m.primaryProjectActionIsSourceEntry() {
+					next.SetHelp("enter", "add sources")
+				} else {
+					next.SetHelp("enter", "corpus creation")
+				}
 			}
 		}
 		capabilities := m.projectCapabilities()
