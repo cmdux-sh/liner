@@ -919,12 +919,17 @@ func (m Model) projectStatusLabel() string {
 }
 
 func (m Model) projectPrimaryLabel() string {
-	switch m.projectNextKind() {
-	case projectNextUnavailable:
+	nextKind := m.projectNextKind()
+	if nextKind == projectNextUnavailable {
 		if m.currentProjectSnapshot() != nil {
 			return "Read-only Core guidance"
 		}
 		return "Retry Project Snapshot"
+	}
+	if m.hasPendingAssemblyDraft() {
+		return "Review draft sources"
+	}
+	switch nextKind {
 	case projectNextOpenLiner:
 		return "Open LINER.md"
 	case projectNextCreateOperatingLayer:
@@ -939,8 +944,6 @@ func (m Model) projectPrimaryLabel() string {
 		return "Compile refreshed corpus"
 	}
 	switch {
-	case m.hasPendingAssemblyDraft():
-		return "Review draft sources"
 	case m.projectCompileNeedsAttention():
 		return "Review compile issues"
 	case m.isProjectComplete():
@@ -957,9 +960,14 @@ func (m Model) projectPrimaryLabel() string {
 }
 
 func (m Model) projectMilestoneNextAction() string {
-	switch m.projectNextKind() {
-	case projectNextUnavailable:
+	nextKind := m.projectNextKind()
+	if nextKind == projectNextUnavailable {
 		return ""
+	}
+	if m.hasPendingAssemblyDraft() {
+		return "Review the assembly draft sources."
+	}
+	switch nextKind {
 	case projectNextOpenLiner:
 		return projectCompleteNextAction
 	case projectNextCreateOperatingLayer:
@@ -972,9 +980,6 @@ func (m Model) projectMilestoneNextAction() string {
 		return "Review Synthesis before Compile."
 	case projectNextCompileRefresh:
 		return "Compile the reviewed corpus refresh."
-	}
-	if m.hasPendingAssemblyDraft() {
-		return "Review the assembly draft sources."
 	}
 	switch m.projectMilestone() {
 	case "project_complete":

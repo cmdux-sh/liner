@@ -1392,7 +1392,6 @@ func TestProjectPrimaryActionAnswersInterruptedClarificationBeforeCorpus(t *test
 	if done != 0 || total == 0 || next != "Clarify Job" {
 		t.Fatalf("expected clarification to be the missing next step, got done=%d total=%d next=%q", done, total, next)
 	}
-
 	got, cmd := m.primaryProjectAction()
 	if got.screen != screenClarify || !got.clarifyLoading {
 		t.Fatalf("expected Project Enter to load clarification, got screen=%v loading=%v", got.screen, got.clarifyLoading)
@@ -2722,6 +2721,12 @@ func TestProjectPrimaryActionRoutesPendingAssemblyDraftBeforeSynthesisReview(t *
 				},
 			},
 		},
+	}
+	if got := m.projectPrimaryLabel(); got != "Review draft sources" {
+		t.Fatalf("pending initial Assembly must be the visible primary action before Synthesis, got %q", got)
+	}
+	if got := m.projectMilestoneNextAction(); got != "Review the assembly draft sources." {
+		t.Fatalf("pending initial Assembly must be the visible next step before Synthesis, got %q", got)
 	}
 
 	got, cmd := m.primaryProjectAction()
