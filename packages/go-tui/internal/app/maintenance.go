@@ -387,6 +387,9 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			m.beginMaintenanceFields(nil)
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				m.beginMaintenanceFieldEdit()
+			}
 			return m, nil
 		case maintenanceStageSource:
 			source := m.selectedMaintenanceSource()

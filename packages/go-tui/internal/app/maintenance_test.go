@@ -190,11 +190,14 @@ func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 	m.maintenanceOperation = maintenanceOperationDelete
 	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 
-	m.maintenanceFieldValues["confirmation"] = "wrong name"
+	m.maintenanceInput.SetValue("wrong name")
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 	if _, err := m.guidedMaintenanceOperation(); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%q", snapshot.snapshot.Name)) {
 		t.Fatalf("delete accepted a mismatched Project name: %v", err)
 	}
-	m.maintenanceFieldValues["confirmation"] = snapshot.snapshot.Name
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+	m.maintenanceInput.SetValue(snapshot.snapshot.Name)
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 	operation, err := m.guidedMaintenanceOperation()
 	if err != nil {
 		t.Fatal(err)
@@ -498,6 +501,28 @@ func TestMaintenancePlanAlwaysWaitsForExplicitReviewedApply(t *testing.T) {
 	got = updated.(Model)
 	if got.maintenanceLoading || approvalCmd != nil || got.maintenanceStage != maintenanceStagePreview || !strings.Contains(got.note, "approval-required") {
 		t.Fatalf("risky Change Set did not wait for explicit approval: loading=%t cmd=%v note=%q", got.maintenanceLoading, approvalCmd, got.note)
+	}
+}
+
+func TestMaintenanceDeleteSelectionImmediatelyAcceptsTypedConfirmation(t *testing.T) {
+	input := textinput.New()
+	m := Model{
+		screen:               screenMaintenance,
+		maintenanceInput:     input,
+		maintenanceStage:     maintenanceStageOperation,
+		maintenanceOperation: maintenanceOperationDelete,
+		maintenanceSnapshot:  &core.MaintenanceProjectSnapshot{Name: "Mistaken Project"},
+	}
+
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+	updated, _ := m.Update(tea.KeyPressMsg(tea.Key{Code: 'M', Text: "M"}))
+	m = updated.(Model)
+
+	if m.maintenanceStage != maintenanceStageFields || !m.maintenanceEditing {
+		t.Fatalf("delete confirmation did not open focused editing: stage=%v editing=%t", m.maintenanceStage, m.maintenanceEditing)
+	}
+	if m.maintenanceInput.Value() != "M" {
+		t.Fatalf("typed confirmation was ignored: value=%q", m.maintenanceInput.Value())
 	}
 }
 
