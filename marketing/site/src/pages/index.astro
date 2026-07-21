@@ -370,7 +370,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
       <div class="mb-12 max-w-3xl">
         <p class="eyebrow eyebrow--accent mb-4">From ask to Project</p>
         <h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">One request becomes a reusable Liner Project.</h2>
-        <p class="mono mt-4 text-sm leading-relaxed" style="color: var(--color-text-muted);">Start with one narrow job. The builder helps define the evidence, review the useful Sources, and save both the research and the instructions a later AI session should follow.</p>
+        <p class="mono mt-4 text-sm leading-relaxed" style="color: var(--color-text-muted);">Start with one narrow job. The builder helps define the evidence, approve the useful Sources, confirm the synthesis, and save both the research and the instructions a later AI session should follow.</p>
       </div>
       <div class="grid gap-px lg:grid-cols-[0.9fr_1.1fr]" style="background: var(--color-line-medium);">
         <div class="relative p-8 md:p-10" style="background: var(--color-bg-workspace);">
@@ -380,7 +380,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             {[
               { n: "01", title: "Clarify the job", body: "Name the situation, desired outcome, and claims the AI should avoid." },
               { n: "02", title: "Choose the evidence", body: "Add review rules, health-claim examples, privacy guidance, and rejection notes." },
-              { n: "03", title: "Review what the AI inherits", body: "You check the synthesis and boundaries before the Project becomes reusable. Liner names that accountable reviewer the Curator." },
+              { n: "03", title: "Confirm what the AI inherits", body: "After Sources are saved, you review the synthesis and boundaries before Compile. Liner records that accountable decision with the Project." },
             ].map((item) => (
               <div class="grid gap-2 border-t pt-5 first:border-t-0 first:pt-0 md:grid-cols-[4rem_1fr]" style="border-color: var(--color-line-medium);">
                 <p class="mono text-xs" style="color: var(--color-accent);">{item.n}</p>
@@ -454,8 +454,8 @@ mixtape/
       <div class="grid gap-px md:grid-cols-2 lg:grid-cols-4" style="background: var(--color-line-medium);">
         {[
           { n: "01", title: "Frame", body: "Define the job in a plain sentence, then use Job Story and Clarify Job to sharpen it before research starts.", proof: "specific job" },
-          { n: "02", title: "Gather", body: "Bring in known material and review candidates. Liner records each kept item as a Source with a clear role.", proof: "source roles" },
-          { n: "03", title: "Review", body: "You evaluate coverage, check the synthesis, and publish the verified corpus as the Curator.", proof: "accountable judgment" },
+          { n: "02", title: "Gather", body: "Bring in known material and review candidates. Before saving, Liner shows the Sources that will be added and leaves existing Sources unchanged.", proof: "source roles" },
+          { n: "03", title: "Review", body: "After the Sources are saved, confirm the synthesis before Compile. You can edit it first when it no longer represents the accepted evidence.", proof: "accountable judgment" },
           { n: "04", title: "Use", body: "Add the AI instructions that travel with the research through Create Operating Layer.", proof: "Project Complete" },
         ].map((step) => (
           <article class="p-7 md:p-8" style="background: var(--color-bg-deep);">
@@ -472,15 +472,15 @@ mixtape/
       <div class="max-w-xl">
         <p class="eyebrow eyebrow--accent mb-4">Optional agent maintenance</p>
         <h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">Let Codex or Claude maintain the Project safely.</h2>
-        <p class="mt-5 text-base leading-relaxed" style="color: var(--color-text-secondary);">Install the Maintenance Adapter when you want a coding assistant to update an existing Project. The installed CLI remains the writer and keeps the preview, approval boundary, and receipt visible.</p>
+        <p class="mt-5 text-base leading-relaxed" style="color: var(--color-text-secondary);">Install the Maintenance Adapter when you want a coding assistant to update an existing Project. The installed CLI remains the writer: it checks the saved Project identity, shows the exact change before approval, and records what happened after apply.</p>
         <div class="mt-6 max-w-full overflow-x-auto border" style="background: var(--color-bg-void); border-color: var(--color-line-strong);"><code class="mono flex w-max select-all items-center px-4 py-3 text-sm" style="color: #fff;"><span class="mr-2" style="color: var(--color-text-dimmer);">$</span>liner adapters install codex --yes</code></div>
         <a href="/docs/maintenance/" class="mono mt-5 inline-flex items-center gap-2 text-xs" style="color: var(--color-accent);">Read the maintenance guide <Icon name="arrow-up-right" size={13} strokeWidth={2} aria-hidden="true" /></a>
       </div>
       <div class="grid gap-px sm:grid-cols-3" style="background: var(--color-line-medium);">
         {[
-          { n: "01", title: "Request", body: "Ask for one concrete Source or Project change." },
-          { n: "02", title: "Project Change Set", body: "Review the exact effects when approval is required." },
-          { n: "03", title: "Change Receipt", body: "Keep durable proof of the plan that was applied." },
+          { n: "01", title: "Request", body: "Add a Source, rename or move a Project, or archive a Project you no longer need." },
+          { n: "02", title: "Project Change Set", body: "Review the exact effects before an approval-required change writes to the Project." },
+          { n: "03", title: "Change Receipt", body: "Keep durable proof of the applied plan. Deleting a Project moves it to recoverable Liner Trash instead of erasing its files." },
         ].map((step) => (
           <article class="p-6" style="background: var(--color-bg-workspace);"><p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-4 text-lg leading-snug" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-2 text-sm leading-relaxed" style="color: var(--color-text-muted);">{step.body}</p></article>
         ))}

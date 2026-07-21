@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,15 @@ DOC_PATHS = (
     Path("README.md"),
     Path("marketing/site/src/content/docs/docs/cli.mdx"),
 )
+
+
+def _validator_module():
+    spec = importlib.util.spec_from_file_location("validate_public_commands", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _fixture(tmp_path: Path) -> Path:
@@ -70,3 +80,13 @@ def test_public_command_validator_reports_option_drift(tmp_path: Path) -> None:
     assert "liner sources replace omits required option: --source-id" in result.stderr
     assert "liner sources purge omits required option: --source-id" in result.stderr
     assert "liner sources purge documents unknown option: --bogus" in result.stderr
+
+
+def test_help_parser_accepts_ci_rendering_variants() -> None:
+    validator = _validator_module()
+    help_text = validator.normalize_help_output(
+        "\x1b[36m| inspect   Inspect a Project.\x1b[0m\n",
+        "┃ guidance  Publish guidance.\n  plan      Plan a change.\n",
+    )
+
+    assert validator.discover_command_rows(help_text) == ["inspect", "guidance", "plan"]

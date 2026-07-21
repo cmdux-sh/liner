@@ -58,11 +58,17 @@ The second command opens the terminal UI. Create a test project, add sources, bu
 
 ## Platform Support
 
-Version `1.1.0` supports:
+Version `1.1.0` supports these native npm platform packages. The main `linersh` package declares them as optional dependencies, and npm selects the matching OS and CPU package during install.
 
-- macOS arm64 and x64
-- Linux arm64 and x64
-- Windows x64
+| System | npm platform package |
+| --- | --- |
+| macOS Apple silicon | `linersh-darwin-arm64` |
+| macOS Intel | `linersh-darwin-x64` |
+| Linux arm64 | `linersh-linux-arm64` |
+| Linux x64 | `linersh-linux-x64` |
+| Windows x64 | `linersh-win32-x64` |
+
+Each platform package contains the native Go TUI and bundled CLI core for that system. Normal users install `linersh`, not the platform package directly.
 
 Node.js 18 or newer is required.
 

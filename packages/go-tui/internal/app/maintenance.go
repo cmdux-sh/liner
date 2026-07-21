@@ -641,7 +641,7 @@ func (m Model) guidedMaintenanceOperation() (map[string]any, error) {
 		if confirmation != m.maintenanceSnapshot.Name {
 			return nil, fmt.Errorf("Type the exact Project name %q before preview", m.maintenanceSnapshot.Name)
 		}
-		destination, err := maintenanceDeleteDestination(*m.maintenanceSnapshot)
+		destination, err := maintenanceDeleteDestination(*m.maintenanceSnapshot, m.baseDir)
 		if err != nil {
 			return nil, err
 		}
@@ -876,7 +876,7 @@ func (m Model) viewMaintenance() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func maintenanceDeleteDestination(snapshot core.MaintenanceProjectSnapshot) (string, error) {
+func maintenanceDeleteDestination(snapshot core.MaintenanceProjectSnapshot, projectLibrary string) (string, error) {
 	root := strings.TrimSpace(snapshot.Root)
 	if root == "" {
 		return "", fmt.Errorf("Core Project root is required before deleting")
@@ -886,11 +886,23 @@ func maintenanceDeleteDestination(snapshot core.MaintenanceProjectSnapshot) (str
 	}
 	cleanRoot := filepath.Clean(root)
 	base := filepath.Base(cleanRoot)
-	parent := filepath.Dir(cleanRoot)
-	if base == "." || base == string(filepath.Separator) || parent == cleanRoot {
+	cleanLibrary := filepath.Clean(strings.TrimSpace(projectLibrary))
+	if base == "." || base == string(filepath.Separator) || cleanLibrary == "." || cleanLibrary == string(filepath.Separator) {
 		return "", fmt.Errorf("Refusing to delete an unsafe Project root %q", root)
 	}
-	return filepath.Join(parent, ".liner-trash-"+base+"-"+strings.TrimSpace(*snapshot.ProjectID)), nil
+	canonicalLibrary, err := filepath.EvalSymlinks(cleanLibrary)
+	if err != nil {
+		return "", fmt.Errorf("Resolve the active Project library before deleting: %w", err)
+	}
+	cleanLibrary = filepath.Clean(canonicalLibrary)
+	if filepath.Dir(cleanRoot) != cleanLibrary {
+		return "", fmt.Errorf("Refusing to delete a Project outside the active Project library")
+	}
+	archiveParent := filepath.Dir(cleanLibrary)
+	if archiveParent == cleanLibrary {
+		return "", fmt.Errorf("Refusing to create a recoverable archive beside an unsafe Project library %q", projectLibrary)
+	}
+	return filepath.Join(archiveParent, ".liner-trash-"+base+"-"+strings.TrimSpace(*snapshot.ProjectID)), nil
 }
 
 func maintenanceLifecycleState(lifecycle core.MaintenanceProjectLifecycle) string {

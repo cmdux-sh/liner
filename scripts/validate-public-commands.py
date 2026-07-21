@@ -18,11 +18,15 @@ PUBLIC_DOCS = (
     Path("README.md"),
     Path("marketing/site/src/content/docs/docs/cli.mdx"),
 )
-COMMAND_ROW = re.compile(r"^\s*│\s*([a-z][a-z0-9-]*)\s{2,}", re.MULTILINE)
-OPTION_ROW = re.compile(
-    r"^\s*│\s*(?P<required>\*)?\s*(?P<option>--[a-z][a-z0-9-]*)\b",
+COMMAND_ROW = re.compile(
+    r"^\s*[\u2500-\u257f|]?\s*([a-z][a-z0-9-]*)\s{2,}",
     re.MULTILINE,
 )
+OPTION_ROW = re.compile(
+    r"^\s*[\u2500-\u257f|]?\s*(?P<required>\*)?\s*(?P<option>--[a-z][a-z0-9-]*)\b",
+    re.MULTILINE,
+)
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DOCUMENTED_COMMAND = re.compile(
     r"`(?P<signature>liner\s+(?P<group>project|sources|adapters)\s+"
     r"(?P<command>[a-z][a-z0-9-]*)\b[^`]*)`"
@@ -103,7 +107,8 @@ def discover_installed_commands() -> dict[str, dict[str, InstalledCommand]]:
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip()
             raise SystemExit(f"Could not inspect launcher `liner {group} --help`: {detail}")
-        discovered = set(COMMAND_ROW.findall(result.stdout))
+        help_text = normalize_help_output(result.stdout, result.stderr)
+        discovered = set(discover_command_rows(help_text))
         if not discovered:
             raise SystemExit(f"Could not find commands in `liner {group} --help`.")
         commands[group] = {
@@ -126,12 +131,23 @@ def discover_installed_command(node: str, group: str, command: str) -> Installed
         raise SystemExit(
             f"Could not inspect launcher `liner {group} {command} --help`: {detail}"
         )
-    rows = list(OPTION_ROW.finditer(result.stdout))
+    help_text = normalize_help_output(result.stdout, result.stderr)
+    rows = list(OPTION_ROW.finditer(help_text))
     options = frozenset(match.group("option") for match in rows)
     required = frozenset(
         match.group("option") for match in rows if match.group("required")
     )
     return InstalledCommand(options=options, required_options=required)
+
+
+def normalize_help_output(stdout: str, stderr: str) -> str:
+    """Return stable text across Rich/Typer terminal and CI render modes."""
+    return ANSI_ESCAPE.sub("", "\n".join(part for part in (stdout, stderr) if part))
+
+
+def discover_command_rows(help_text: str) -> list[str]:
+    """Read command names from Unicode, ASCII, or unboxed help tables."""
+    return COMMAND_ROW.findall(help_text)
 
 
 def discover_documented_commands(path: Path) -> dict[str, dict[str, set[str]]]:

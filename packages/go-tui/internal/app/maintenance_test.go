@@ -162,7 +162,11 @@ func TestMaintenanceGuidesProjectRenameAndMoveThroughRealCore(t *testing.T) {
 
 func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 	runner := testCoreRunner(t)
-	base := t.TempDir()
+	testRoot := t.TempDir()
+	base := filepath.Join(testRoot, "projects")
+	if err := os.Mkdir(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	project := filepath.Join(base, "mistaken-project")
 	if err := runner.InitProjectWithMetadata(project, "Mistaken Project", "Deletion safety test", "Test Curator", "Safely remove mistaken projects"); err != nil {
 		t.Fatal(err)
@@ -196,8 +200,12 @@ func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination, _ := operation["destination"].(string)
-	if operation["type"] != "project.move" || filepath.Dir(destination) != filepath.Dir(snapshot.snapshot.Root) || !strings.HasPrefix(filepath.Base(destination), ".liner-trash-mistaken-project-") {
-		t.Fatalf("delete did not map to a hidden recoverable sibling move: %#v", operation)
+	canonicalTestRoot, err := filepath.EvalSymlinks(testRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if operation["type"] != "project.move" || filepath.Dir(destination) != canonicalTestRoot || !strings.HasPrefix(filepath.Base(destination), ".liner-trash-mistaken-project-") {
+		t.Fatalf("delete did not map outside the active Project library: %#v", operation)
 	}
 
 	m = planAndApplyGuidedMaintenance(t, m, "project.move")
@@ -219,6 +227,9 @@ func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 	projects := cmd().(projectsLoadedMsg)
 	if projects.err != nil {
 		t.Fatal(projects.err)
+	}
+	if len(projects.projects) != 0 {
+		t.Fatalf("recoverable delete left an active Project in the library: %#v", projects.projects)
 	}
 	for _, listed := range projects.projects {
 		if listed.Path == destination {

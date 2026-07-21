@@ -47,6 +47,8 @@ Every supported change follows the same contract:
 4. Liner revalidates the Project and plan before applying it.
 5. A durable, redacted Change Receipt records what changed without copying Source bodies or private curator notes.
 
+The immutable Project ID binds all three records to the same Project even after a rename or move. Source operations target immutable Source IDs so similarly named or duplicate-looking entries cannot be changed by accident. Receipts are stored inside the Project under `mixtape/.liner-runs/maintenance/`.
+
 Additive and metadata-only changes may continue after validation when Core says approval is not required. Remove, purge, semantic replacement, Project moves, and other higher-risk changes keep their explicit approval gates.
 
 ## What The Agent Can Maintain
@@ -60,6 +62,12 @@ The installed adapter can route supported requests to:
 - rename or move a Project without changing Project identity
 - refresh stale corpus and Operating Layer state through review gates
 - update managed Project guidance or pointer blocks without overwriting user content
+
+## Recoverable Project Deletion
+
+The terminal UI also exposes **Delete Project** under Maintain project. This is implemented as an identity-preserving Project move, not file erasure. You must type the exact Project name and approve the exact destination; Liner then moves the whole folder out of the active Project library into a reviewed Liner Trash path and writes a Change Receipt.
+
+The archived folder keeps its Project ID and user-authored files. To restore it, inspect the trash path and use the ordinary identity-preserving Project move workflow to move it back to an unoccupied destination in your Project library.
 
 ## Three Different Skill Surfaces
 

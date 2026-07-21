@@ -41,6 +41,17 @@ For supported changes after creation, use Liner's Project and Source maintenance
 commands instead of editing canonical files directly. Core preserves identity,
 plans the exact file effects, and records a Change Receipt after apply.
 
+## Durable Identity And Maintenance Records
+
+Each current Project has an immutable Project ID in `liner.yaml`. Each canonical Source has an immutable Source ID in `mixtape/tape.yaml`. Display names, folder paths, URLs, titles, notes, and sections can change without becoming identity.
+
+- Project rename and move preserve the Project ID.
+- Source metadata and locator updates preserve the Source ID.
+- Semantic Source replacement creates a successor Source ID and records predecessor lineage.
+- Source removal retains content and provenance; purge is a separate destructive action.
+
+Before a supported change, Liner reads a versioned **Project Snapshot** and creates a write-free **Project Change Set** for that exact revision. After apply, it writes a redacted **Change Receipt** under `mixtape/.liner-runs/maintenance/`. The receipt records identity, effects, validation, stale derived artifacts, and next actions without copying Source bodies or private notes.
+
 ## Liner Project
 
 The Liner Project owns the Mixtape plus the instruction files future AI sessions need.

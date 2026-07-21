@@ -28,13 +28,15 @@ The workflow helps you:
 ## The Core Workflow
 
 1. Create a Liner Project and define its Job to Be Done in Job Story form.
-2. Clarify Job so the desired outcome, situation, and boundaries are explicit.
-3. Add URLs, local files, pasted text, or skill sources.
+2. Add any material you already have through the Source Inbox, review the active Sources, and save that selection.
+3. Clarify Job so the desired outcome, situation, and boundaries are explicit.
 4. Build the corpus with your configured local AI runner.
-5. Compile the Mixtape.
-6. Create the Operating Layer files in the terminal UI.
-7. Give the Liner Project to your AI tool.
-8. Optionally install a Maintenance Adapter so Codex or Claude can maintain it through Liner's reviewed CLI workflow.
+5. Review the draft Source set and accept the Sources you want to keep.
+6. Review the Synthesis separately. Record approval when it accurately represents the accepted Sources, or edit it before approval.
+7. Liner starts Compile after Synthesis approval and writes the Mixtape.
+8. Create the Operating Layer files in the terminal UI.
+9. Give the Liner Project to your AI tool.
+10. Optionally install a Maintenance Adapter so Codex or Claude can maintain it through Liner's reviewed CLI workflow.
 
 <CommandSnippet command="npx linersh" />
 
@@ -50,9 +52,13 @@ The workflow helps you:
 
 **Sources:** web pages, YouTube transcripts, or local files that Liner fetches and stores as Markdown.
 
+**Project and Source IDs:** immutable identifiers assigned by Liner. Renaming or moving a Project keeps its Project ID. Editing Source metadata or its locator keeps its Source ID; replacing the meaning of a Source creates a successor ID and records lineage.
+
 **Instruction files:** `LINER.md`, root `SKILL.md`, and `liner.yaml`. These files tell future AI sessions how to use the saved research and what state to trust. In the TUI, the action that creates them is called Create Operating Layer.
 
 **Optional Maintenance Adapter:** a thin Codex or Claude skill that routes Project and Source changes through the installed CLI. It previews a Project Change Set, waits for Curator approval when required, and leaves a Change Receipt after apply. It does not replace the Project Skill.
+
+**Project Snapshot, Change Set, and Change Receipt:** the safe maintenance sequence. A Snapshot is read-only current state, a Change Set is an exact write-free plan for one Project revision, and a Receipt is the durable redacted record of the applied plan.
 
 ## Next
 

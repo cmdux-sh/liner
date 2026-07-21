@@ -27,6 +27,20 @@
   update, replace, remove, purge, rename, and move through that same contract.
   Confirmation now follows Core risk: additive and metadata plans continue
   after validation, while approval-required plans wait on the exact preview.
+- **Kept curator approvals focused on the decision being made.** User-provided
+  Source review now summarizes what will be added, what stays unchanged, and
+  what happens next instead of exposing Core protocol payloads. After Sources
+  are accepted, one stable transition leads to a separate Synthesis approval;
+  confirming that approval records the receipt and starts Compile automatically.
+- **Added recoverable whole-Project deletion.** Maintain Project now includes a
+  guarded Delete Project action that requires the exact Project name, previews
+  the identity-preserving move through Core, and writes a receipt. Deleted
+  Projects move outside the active Project library into a recoverable Liner
+  Trash location, so they disappear from the Project list without erasing files.
+- **Accepted Markdown-linked evaluation candidates.** Evaluation validation now
+  recognizes candidate titles whose URLs are written as Markdown links, avoiding
+  a false `no candidates list` failure after Candidate discovery produced valid
+  linked entries.
 - **Bundled opt-in Maintenance Adapters.** Liner now ships a thin
   CLI-delegating maintenance skill for Codex and Claude, with explicit
   inspect/install/update/remove commands, durable receipts, fail-closed managed

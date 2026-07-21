@@ -48,6 +48,7 @@ Home is the command hub. It shows folder actions only when a folder is open and 
 | `c` | Compile when manual compile is available. |
 | `p` | Preview `mixtape/MIXTAPE.md` after compile. |
 | `l` | Preview or create `LINER.md`. |
+| `m` | Open Core-backed Project and Source maintenance. |
 | `k` | Open project skills when available. |
 | `u` | Open audits when available. |
 | `o` | Open the saved folder. |
@@ -77,9 +78,15 @@ For multiple sources, paste URLs together separated by spaces, commas, or new li
 
 For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then paste it into the source inbox. The TUI stores the pasted content under `local-sources/captured/`. Browser capture is future work, so treat pasted text as the current path.
 
+Finishing entry opens **Review User-Provided Sources**. Toggle any row you do not want to save, then press Enter to prepare the save. The confirmation names how many Sources are new or already present, states that the change is additive, and shows the next step. Press Enter again to save the active Sources through Liner Core and continue to Clarify Job. Existing Sources stay unchanged.
+
 ## Build Corpus
 
-Build Corpus runs the research-building methodology through the configured Claude or Codex runner. The TUI streams progress, writes working files, validates the framing, and saves draft sources for review before compile.
+Build Corpus runs the research-building methodology through the configured Claude or Codex runner. The TUI streams progress, writes working files, validates the framing, and prepares draft Sources and Synthesis for review before Compile.
+
+When research finishes, **Review Draft Sources** shows the proposed canonical Source set. Toggle the checked rows, inspect their notes and roles, then accept the selection. Liner saves that Source batch atomically, keeps already-present Sources unchanged, refreshes the Project Snapshot, and opens Synthesis approval.
+
+**Review Synthesis** is a separate Curator decision. Approve `synthesis.md` unchanged when it accurately represents the accepted Sources, or edit it and review the exact proposed replacement. Recording Synthesis approval creates a durable receipt; Liner then verifies the approved Project state and starts Compile automatically.
 
 ## Compile
 
@@ -124,6 +131,8 @@ Project state and next actions.
 Removal retains Source content in the Retention Vault. Purge is a separate,
 destructive operation. The TUI never reconstructs Core's risk or writes
 canonical Project files directly for supported maintenance.
+
+**Delete Project** is recoverable. It requires typing the exact Project name, then uses the same reviewed, approval-required Project move contract to move the entire folder out of the active Project library into the Liner Trash path shown in the preview. The Project disappears from the active Projects list, while its Project ID, user files, and Change Receipt remain intact; no Project files are erased. Use the reviewed trash path and identity-preserving Project move workflow if you need to restore it.
 
 ## Operating Layer
 

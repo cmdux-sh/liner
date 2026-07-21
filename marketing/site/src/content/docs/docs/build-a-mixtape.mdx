@@ -6,17 +6,30 @@ description: Collect sources, compile Markdown research, write instruction files
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 import FileTree from "../../../components/FileTree.astro";
 
-Start with a Liner Project for one focused task. Define its Job to Be Done in Job Story form, Clarify Job, collect sources, compile the Mixtape, then write the instruction files a future AI session should follow.
+Start with a Liner Project for one focused task. Define its Job to Be Done in Job Story form, add any material you already have, Clarify Job, build and review the corpus, compile the Mixtape, then write the instruction files a future AI session should follow.
 
 ## Interactive Flow
 
 <CommandSnippet command="npx linersh" />
 
-The terminal UI helps you create the Liner Project, add sources, draft or inspect the research plan, compile the Mixtape, and write AI instructions. Use the CLI when you want to package a `.mixtape` archive.
+The terminal UI carries the complete creation flow. It creates the Project shell, collects material you already have, clarifies the job, builds the corpus, pauses for Source and Synthesis approval, compiles the Mixtape, and writes AI instructions. Use the CLI when you want a scriptable operation or a `.mixtape` archive.
 
 The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another location:
 
 <CommandSnippet command="LINER_DIR=~/liner/projects npx linersh" />
+
+## Creation Checkpoints
+
+1. **Create Project** asks for the name, Job to Be Done, Curator, and whether you already have Sources.
+2. **Source Inbox** accepts URLs, local files, pasted article text, and skill Sources. Its review screen lets you include or exclude each item, then shows a plain-language summary before saving.
+3. **Clarify Job** records the situation, desired outcome, and boundaries before research begins.
+4. **Build Corpus** discovers and evaluates evidence, writes working artifacts, and proposes a draft Source set.
+5. **Review Draft Sources** is the Curator checkpoint for the canonical Source set. Accepting it saves the checked Sources atomically and preserves any already-present Sources.
+6. **Review Synthesis** is a separate checkpoint. Approve the current `synthesis.md` unchanged, or edit it and review the exact replacement before anything is written.
+7. After Synthesis approval, Liner verifies the Project Snapshot and starts **Compile** automatically. Compile writes `mixtape/MIXTAPE.md` and the extracted source files.
+8. **Create Operating Layer** writes `LINER.md`, root `SKILL.md`, and `liner.yaml`, completing the Project.
+
+Source approval and Synthesis approval are intentionally separate. Choosing the evidence does not silently approve the interpretation placed at the top of `MIXTAPE.md`.
 
 ## CLI Flow
 
@@ -32,9 +45,9 @@ Add Sources through Liner Core so each one receives durable identity and duplica
   --note "Use the current review rules as primary evidence." \
   --priority required`} />
 
-Then use the terminal UI to build and review the corpus. The Curator's approved synthesis is published into the Mixtape during that workflow.
+Then use the terminal UI to build and review the corpus. The Curator's accepted Source set and separately approved Synthesis are published into the Mixtape during that workflow.
 
-Compile when the summary is ready:
+For a scriptable compile after you have reviewed the recipe and Synthesis, run:
 
 <CommandSnippet command="liner compile mobile-design-foundations" />
 
@@ -55,7 +68,7 @@ The compile step writes the research packet:
 
 After compile, give the AI `mixtape/MIXTAPE.md` and `mixtape/sources/`.
 
-In the terminal UI, continue to **Create Operating Layer** after compile. That action writes the instruction files: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
+In the terminal UI, Compile begins automatically after Synthesis approval. Continue to **Create Operating Layer** when the compiled result is usable. That action writes the instruction files: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
 
 After the instruction files are written, give the AI the whole folder when it can read files. For lighter use, paste `mixtape/MIXTAPE.md` into the conversation and keep the source files nearby for detail.
 

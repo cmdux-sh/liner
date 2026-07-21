@@ -60,7 +60,7 @@ if (current) entries.push(current);
 
 const releaseIntros: Record<string, string> = {
   "1.1.0":
-    "Liner Projects can now be inspected and maintained through one versioned Core contract, including optional Codex and Claude adapters that keep previews, approvals, and receipts visible.",
+    "The builder now pauses for clear Source and Synthesis approval before Compile. Project maintenance keeps the same preview, approval, and receipt trail for Source changes, Project moves, and recoverable deletion.",
   "1.0.2":
     "Compile became easier to trust when sources are missing or blocked. The terminal app now summarizes the result first, keeps source review close by, and guides recovery for custom web and YouTube sources.",
   "1.0.0":
@@ -177,12 +177,12 @@ const renderedEntries = publicEntries.map((entry) => {
       <div class="release-focus">
         <div class="release-focus-copy">
           <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Current release" : "Release candidate"} /// {releaseVersion}</p>
-          <h2>Projects can stay current through the same safe maintenance authority.</h2>
+          <h2>Sources and Synthesis now have clear checkpoints before Compile.</h2>
           <p>
-            Version {releaseVersion} adds durable Project and Source identity, write-free
-            previews, guarded apply, and redacted receipts. An optional Maintenance Adapter
-            lets Codex or Claude follow that installed CLI contract without becoming a second
-            writer.
+            Version {releaseVersion} separates approving Sources from confirming the Synthesis
+            that represents them. It also adds durable Project and Source identity, write-free
+            previews, guarded apply, and redacted receipts. An optional Maintenance Adapter lets
+            Codex or Claude follow that installed CLI contract without becoming a second writer.
           </p>
           <ul class="release-highlights">
             <li>
@@ -191,11 +191,11 @@ const renderedEntries = publicEntries.map((entry) => {
             </li>
             <li>
               <span>02</span>
-              <p>Approval-required operations stop on the exact preview before any canonical Project write.</p>
+              <p>Source approval and Synthesis confirmation make the next step clear before Compile begins.</p>
             </li>
             <li>
               <span>03</span>
-              <p>A durable Change Receipt records the applied plan and its effects without copying private Source content.</p>
+              <p>A durable Change Receipt records the applied plan and its effects without copying private Source content; Project deletion moves files to recoverable Liner Trash.</p>
             </li>
           </ul>
         </div>

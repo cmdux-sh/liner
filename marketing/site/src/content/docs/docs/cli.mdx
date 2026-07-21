@@ -14,6 +14,7 @@ If you are using the one-shot npm path instead of a global install, replace `lin
 | Command | What it does |
 | --- | --- |
 | `liner init <folder>` | Create a folder with starter research files. |
+| `liner replay <folder> [--out <path>]` | Copy a Project's Job to Be Done and Clarify Job answers into a fresh Project while retaining lineage for later comparison. |
 | `liner compile <folder>` | Fetch sources and write `mixtape/MIXTAPE.md` plus `mixtape/sources/`. |
 | `liner share <folder>` | Zip the project into a `.mixtape` archive. |
 | `liner import <archive> [dest]` | Unzip a `.mixtape` archive and refetch uncached web and YouTube sources. |
@@ -27,6 +28,8 @@ contract. Inspection and planning are write-free. Apply validates the exact
 reviewed Change Set again, and operations marked approval-required stop until
 the curator approves that preview.
 
+`liner project inspect` reports the immutable Project ID, revision, compatibility, lifecycle state, and immutable Source IDs. Keep those IDs when scripting a multi-step change; path names and Source locators are readable labels, not maintenance identity.
+
 | Command | What it does |
 | --- | --- |
 | `liner project inspect [path]` | Read Project identity, compatibility, lifecycle state, capabilities, and root-discovery evidence without writing. |
@@ -36,6 +39,8 @@ the curator approves that preview.
 | `liner project rename <folder> --name <name>` | Plan a Project display-name change without changing Project identity. |
 | `liner project move <folder> --destination <path>` | Plan an atomic, identity-preserving Project root move. |
 | `liner project apply <folder> --change-set-json <json>` | Apply one exact Change Set atomically and persist a redacted receipt. |
+
+Structural or semantic plans require `--approve`. A Project move also requires `--approved-destination <path>` matching the exact destination in the reviewed Change Set.
 
 ## Source Maintenance
 
@@ -69,6 +74,15 @@ replaces the Project Skill. Managed operations preserve user-authored content.
 | --- | --- |
 | `liner manifest <folder>` | Aggregate `.liner-runs/` into `process.json`. |
 | `liner status <folder>` | Show a summary of runs, tokens, tool calls, and fetched URLs. |
+
+Use `liner status <folder> --no-write --json` for a read-only status consumer. Use `--status-only` only when you intend to refresh the Status Snapshot in `liner.yaml` without writing `process.json`.
+
+## Skill Source Discovery
+
+| Command | What it does |
+| --- | --- |
+| `liner skills list` | List locally installed skills that Liner can import as inert Source material. |
+| `liner skills list --json` | Emit the same discovery result as JSON. |
 
 ## Cache Commands
 
