@@ -85,6 +85,32 @@ describe("assembleEvaluationFromFragments", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.message).toContain("missing decision fragments");
   });
+
+  it("matches clean fragment URLs to bold Markdown links from the longlist", () => {
+    const project = projectFixture();
+    writeFileSync(
+      join(project, "working/02-candidate-longlist.md"),
+      [
+        "## 1. Evidence foundations",
+        "1. **[PROV-DM: The PROV Data Model](https://www.w3.org/TR/prov-dm/)**  ",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(project, "working/evaluation-decisions/01-foundations.yaml"),
+      [
+        "candidates:",
+        "  - url: https://www.w3.org/TR/prov-dm/",
+        "    decision: dropped",
+        "    rationale: Fixture decision.",
+      ].join("\n"),
+    );
+
+    expect(assembleEvaluationFromFragments(project)).toEqual({
+      ok: true,
+      path: join(project, "working/03-evaluation.yaml"),
+      count: 1,
+    });
+  });
 });
 
 describe("ensureEvaluationArtifact", () => {

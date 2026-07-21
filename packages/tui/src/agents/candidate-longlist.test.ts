@@ -86,6 +86,28 @@ describe("readCandidateLonglist", () => {
       },
     ]);
   });
+
+  it("parses bold Markdown links without including their closing markup in the URL", () => {
+    const root = mkdtempSync(join(tmpdir(), "liner-markdown-link-longlist-"));
+    const path = write(
+      join(root, "working/02-candidate-longlist.md"),
+      [
+        "# Candidate long-list",
+        "",
+        "## 1. Evidence foundations",
+        "",
+        "1. **[PROV-DM: The PROV Data Model](https://www.w3.org/TR/prov-dm/)**  ",
+      ].join("\n"),
+    );
+
+    expect(readCandidateLonglist(path)).toEqual([
+      {
+        url: "https://www.w3.org/TR/prov-dm/",
+        title: "PROV-DM: The PROV Data Model",
+        section: "Evidence foundations",
+      },
+    ]);
+  });
 });
 
 describe("groupCandidateLonglist", () => {

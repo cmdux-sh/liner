@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
 const URL_RE = /https?:\/\/[^\s"'<>]+/g;
+const MARKDOWN_LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/;
 
 export type LonglistCandidate = {
   url: string;
@@ -115,6 +116,8 @@ export function normalizeCandidateUrl(url: string): string {
 }
 
 function firstUrl(line: string): string {
+  const markdownLink = line.match(MARKDOWN_LINK_RE);
+  if (markdownLink?.[2]) return normalizeCandidateUrl(markdownLink[2]);
   const match = line.match(URL_RE);
   return match?.[0] ? normalizeCandidateUrl(match[0]) : "";
 }
@@ -124,6 +127,8 @@ function cleanSection(section: string): string {
 }
 
 function titleFromCandidateLine(line: string, url: string): string | undefined {
+  const markdownLink = line.match(MARKDOWN_LINK_RE);
+  if (markdownLink?.[1]) return markdownLink[1].trim();
   const beforeUrl = line.slice(0, line.indexOf(url));
   const cleaned = beforeUrl
     .replace(/^\s*[-*]\s*/, "")
