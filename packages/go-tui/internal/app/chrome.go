@@ -247,6 +247,12 @@ func (m Model) nextAction() string {
 		case maintenanceStageSource:
 			return "Choose a Source by readable locator and immutable Source ID."
 		case maintenanceStageFields:
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				if m.maintenanceEditing || !m.maintenanceDeleteConfirmationMatches() {
+					return "Type the exact Project name, then save the confirmation."
+				}
+				return "Review the recoverable Delete Change Set."
+			}
 			return "Edit typed Source fields, then preview the exact Core Change Set."
 		case maintenanceStageReceipt:
 			return "Use the durable receipt and refreshed Snapshot as completion evidence."

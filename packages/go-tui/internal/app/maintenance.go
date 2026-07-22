@@ -341,16 +341,7 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		if m.maintenanceLoading || m.maintenanceEditing || m.maintenanceStage != maintenanceStageFields {
 			return m, nil
 		}
-		operation, err := m.guidedMaintenanceOperation()
-		if err != nil {
-			m.err = err.Error()
-			return m, nil
-		}
-		m.maintenanceLoading = true
-		m.maintenanceReceipt = nil
-		m.note = "Asking Liner Core for a write-free Change Set preview."
-		m.err = ""
-		return m, planMaintenanceOperation(m.runner, m.currentPath, operation)
+		return m.startMaintenancePreview()
 	case "enter":
 		if m.maintenanceLoading {
 			return m, nil
@@ -404,6 +395,9 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				m.commitMaintenanceField()
 				return m, nil
 			}
+			if m.maintenanceOperation == maintenanceOperationDelete && m.maintenanceDeleteConfirmationMatches() {
+				return m.startMaintenancePreview()
+			}
 			m.beginMaintenanceFieldEdit()
 			return m, nil
 		case maintenanceStageReceipt:
@@ -424,6 +418,19 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) startMaintenancePreview() (Model, tea.Cmd) {
+	operation, err := m.guidedMaintenanceOperation()
+	if err != nil {
+		m.err = err.Error()
+		return m, nil
+	}
+	m.maintenanceLoading = true
+	m.maintenanceReceipt = nil
+	m.note = "Asking Liner Core for a write-free Change Set preview."
+	m.err = ""
+	return m, planMaintenanceOperation(m.runner, m.currentPath, operation)
 }
 
 func (m *Model) syncMaintenancePlanView() {
@@ -576,7 +583,15 @@ func (m *Model) commitMaintenanceField() {
 	m.maintenanceEditing = false
 	m.maintenanceInput.SetValue("")
 	m.maintenanceInput.Blur()
+	if m.maintenanceOperation == maintenanceOperationDelete {
+		m.note = "Confirmation saved locally. Press Enter to review the recoverable Delete Change Set."
+		return
+	}
 	m.note = "Field saved locally. Press p when the typed operation is ready for Core preview."
+}
+
+func (m Model) maintenanceDeleteConfirmationMatches() bool {
+	return m.maintenanceSnapshot != nil && strings.TrimSpace(m.maintenanceFieldValues["confirmation"]) == m.maintenanceSnapshot.Name
 }
 
 func (m Model) selectedMaintenanceSource() *core.MaintenanceSourceSnapshot {
@@ -807,7 +822,11 @@ func (m Model) maintenanceFieldsView(width int) string {
 	if m.maintenanceEditing {
 		parts = append(parts, "", styles.ReportSection.Render("Editing"), m.maintenanceInput.View())
 	} else {
-		parts = append(parts, "", styles.SoftText.Render("↑/↓ choose field · Enter edit · p preview exact Core Change Set · Esc back"))
+		controls := "↑/↓ choose field · Enter edit · p preview exact Core Change Set · Esc back"
+		if m.maintenanceOperation == maintenanceOperationDelete && m.maintenanceDeleteConfirmationMatches() {
+			controls = "Enter review recoverable Delete Change Set · Esc back"
+		}
+		parts = append(parts, "", styles.SoftText.Render(controls))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }

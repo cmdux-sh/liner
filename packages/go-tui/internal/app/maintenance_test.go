@@ -526,6 +526,38 @@ func TestMaintenanceDeleteSelectionImmediatelyAcceptsTypedConfirmation(t *testin
 	}
 }
 
+func TestMaintenanceDeleteEnterSequenceAdvancesSavedConfirmationToPreview(t *testing.T) {
+	projectID := "11111111-1111-4111-8111-111111111111"
+	baseDir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := textinput.New()
+	m := Model{
+		runner:               testCoreRunner(t),
+		baseDir:              baseDir,
+		currentPath:          filepath.Join(baseDir, "mistaken-project"),
+		screen:               screenMaintenance,
+		maintenanceInput:     input,
+		maintenanceStage:     maintenanceStageOperation,
+		maintenanceOperation: maintenanceOperationDelete,
+		maintenanceSnapshot: &core.MaintenanceProjectSnapshot{
+			ProjectID: &projectID,
+			Name:      "Mistaken Project",
+			Root:      filepath.Join(baseDir, "mistaken-project"),
+		},
+	}
+
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+	m.maintenanceInput.SetValue("Mistaken Project")
+	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+	next, previewCmd := m.handleMaintenanceKey(keyPress("enter"))
+
+	if previewCmd == nil || !next.maintenanceLoading || next.maintenanceEditing {
+		t.Fatalf("saved delete confirmation looped back to editing instead of starting preview: loading=%t editing=%t cmd=%v err=%q", next.maintenanceLoading, next.maintenanceEditing, previewCmd, next.err)
+	}
+}
+
 func TestMaintenancePreviewShowsTheExactCoreSourcePayload(t *testing.T) {
 	id := "11111111-1111-4111-8111-111111111111"
 	plan := core.ProjectChangeSet{
