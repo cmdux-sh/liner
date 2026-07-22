@@ -241,6 +241,9 @@ func (m Model) nextAction() string {
 			return "Wait for Liner Core to finish the current maintenance request."
 		}
 		if m.maintenancePlan != nil {
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				return "Move this Project to Trash, or cancel."
+			}
 			return "Review the exact Core Change Set, then apply or discard it."
 		}
 		switch m.maintenanceStage {
@@ -255,6 +258,9 @@ func (m Model) nextAction() string {
 			}
 			return "Edit typed Source fields, then preview the exact Core Change Set."
 		case maintenanceStageReceipt:
+			if m.maintenanceOperation == maintenanceOperationDelete {
+				return "Return to Projects."
+			}
 			return "Use the durable receipt and refreshed Snapshot as completion evidence."
 		default:
 			return "Choose a guided Source maintenance operation."

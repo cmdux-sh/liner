@@ -572,6 +572,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.maintenanceEditing = false
 		m.maintenanceInput.SetValue("")
 		m.maintenanceInput.Blur()
+		if m.maintenanceOperation == maintenanceOperationDelete {
+			m.maintenanceSnapshotPending = false
+			m.clearProjectStatus()
+			m.note = "Project moved to recoverable Liner Trash. No files were erased. Press Enter to return to Projects."
+			m.err = ""
+			cmds = append(cmds, loadProjects(m.runner, m.baseDir))
+			break
+		}
 		var refreshErr error
 		if refreshed, err := tape.ReadProject(msg.path); err == nil {
 			m.currentTape = refreshed

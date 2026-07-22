@@ -393,6 +393,9 @@ func (m Model) handleMaintenanceKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 		case maintenanceStageFields:
 			if m.maintenanceEditing {
 				m.commitMaintenanceField()
+				if m.maintenanceOperation == maintenanceOperationDelete && m.maintenanceDeleteConfirmationMatches() {
+					return m.startMaintenancePreview()
+				}
 				return m, nil
 			}
 			if m.maintenanceOperation == maintenanceOperationDelete && m.maintenanceDeleteConfirmationMatches() {
@@ -443,8 +446,61 @@ func (m *Model) syncMaintenancePlanView() {
 		width = max(20, styles.ClampWidth(m.width-8))
 		m.maintenancePlanView.SetWidth(width)
 	}
-	m.maintenancePlanView.SetContent(maintenancePlanView(width, *m.maintenancePlan, "Enter"))
+	if m.maintenanceOperation == maintenanceOperationDelete {
+		m.maintenancePlanView.SetContent(maintenanceDeletePlanView(width, m.maintenanceSnapshot, *m.maintenancePlan))
+	} else {
+		m.maintenancePlanView.SetContent(maintenancePlanView(width, *m.maintenancePlan, "Enter"))
+	}
 	m.maintenancePlanView.GotoTop()
+}
+
+func maintenanceDeletePlanView(width int, snapshot *core.MaintenanceProjectSnapshot, plan core.ProjectChangeSet) string {
+	projectName := "This Project"
+	oldRoot := "Current Project location"
+	if snapshot != nil {
+		projectName = fallbackText(snapshot.Name, projectName)
+		oldRoot = fallbackText(snapshot.Root, oldRoot)
+	}
+	_, newRoot := maintenanceProjectMoveRoots(plan)
+	rows := []labelValueRow{
+		{Label: "Project", Value: projectName},
+		{Label: "Action", Value: "Move the complete Project to recoverable Liner Trash"},
+		{Label: "From", Value: oldRoot},
+		{Label: "Trash location", Value: fallbackText(newRoot, "Reviewed recoverable Trash location")},
+		{Label: "Files", Value: "Preserved — No files will be erased"},
+		{Label: "Safety", Value: fmt.Sprintf("Core will re-check identity and destination before moving (%d checks)", len(plan.Validation))},
+	}
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Move Project to Trash?"),
+		styles.AccentText.Render("Press Enter to move this Project to Trash. Press Esc to cancel."),
+		renderLabelValueBlock(width, rows, 0, 0),
+	)
+}
+
+func maintenanceProjectMoveRoots(plan core.ProjectChangeSet) (string, string) {
+	for _, operation := range plan.Operations {
+		if operation["type"] != "project.move" {
+			continue
+		}
+		oldRoot := maintenanceOperationString(operation, "old_root")
+		newRoot := maintenanceOperationString(operation, "new_root")
+		if payload, ok := operation["payload"].(map[string]any); ok {
+			if oldRoot == "" {
+				oldRoot = maintenanceOperationString(payload, "old_root")
+			}
+			if newRoot == "" {
+				newRoot = maintenanceOperationString(payload, "new_root")
+			}
+		}
+		return oldRoot, newRoot
+	}
+	return "", ""
+}
+
+func maintenanceOperationString(operation map[string]any, key string) string {
+	value, _ := operation[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func (m *Model) moveMaintenanceCursor(delta int) {
@@ -584,7 +640,11 @@ func (m *Model) commitMaintenanceField() {
 	m.maintenanceInput.SetValue("")
 	m.maintenanceInput.Blur()
 	if m.maintenanceOperation == maintenanceOperationDelete {
-		m.note = "Confirmation saved locally. Press Enter to review the recoverable Delete Change Set."
+		if m.maintenanceDeleteConfirmationMatches() {
+			m.note = "Preparing the recoverable Delete review."
+		} else if m.maintenanceSnapshot != nil {
+			m.note = fmt.Sprintf("The confirmation must exactly match %q. Press Enter to edit it.", m.maintenanceSnapshot.Name)
+		}
 		return
 	}
 	m.note = "Field saved locally. Press p when the typed operation is ready for Core preview."
@@ -837,7 +897,7 @@ func (m Model) viewMaintenance() string {
 		styles.Title.Render("Maintain Project through Liner Core"),
 		styles.Subtitle.Render("Guided Project and Source maintenance keeps immutable identity and Core authority visible at every step."),
 	}
-	if snapshot := m.maintenanceSnapshot; snapshot != nil {
+	if snapshot := m.maintenanceSnapshot; snapshot != nil && !(m.maintenanceStage == maintenanceStageReceipt && m.maintenanceOperation == maintenanceOperationDelete) {
 		sections = append(sections, "", renderLabelValueBlock(width, []labelValueRow{
 			{Label: "Project", Value: snapshot.Name},
 			{Label: "Revision", Value: snapshot.Revision},
@@ -857,6 +917,10 @@ func (m Model) viewMaintenance() string {
 			sections = append(sections, "", m.maintenancePlanView.View())
 		}
 	case maintenanceStageReceipt:
+		if m.maintenanceOperation == maintenanceOperationDelete {
+			sections = append(sections, "", m.maintenanceDeleteReceiptView(width))
+			return lipgloss.JoinVertical(lipgloss.Left, sections...)
+		}
 		if m.maintenanceReceipt != nil {
 			sections = append(sections, "", styles.ReportSection.Render("Core receipt"), styles.SuccessText.Render(strings.Join(core.ReceiptSummaryLines(*m.maintenanceReceipt), "\n")))
 		}
@@ -896,6 +960,29 @@ func (m Model) viewMaintenance() string {
 		sections = append(sections, "", styles.ReportSection.Render("Choose operation"), m.maintenanceOperationView(width))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func (m Model) maintenanceDeleteReceiptView(width int) string {
+	projectName := "Deleted Project"
+	if m.maintenanceSnapshot != nil {
+		projectName = fallbackText(m.maintenanceSnapshot.Name, projectName)
+	} else {
+		projectName = fallbackText(m.currentTape.Title, projectName)
+	}
+	rows := []labelValueRow{
+		{Label: "Project", Value: projectName},
+		{Label: "Status", Value: "Moved to recoverable Liner Trash"},
+		{Label: "Recovery location", Value: m.currentPath},
+		{Label: "Files", Value: "No files were erased"},
+		{Label: "Receipt", Value: "Saved with the trashed Project"},
+	}
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.ReportSection.Render("Project moved to Trash"),
+		styles.SuccessText.Render("The complete Project is safely stored in Liner Trash."),
+		renderLabelValueBlock(width, rows, 0, 0),
+		styles.SoftText.Render("Press Enter to return to Projects."),
+	)
 }
 
 func maintenanceDeleteDestination(snapshot core.MaintenanceProjectSnapshot, projectLibrary string) (string, error) {

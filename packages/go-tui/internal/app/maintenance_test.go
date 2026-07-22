@@ -197,7 +197,7 @@ func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 	}
 	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 	m.maintenanceInput.SetValue(snapshot.snapshot.Name)
-	m, _ = m.handleMaintenanceKey(keyPress("enter"))
+	m, previewCmd := m.handleMaintenanceKey(keyPress("enter"))
 	operation, err := m.guidedMaintenanceOperation()
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +211,7 @@ func TestMaintenanceDeletesProjectRecoverablyThroughRealCore(t *testing.T) {
 		t.Fatalf("delete did not map outside the active Project library: %#v", operation)
 	}
 
-	m = planAndApplyGuidedMaintenance(t, m, "project.move")
+	m = applyGuidedMaintenancePlan(t, m, previewCmd, "project.move")
 	if _, err := os.Stat(project); !os.IsNotExist(err) {
 		t.Fatalf("original Project root still exists after receipt: %v", err)
 	}
@@ -526,7 +526,7 @@ func TestMaintenanceDeleteSelectionImmediatelyAcceptsTypedConfirmation(t *testin
 	}
 }
 
-func TestMaintenanceDeleteEnterSequenceAdvancesSavedConfirmationToPreview(t *testing.T) {
+func TestMaintenanceDeleteConfirmationEnterAdvancesDirectlyToPreview(t *testing.T) {
 	projectID := "11111111-1111-4111-8111-111111111111"
 	baseDir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -550,11 +550,114 @@ func TestMaintenanceDeleteEnterSequenceAdvancesSavedConfirmationToPreview(t *tes
 
 	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 	m.maintenanceInput.SetValue("Mistaken Project")
-	m, _ = m.handleMaintenanceKey(keyPress("enter"))
 	next, previewCmd := m.handleMaintenanceKey(keyPress("enter"))
 
 	if previewCmd == nil || !next.maintenanceLoading || next.maintenanceEditing {
-		t.Fatalf("saved delete confirmation looped back to editing instead of starting preview: loading=%t editing=%t cmd=%v err=%q", next.maintenanceLoading, next.maintenanceEditing, previewCmd, next.err)
+		t.Fatalf("delete confirmation did not advance directly to preview: loading=%t editing=%t cmd=%v err=%q", next.maintenanceLoading, next.maintenanceEditing, previewCmd, next.err)
+	}
+}
+
+func TestMaintenanceDeletePreviewUsesPlainLanguageInsteadOfCorePayload(t *testing.T) {
+	projectID := "11111111-1111-4111-8111-111111111111"
+	plan := core.ProjectChangeSet{
+		ApprovalRequired: true,
+		Operations: []map[string]any{{
+			"type": "project.move",
+			"payload": map[string]any{
+				"old_root":                 "/tmp/projects/mistaken-project",
+				"new_root":                 "/tmp/.liner-trash-mistaken-project-id",
+				"destination_parent_inode": 12345,
+			},
+		}},
+		Validation: []string{"Project ID and revision must still match"},
+	}
+	m := Model{
+		width:                100,
+		maintenanceOperation: maintenanceOperationDelete,
+		maintenanceSnapshot: &core.MaintenanceProjectSnapshot{
+			ProjectID: &projectID,
+			Name:      "Mistaken Project",
+			Root:      "/tmp/projects/mistaken-project",
+		},
+		maintenancePlan:     &plan,
+		maintenancePlanView: viewport.New(viewport.WithWidth(92), viewport.WithHeight(20)),
+	}
+	m.syncMaintenancePlanView()
+	view := stripANSICodesForTest(m.maintenancePlanView.View())
+
+	for _, expected := range []string{"Move Project to Trash?", "Mistaken Project", "No files will be erased", "Press Enter"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("Delete preview missing %q:\n%s", expected, view)
+		}
+	}
+	for _, internal := range []string{"Operation payload", "destination_parent_inode", `"type":"project.move"`} {
+		if strings.Contains(view, internal) {
+			t.Fatalf("Delete preview exposed internal protocol %q:\n%s", internal, view)
+		}
+	}
+}
+
+func TestMaintenanceDeleteReceiptShowsRecoveryOutcomeWithoutLifecycleNoise(t *testing.T) {
+	m := Model{
+		width:                110,
+		height:               34,
+		screen:               screenMaintenance,
+		currentPath:          "/tmp/.liner-trash-mistaken-project-id",
+		maintenanceStage:     maintenanceStageReceipt,
+		maintenanceOperation: maintenanceOperationDelete,
+		maintenanceReceipt: &core.ChangeReceipt{
+			ChangeSetID: "change-set-id",
+			ReceiptPath: "/tmp/.liner-trash-mistaken-project-id/mixtape/.liner-runs/maintenance/receipt.json",
+		},
+		maintenanceSnapshot: &core.MaintenanceProjectSnapshot{
+			Name: "Mistaken Project",
+			Lifecycle: core.MaintenanceProjectLifecycle{
+				Stale: true,
+			},
+		},
+	}
+	view := stripANSICodesForTest(m.viewMaintenance())
+
+	for _, expected := range []string{"Project moved to Trash", "Mistaken Project", "No files were erased", "Press Enter to return to Projects"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("Delete receipt missing %q:\n%s", expected, view)
+		}
+	}
+	for _, noise := range []string{"Applied Change Set", "Lifecycle", "Corpus refresh", "Synthesis review"} {
+		if strings.Contains(view, noise) {
+			t.Fatalf("Delete receipt exposed irrelevant detail %q:\n%s", noise, view)
+		}
+	}
+}
+
+func TestMaintenanceDeleteApplySkipsArchivedLifecycleRefresh(t *testing.T) {
+	baseDir := t.TempDir()
+	trashPath := filepath.Join(filepath.Dir(baseDir), ".liner-trash-mistaken-project-id")
+	m := Model{
+		runner:               testCoreRunner(t),
+		baseDir:              baseDir,
+		screen:               screenMaintenance,
+		currentPath:          filepath.Join(baseDir, "mistaken-project"),
+		currentTape:          tape.Tape{Title: "Mistaken Project"},
+		maintenanceOperation: maintenanceOperationDelete,
+		maintenancePlan:      &core.ProjectChangeSet{},
+		maintenanceLoading:   true,
+		maintenanceApplying:  true,
+	}
+	updated, _ := m.Update(maintenanceAppliedMsg{
+		path: trashPath,
+		receipt: core.ChangeReceipt{
+			ChangeSetID: "change-set-id",
+			ReceiptPath: filepath.Join(trashPath, "mixtape", ".liner-runs", "maintenance", "receipt.json"),
+		},
+	})
+	got := updated.(Model)
+
+	if got.maintenanceStage != maintenanceStageReceipt || got.maintenanceSnapshotPending || got.maintenanceSnapshot != nil {
+		t.Fatalf("Delete apply started an irrelevant archived lifecycle refresh: stage=%v pending=%t snapshot=%#v", got.maintenanceStage, got.maintenanceSnapshotPending, got.maintenanceSnapshot)
+	}
+	if got.currentPath != trashPath || !strings.Contains(got.note, "No files were erased") || strings.Contains(got.note, "Applied Change Set") {
+		t.Fatalf("Delete apply did not preserve a plain recovery outcome: path=%q note=%q", got.currentPath, got.note)
 	}
 }
 
@@ -1039,6 +1142,11 @@ func maintenanceTestHasSourceID(snapshot core.MaintenanceProjectSnapshot, source
 func planAndApplyGuidedMaintenance(t *testing.T, m Model, expectedType string) Model {
 	t.Helper()
 	next, planCmd := m.handleMaintenanceKey(keyPress("p"))
+	return applyGuidedMaintenancePlan(t, next, planCmd, expectedType)
+}
+
+func applyGuidedMaintenancePlan(t *testing.T, next Model, planCmd tea.Cmd, expectedType string) Model {
+	t.Helper()
 	if planCmd == nil {
 		t.Fatalf("%s did not start a Core plan", expectedType)
 	}
