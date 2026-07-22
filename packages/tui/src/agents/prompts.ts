@@ -200,6 +200,7 @@ Run the core-action test, then the eight standard tests against the keep-list:
 - Use at most one search pass for any single missing perspective.
 - Use at most one source-kind backfill search total, and only after assigning kinds to every existing kept/trim source.
 - Do not exceed four external search/fetch attempts for the whole Quality phase. If the budget is spent, stop searching, document the gap or defense, and write \`working/04-quality-checks.md\`.
+- If you backfill a source during Quality, add its URL to \`working/02-candidate-longlist.md\` before adding or changing its entry in \`working/03-evaluation.yaml\`. Parse both artifacts and confirm their candidate counts still match before reporting the phase complete.
 - On resume after a paused/cancelled Quality run, do not continue a search loop. Use the evidence already gathered, finish the kind assignments, and write the quality report.
 
 **Source-kind balance rules**:

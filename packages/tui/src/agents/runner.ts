@@ -87,6 +87,25 @@ export type AgentTaskArgs = {
  * `buildPhasePrompt` and labels the audit log with the phase id.
  */
 export function runPhaseWithAgent(args: AgentRunArgs): AgentRunHandle {
+  const recoverableArtifacts = new Set<PhaseId>([
+    "candidates",
+    "evaluation",
+    "quality",
+    "synthesis",
+    "assembly",
+  ]);
+  if (args.resume && recoverableArtifacts.has(args.phaseId)) {
+    const existing = ensurePhaseArtifact(args.project, args.phaseId);
+    if (existing.ok) {
+      const label = args.phaseId.charAt(0).toUpperCase() + args.phaseId.slice(1);
+      args.onEvent({
+        kind: "raw",
+        text: `[liner] ${label} artifact already valid; continuing without another AI run.`,
+      });
+      return { cancel: () => {}, done: Promise.resolve({ code: 0, stderr: "" }) };
+    }
+  }
+
   if (args.phaseId === "evaluation" && (!args.resume || hasSectionedEvaluationState(args.project))) {
     return runEvaluationSectionsWithAgent(args);
   }

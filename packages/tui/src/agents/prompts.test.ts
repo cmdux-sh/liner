@@ -146,6 +146,8 @@ describe("buildPhasePrompt", () => {
     expect(prompt).toContain("Ruby `YAML.load_file`");
     expect(prompt).toContain("Search budget for Phase 5");
     expect(prompt).toContain("Do not exceed four external search/fetch attempts");
+    expect(prompt).toContain("add its URL to `working/02-candidate-longlist.md`");
+    expect(prompt).toContain("candidate counts still match");
     expect(prompt).toContain("On resume after a paused/cancelled Quality run, do not continue a search loop");
     expect(prompt).toContain("Run the core-action test");
     expect(prompt).toContain("Core-action fit rules");

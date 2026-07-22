@@ -19,6 +19,7 @@ When Phase 5 is running inside the TUI or another automated Liner flow, it must 
 - Use at most one search pass for any one missing perspective.
 - Use at most one source-kind backfill search total.
 - Do not exceed four external search/fetch attempts across the whole Quality phase. If the budget is spent, stop searching, document the gap or defense, and write `working/04-quality-checks.md`.
+- When a bounded Quality backfill succeeds, add its verified URL to `working/02-candidate-longlist.md` before adding it to `working/03-evaluation.yaml`. Parse both artifacts and confirm their candidate counts still match; the longlist is the complete candidate ledger, including post-gate backfills.
 - On resume after a paused/cancelled Quality run, do not continue a search loop. Use the evidence already gathered, repair weak curator notes from existing evidence, and close the artifact.
 - If a material source-role gap remains after the bounded audit, write `working/05-operating-fit-audit.md` with `status: improvement_recommended` instead of declaring the corpus ready with a limitation. Liner will offer a focused improvement pass or let the user skip for now.
 

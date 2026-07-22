@@ -459,6 +459,29 @@ func (m *Model) stopMethodology(reason string) {
 
 func waitMethodologyEvent(events <-chan agent.Event, done <-chan error, runID uint64) tea.Cmd {
 	return func() tea.Msg {
+		// Structured terminal events are emitted before the runner process exits.
+		// Drain an event that is already buffered so its actionable failure cannot
+		// be replaced by a generic exit status when both channels are ready.
+		if events != nil {
+			select {
+			case event, ok := <-events:
+				if ok {
+					return methodologyEventMsg{event: event, runID: runID}
+				}
+				events = nil
+			default:
+			}
+		}
+		if events == nil {
+			if done == nil {
+				return methodologyDoneMsg{runID: runID}
+			}
+			err, ok := <-done
+			if !ok {
+				return methodologyDoneMsg{runID: runID}
+			}
+			return methodologyDoneMsg{err: err, runID: runID}
+		}
 		select {
 		case event, ok := <-events:
 			if ok {

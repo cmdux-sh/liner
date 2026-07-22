@@ -170,6 +170,8 @@ Step back from the keep-pile. Run the core-action test and the eight standard te
 
 If a test fails, fix it before moving on when the fix is small enough for the quality phase. If the failure points to a wider source-role gap, write `working/05-operating-fit-audit.md` with `status: improvement_recommended`, the gap, why it matters, concrete search lanes, and custom-source suggestions. Do not call the corpus "ready with limitation"; let Liner offer the user an improvement pass or a clear Skip.
 
+If the bounded Quality audit backfills a source, add the verified URL to `working/02-candidate-longlist.md` before adding it to `working/03-evaluation.yaml`. Parse both artifacts and confirm their candidate counts still match before reporting Phase 5 complete. The longlist remains the complete candidate ledger even when a candidate is discovered after Gate 1.
+
 *Tip: this phase benefits from running with fresh attention. If the conversation has been long, consider starting a separate chat with just the JTBD, capability brief, required source roles, knowledge map, and the kept-source list (titles + notes only) to run the checks. Optional, not required by the methodology.*
 
 **At Gate 2, show the final keep-list, the curator notes, and the quality-check findings. Ask:** "Confirm to proceed to synthesis." Quick mode default: continue. Methodology mode: expect substantive edits.

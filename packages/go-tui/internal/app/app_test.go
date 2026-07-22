@@ -11234,6 +11234,26 @@ func TestMethodologyQuietStatusWaitsForDelay(t *testing.T) {
 	}
 }
 
+func TestMethodologyWaitDrainsStructuredFailureBeforeProcessExit(t *testing.T) {
+	for iteration := 0; iteration < 200; iteration++ {
+		events := make(chan agent.Event, 1)
+		done := make(chan error, 1)
+		events <- agent.Event{
+			Kind:        "runner_failure",
+			FailureKind: "runtime",
+			Message:     "Artifact validation failed: candidate counts differ.",
+			Recovery:    "Reconcile the candidate artifacts, then retry.",
+		}
+		done <- errors.New("exit status 1")
+
+		msg := waitMethodologyEvent(events, done, 7)()
+		eventMsg, ok := msg.(methodologyEventMsg)
+		if !ok || eventMsg.event.Kind != "runner_failure" {
+			t.Fatalf("iteration %d consumed process exit before structured failure: %#v", iteration, msg)
+		}
+	}
+}
+
 func TestMethodologyStartWithoutProjectPathDoesNotSpawnRunner(t *testing.T) {
 	m := Model{
 		currentTape: tape.Tape{Title: "Launch"},

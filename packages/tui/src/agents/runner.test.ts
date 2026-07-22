@@ -226,6 +226,66 @@ describe("findLatestCodexSessionId", () => {
   });
 });
 
+describe("runPhaseWithAgent artifact recovery", () => {
+  it("accepts a valid repaired Quality artifact on retry without another AI run", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-quality-recovery-"));
+    mkdirSync(join(project, "working"), { recursive: true });
+    writeFileSync(
+      join(project, "working/02-candidate-longlist.md"),
+      "## Foundations\n- **Example A** — https://example.com/a\n",
+    );
+    writeFileSync(
+      join(project, "working/03-evaluation.yaml"),
+      [
+        "candidates:",
+        "  - url: https://example.com/a",
+        "    decision: kept",
+        "    rating: 5",
+        "    jtbd_fit: direct",
+        "    section: foundations",
+        "    note: 'Role: Anchor. Value: Concrete evidence. Limitations: Fixture.'",
+        "    fetch_status: readable",
+        "    content_quality: high",
+        "    evidence:",
+        "      - Concrete evidence from the source body.",
+        "      - A second source-specific limitation.",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(project, "working/04-quality-checks.md"),
+      [
+        "## Test 0", "## Test 1", "## Test 2", "## Test 3", "## Test 4",
+        "### Perspectives audit", "## Test 5", "Distribution:", "## Test 6",
+        "## Test 7", "Source-role fit", "## Test 8", "Capability-pattern fit", "",
+      ].join("\n"),
+    );
+    const events: AgentEvent[] = [];
+    const tape: Tape = {
+      title: "Terminal craft",
+      description: "",
+      version: 1,
+      curator: "Arturo",
+      sources: [],
+      mode: "quick",
+      jtbd: "Help a design engineer build polished terminal interfaces.",
+    };
+
+    const result = await runPhaseWithAgent({
+      agent: { id: "codex", name: "Must not run", bin: join(project, "missing-agent") },
+      phaseId: "quality",
+      project,
+      skillPath: join(project, "skill"),
+      tape,
+      resume: true,
+      onEvent: (event) => events.push(event),
+    }).done;
+
+    expect(result.code).toBe(0);
+    expect(events.some((event) => event.kind === "raw" && event.text.includes("Quality artifact already valid"))).toBe(true);
+  });
+});
+
 describe("resumePromptForTask", () => {
   it("asks resumed Candidate discovery to stop search loops and write the long-list", () => {
     const prompt = resumePromptForTask("candidates");
