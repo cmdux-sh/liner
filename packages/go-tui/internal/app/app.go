@@ -637,9 +637,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.clearProjectStatus()
 		m.beginProjectSnapshotLoad(m.currentPath)
-		m.note = strings.Join(core.ReceiptSummaryLines(msg.receipt), " · ")
 		if m.synthesisReviewAwaitingCompile {
-			m.note += " · Checking the approved state before Compile."
+			m.note = "Synthesis approval recorded. Checking Compile…"
+		} else {
+			m.note = "Operating Layer review recorded."
 		}
 		m.err = ""
 		cmds = append(cmds, loadProjectStatus(m.runner, m.currentPath), loadProjectSnapshot(m.runner, m.currentPath), loadProjects(m.runner, m.baseDir))
@@ -735,6 +736,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectSnapshotErr = ""
 		m.projectSnapshotAttempted = true
 		m.projectSnapshotLoading = false
+		if err := recordImprovementDecision(m.currentPath, "applied"); err != nil {
+			m.err = "Improvement was applied, but Liner could not save its completion marker: " + err.Error()
+		}
 		_ = os.RemoveAll(projectAbsPath(m.currentPath, improvementRunRelPath))
 		var cmd tea.Cmd
 		if m.projectNextKind() == projectNextReviewSynthesis {

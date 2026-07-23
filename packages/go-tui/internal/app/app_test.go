@@ -12089,6 +12089,20 @@ func assertStableAssemblyTransition(t *testing.T, m Model) {
 	}
 }
 
+func TestTransitionReceiptNoteUsesConciseUserMessage(t *testing.T) {
+	fallback := "Saved 45 Sources. Review the current synthesis before Compile."
+	receipt := &core.ChangeReceipt{
+		ChangeSetID:          "d5ab401a-774c-52f5-9943-b49441a32049",
+		ReceiptPath:          "/private/tmp/project/mixtape/.liner-runs/maintenance/receipt.json",
+		SynthesisDisposition: "review_required",
+		StaleArtifacts:       []string{"mixtape/synthesis.md", "mixtape/MIXTAPE.md"},
+	}
+
+	if got := maintenanceReceiptNote(receipt, fallback); got != fallback {
+		t.Fatalf("transition footer must keep receipt internals out of the user message, got %q", got)
+	}
+}
+
 func TestAssemblyReviewMarksAndTogglesSelectedDraftSource(t *testing.T) {
 	reference := "reference"
 	example := "example"

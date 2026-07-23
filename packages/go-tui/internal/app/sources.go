@@ -813,12 +813,5 @@ func sourceMaintenancePayload(item tape.Source) map[string]any {
 }
 
 func maintenanceReceiptNote(receipt *core.ChangeReceipt, fallback string) string {
-	if receipt == nil {
-		return fallback
-	}
-	lines := core.ReceiptSummaryLines(*receipt)
-	if len(lines) == 0 {
-		return fallback
-	}
-	return fallback + " " + strings.Join(lines, " · ")
+	return fallback
 }

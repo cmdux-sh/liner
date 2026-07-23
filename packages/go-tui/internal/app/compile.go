@@ -34,6 +34,7 @@ func (m Model) startCompile() (Model, tea.Cmd) {
 		m.err = "Compile is blocked until Review Synthesis records a Core-approved disposition."
 		return m, nil
 	}
+	resetSkippedImprovementDecision(m.currentPath)
 	events, done := m.runner.StartCompile(m.currentPath)
 	m.compileEvents = events
 	m.compileDone = done

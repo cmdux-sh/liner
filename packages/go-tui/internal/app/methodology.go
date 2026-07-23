@@ -565,6 +565,9 @@ func (m Model) openMethodologyFullLog() (Model, tea.Cmd) {
 	m.previewBack = m.screen
 	m.hasPreviewBack = true
 	m.previewRel = "Corpus Builder full log"
+	if m.methodologyPhaseID == "improvement" {
+		m.previewRel = "Improve Corpus full log"
+	}
 	m.preview.SetContent(strings.Join(lines, "\n"))
 	m.preview.GotoTop()
 	m.screen = screenPreview

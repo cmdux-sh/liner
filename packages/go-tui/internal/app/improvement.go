@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -26,6 +27,8 @@ const (
 	improvementDeltaRelPath     = ".liner-runs/improvement/delta.yaml"
 	improvementSnapshotFile     = ".liner-current-snapshot.json"
 	improvementDeltaContract    = "liner.improvement_delta"
+	improvementDecisionRelPath  = ".liner-runs/improvement-decision.json"
+	improvementDecisionContract = "liner.improvement_decision"
 )
 
 type improvementDelta struct {
@@ -35,6 +38,13 @@ type improvementDelta struct {
 	Additions    []tape.Source `yaml:"additions"`
 	Removals     []any         `yaml:"removals"`
 	Replacements []any         `yaml:"replacements"`
+}
+
+type improvementDecision struct {
+	Contract    string `json:"contract"`
+	Version     int    `json:"version"`
+	AuditSHA256 string `json:"audit_sha256"`
+	Disposition string `json:"disposition"`
 }
 
 const (
@@ -185,6 +195,11 @@ func (m Model) moveImprovementOption(delta int) Model {
 func (m Model) applyImprovementOption() (Model, tea.Cmd) {
 	switch improvementOptionAt(m.improvementCursor) {
 	case improvementOptionSkip:
+		if err := recordImprovementDecision(m.currentPath, "skipped"); err != nil {
+			m.err = "Could not save the Improve Corpus decision: " + err.Error()
+			m.note = "The Operating Layer remains unchanged. Retry after Liner can save the decision."
+			return m, nil
+		}
 		next, cmd := m.startLinerDraftReview()
 		next.note = "Skipped improvement pass for now. Notes remain in " + operatingFitAuditRelPath + "."
 		return next, cmd
@@ -670,8 +685,75 @@ func (m Model) improvementNextAction() string {
 }
 
 func operatingFitImprovementRecommended(project string) bool {
-	_, ok := operatingFitImprovementAudit(project)
-	return ok
+	audit, ok := operatingFitImprovementAudit(project)
+	if !ok {
+		return false
+	}
+	decision, err := readImprovementDecision(project)
+	if err != nil || decision.AuditSHA256 != improvementAuditSHA256(audit.Body) {
+		return true
+	}
+	return decision.Disposition != "skipped" && decision.Disposition != "applied"
+}
+
+func recordImprovementDecision(project string, disposition string) error {
+	audit, ok := operatingFitImprovementAudit(project)
+	if !ok {
+		return fmt.Errorf("the improvement recommendation is no longer available")
+	}
+	decision := improvementDecision{
+		Contract: improvementDecisionContract, Version: 1,
+		AuditSHA256: improvementAuditSHA256(audit.Body), Disposition: disposition,
+	}
+	data, err := json.MarshalIndent(decision, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := projectAbsPath(project, improvementDecisionRelPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".improvement-decision-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
+func readImprovementDecision(project string) (improvementDecision, error) {
+	data, err := os.ReadFile(projectAbsPath(project, improvementDecisionRelPath))
+	if err != nil {
+		return improvementDecision{}, err
+	}
+	var decision improvementDecision
+	if err := json.Unmarshal(data, &decision); err != nil {
+		return improvementDecision{}, err
+	}
+	if decision.Contract != improvementDecisionContract || decision.Version != 1 {
+		return improvementDecision{}, fmt.Errorf("unsupported improvement decision")
+	}
+	return decision, nil
+}
+
+func improvementAuditSHA256(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return fmt.Sprintf("sha256:%x", sum)
+}
+
+func resetSkippedImprovementDecision(project string) {
+	decision, err := readImprovementDecision(project)
+	if err == nil && decision.Disposition == "skipped" {
+		_ = os.Remove(projectAbsPath(project, improvementDecisionRelPath))
+	}
 }
 
 func operatingFitImprovementAudit(project string) (operatingFitAudit, bool) {

@@ -211,7 +211,7 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.screen == screenResearch && key.Matches(keyMsg, bindings.Retry) {
 		return m.retryMethodologyPhase()
 	}
-	if m.screen == screenResearch && (m.methodologyFailed || m.methodologyCancelled) && keyMsg.String() == "v" {
+	if m.screen == screenResearch && keyMsg.String() == "v" && (m.methodologyFailed || m.methodologyCancelled || m.methodologyPhaseID == "improvement") {
 		return m.openMethodologyFullLog()
 	}
 	if m.screen == screenProjects && (m.homeFiltering || (keyMsg.String() == "esc" && m.homeFilter != "")) {
@@ -1200,8 +1200,8 @@ func (m Model) baseHelpForScreen() screenHelp {
 	case screenResearch:
 		pause := bindings.Back
 		pause.SetHelp("esc", "pause")
+		logs := key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "full log"))
 		if m.methodologyFailed || m.methodologyCancelled {
-			logs := key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "full log"))
 			if m.methodologyLogScrollable() {
 				return screenHelp{
 					short: []key.Binding{bindings.Scroll, bindings.Retry, logs, pause, helpKey},
@@ -1211,6 +1211,18 @@ func (m Model) baseHelpForScreen() screenHelp {
 			return screenHelp{
 				short: []key.Binding{bindings.Retry, logs, pause, helpKey},
 				full:  [][]key.Binding{{bindings.Retry, logs, pause, bindings.Quit, helpKey}},
+			}
+		}
+		if m.methodologyPhaseID == "improvement" {
+			if m.methodologyLogScrollable() {
+				return screenHelp{
+					short: []key.Binding{bindings.Scroll, logs, pause, helpKey},
+					full:  [][]key.Binding{{bindings.Scroll, logs, pause, bindings.Quit, helpKey}},
+				}
+			}
+			return screenHelp{
+				short: []key.Binding{logs, pause, helpKey},
+				full:  [][]key.Binding{{logs, pause, bindings.Quit, helpKey}},
 			}
 		}
 		if m.methodologyLogScrollable() {
@@ -1257,6 +1269,8 @@ func (m Model) baseHelpForScreen() screenHelp {
 			switch nextKind {
 			case projectNextOpenLiner:
 				next.SetHelp("enter", "LINER.md")
+			case projectNextImproveCorpus:
+				next.SetHelp("enter", "improve corpus")
 			case projectNextCreateOperatingLayer:
 				next.SetHelp("enter", "operating layer")
 			case projectNextReviewOperatingLayer:

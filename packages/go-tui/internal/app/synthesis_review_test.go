@@ -54,7 +54,7 @@ func TestSynthesisReviewStillCurrentUsesOneExactApprovalAndStartsCompile(t *test
 	}
 	completedModel, _ := applying.Update(appliedMsg)
 	completed := completedModel.(Model)
-	if completed.screen != screenSynthesisReview || !completed.projectSnapshotLoading || !completed.synthesisReviewLoading || completed.synthesisReviewPlan == nil || !strings.Contains(completed.note, "Receipt:") {
+	if completed.screen != screenSynthesisReview || !completed.projectSnapshotLoading || !completed.synthesisReviewLoading || completed.synthesisReviewPlan == nil || completed.note != "Synthesis approval recorded. Checking Compile…" {
 		t.Fatalf("completion should keep one stable review surface while checking Compile: screen=%v loading=%v note=%q", completed.screen, completed.projectSnapshotLoading, completed.note)
 	}
 	if got := stripANSICodesForTest(completed.viewSynthesisReview()); got != approvalView {
@@ -167,8 +167,8 @@ func TestSynthesisReviewPatchPreviewsWithoutWritingThenAppliesAtomically(t *test
 	}
 	completedModel, _ := applying.Update(appliedMsg)
 	completed := completedModel.(Model)
-	if completed.screen != screenSynthesisReview || !completed.synthesisReviewLoading || completed.synthesisReviewPlan == nil || !strings.Contains(completed.note, appliedMsg.receipt.ChangeSetID) {
-		t.Fatalf("patch completion should keep the stable review surface with receipt evidence: screen=%v note=%q", completed.screen, completed.note)
+	if completed.screen != screenSynthesisReview || !completed.synthesisReviewLoading || completed.synthesisReviewPlan == nil || completed.note != "Synthesis approval recorded. Checking Compile…" {
+		t.Fatalf("patch completion should keep the stable review surface with a concise confirmation: screen=%v note=%q", completed.screen, completed.note)
 	}
 	if got := mustReadTestFile(t, synthesisPath); string(got) != revision {
 		t.Fatalf("synthesis patch mismatch: %q", got)
@@ -493,8 +493,8 @@ func TestOperatingLayerReviewStillCurrentUsesReceiptAndRefreshesProjectFlow(t *t
 	}
 	completedModel, _ := applying.Update(appliedMsg)
 	completed := completedModel.(Model)
-	if completed.screen != screenProject || !completed.projectSnapshotLoading || !strings.Contains(completed.note, "Receipt:") {
-		t.Fatalf("completion should return to Project Flow with receipt evidence: %#v", completed)
+	if completed.screen != screenProject || !completed.projectSnapshotLoading || completed.note != "Operating Layer review recorded." {
+		t.Fatalf("completion should return to Project Flow with a concise confirmation: screen=%v loading=%v note=%q", completed.screen, completed.projectSnapshotLoading, completed.note)
 	}
 	assertTestFilesEqual(t, linerPath, linerBefore, skillPath, skillBefore)
 
@@ -548,8 +548,8 @@ func TestOperatingLayerReviewPatchPreviewsAndAppliesBothArtifacts(t *testing.T) 
 	}
 	completedModel, _ := applying.Update(appliedMsg)
 	completed := completedModel.(Model)
-	if completed.screen != screenProject || !strings.Contains(completed.note, appliedMsg.receipt.ChangeSetID) {
-		t.Fatalf("patch completion should show receipt evidence in Project Flow: %#v", completed)
+	if completed.screen != screenProject || completed.note != "Operating Layer review recorded." {
+		t.Fatalf("patch completion should show a concise confirmation in Project Flow: screen=%v note=%q", completed.screen, completed.note)
 	}
 	if got := string(mustReadTestFile(t, linerPath)); got != linerRevision {
 		t.Fatalf("LINER.md patch mismatch: %q", got)

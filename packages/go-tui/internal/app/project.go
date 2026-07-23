@@ -153,6 +153,8 @@ func (m Model) primaryProjectAction() (Model, tea.Cmd) {
 	switch nextKind {
 	case projectNextOpenLiner:
 		return m.openPreview("LINER.md")
+	case projectNextImproveCorpus:
+		return m.startImprovementReview(), nil
 	case projectNextCreateOperatingLayer:
 		return m.startLinerDraftReview()
 	case projectNextReviewOperatingLayer:
@@ -932,6 +934,8 @@ func (m Model) projectPrimaryLabel() string {
 	switch nextKind {
 	case projectNextOpenLiner:
 		return "Open LINER.md"
+	case projectNextImproveCorpus:
+		return "Improve Corpus"
 	case projectNextCreateOperatingLayer:
 		return "Create Operating Layer"
 	case projectNextReviewOperatingLayer:
@@ -970,6 +974,8 @@ func (m Model) projectMilestoneNextAction() string {
 	switch nextKind {
 	case projectNextOpenLiner:
 		return projectCompleteNextAction
+	case projectNextImproveCorpus:
+		return "Review the recommended corpus improvement."
 	case projectNextCreateOperatingLayer:
 		return "Create Operating Layer."
 	case projectNextReviewOperatingLayer:

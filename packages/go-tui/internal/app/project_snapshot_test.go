@@ -322,6 +322,55 @@ func TestProjectOwnsManagementActionsAndHomeDoesNotDuplicateThem(t *testing.T) {
 	}
 }
 
+func TestRestartRestoresUnresolvedImproveCorpusGate(t *testing.T) {
+	project := t.TempDir()
+	auditPath := filepath.Join(project, "mixtape", "working", "05-operating-fit-audit.md")
+	if err := os.MkdirAll(filepath.Dir(auditPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(auditPath, []byte("# Operating-fit audit\n\nstatus: improvement_recommended\n\ngap: Missing outcome-bearing cases.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := projectSnapshotModel(project, core.MaintenanceProjectLifecycle{
+		Milestone:      "corpus_ready",
+		Corpus:         core.MaintenanceLifecycleEvidence{State: "ready", Evidence: "mixtape/MIXTAPE.md"},
+		OperatingLayer: core.MaintenanceLifecycleEvidence{State: "pending", Evidence: "LINER.md"},
+		ProjectSkill:   core.MaintenanceProjectSkill{Status: "missing"},
+	})
+
+	if got := m.projectNextKind(); got != projectNextImproveCorpus {
+		t.Fatalf("restart must restore the unresolved improvement gate before Operating Layer, got %v", got)
+	}
+	opened, cmd := m.primaryProjectAction()
+	if cmd != nil || opened.screen != screenImprovementReview {
+		t.Fatalf("restart Next must reopen Improve Corpus, screen=%v cmd=%v", opened.screen, cmd)
+	}
+
+	if err := recordImprovementDecision(project, "skipped"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.projectNextKind(); got != projectNextCreateOperatingLayer {
+		t.Fatalf("a saved Skip decision should survive restart, got %v", got)
+	}
+	resetSkippedImprovementDecision(project)
+	if got := m.projectNextKind(); got != projectNextImproveCorpus {
+		t.Fatalf("a later Compile should reopen the recommendation, got %v", got)
+	}
+
+	m.projectSnapshot.Lifecycle.Milestone = "project_complete"
+	m.projectSnapshot.Lifecycle.OperatingLayer = core.MaintenanceLifecycleEvidence{State: "ready", Evidence: "LINER.md"}
+	m.projectSnapshot.Lifecycle.ProjectSkill = core.MaintenanceProjectSkill{Status: "active", Path: stringPointer("SKILL.md")}
+	if got := m.projectNextKind(); got != projectNextImproveCorpus {
+		t.Fatalf("a completed Project must still recover an unresolved recommendation, got %v", got)
+	}
+	if err := recordImprovementDecision(project, "applied"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.projectNextKind(); got != projectNextOpenLiner {
+		t.Fatalf("an applied recommendation should not loop after restart, got %v", got)
+	}
+}
+
 func projectSnapshotModel(project string, lifecycle core.MaintenanceProjectLifecycle) Model {
 	maintenanceInput := textinput.New()
 	maintenanceInput.Focus()

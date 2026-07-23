@@ -383,3 +383,31 @@ func TestImprovementProgressDoesNotMasqueradeAsBuildCorpus(t *testing.T) {
 		t.Fatalf("focused improvement footer mismatch: %q", next)
 	}
 }
+
+func TestRunningImprovementCanOpenLiveFullLog(t *testing.T) {
+	m := Model{
+		screen:             screenResearch,
+		width:              100,
+		height:             32,
+		methodologyPhaseID: "improvement",
+		methodologyRawLog:  []string{`{"kind":"tool_start","name":"search","query":"worked interface writing cases"}`},
+	}
+
+	opened, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'v', Text: "v"}))
+
+	if opened.screen != screenPreview || opened.previewBack != screenResearch {
+		t.Fatalf("v should open the live improvement log without stopping the pass: screen=%v back=%v", opened.screen, opened.previewBack)
+	}
+	if opened.methodologyPhaseID != "improvement" || opened.researchDone {
+		t.Fatalf("opening the live log must preserve the running focused phase: phase=%q done=%v", opened.methodologyPhaseID, opened.researchDone)
+	}
+	if opened.previewRel != "Improve Corpus full log" {
+		t.Fatalf("live improvement log should have a specific label, got %q", opened.previewRel)
+	}
+	if !strings.Contains(opened.preview.GetContent(), "worked interface writing cases") {
+		t.Fatalf("live log should expose the current raw event, got %q", opened.preview.GetContent())
+	}
+	if !hasHelp(m.helpForScreen().ShortHelp(), "v") {
+		t.Fatalf("running improvement help should advertise the live full log: %#v", m.helpForScreen().ShortHelp())
+	}
+}

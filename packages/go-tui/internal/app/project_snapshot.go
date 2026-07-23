@@ -14,6 +14,7 @@ type projectNextKind int
 const (
 	projectNextUnavailable projectNextKind = iota
 	projectNextContinueCorpus
+	projectNextImproveCorpus
 	projectNextCreateOperatingLayer
 	projectNextOpenLiner
 	projectNextRefreshStatus
@@ -98,6 +99,10 @@ func (m Model) projectNextKind() projectNextKind {
 			}
 		}
 		return projectNextRefreshStatus
+	}
+	if (snapshot.Lifecycle.Milestone == "corpus_ready" || snapshot.Lifecycle.Milestone == "project_complete") &&
+		operatingFitImprovementRecommended(m.currentPath) {
+		return projectNextImproveCorpus
 	}
 	switch snapshot.Lifecycle.Milestone {
 	case "project_complete":
