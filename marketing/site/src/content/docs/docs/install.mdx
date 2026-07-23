@@ -58,7 +58,7 @@ The second command opens the terminal UI. Create a test project, add sources, bu
 
 ## Platform Support
 
-Version `1.1.0` supports these native npm platform packages. The main `linersh` package declares them as optional dependencies, and npm selects the matching OS and CPU package during install.
+Version `1.1.1` supports these native npm platform packages. The main `linersh` package declares them as optional dependencies, and npm selects the matching OS and CPU package during install.
 
 | System | npm platform package |
 | --- | --- |
@@ -117,6 +117,6 @@ rm -rf ~/.cache/ms-playwright
 npm cache clean --force
 
 tmp=$(mktemp -d)
-HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.0 --version
-HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.0
+HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.1 --version
+HOME="$tmp/home" npm_config_cache="$tmp/npm-cache" LINER_DIR="$tmp/projects" npx --yes linersh@1.1.1
 rm -rf "$tmp"`} />

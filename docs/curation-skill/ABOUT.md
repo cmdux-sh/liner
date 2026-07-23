@@ -62,7 +62,7 @@ A curator who learns the methodology can apply it with or without Liner's tools.
 
 ## Project status
 
-Active development. Published releases are available on npm; the current source targets v1.1.0, with macOS, Linux, and Windows x64 packages, and remains a local release candidate until publish succeeds.
+Active development. Published releases are available on npm; the current source targets v1.1.1, with macOS, Linux, and Windows x64 packages, and remains a local release candidate until publish succeeds.
 The CLI and Go TUI support `youtube`, `web`, `local_file`, and inert `skill`
 Sources, plus opt-in Playwright rendering. Compilation marks Corpus Ready;
 Create Operating Layer writes `LINER.md`, root `SKILL.md`, and `liner.yaml` to

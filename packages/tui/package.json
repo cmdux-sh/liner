@@ -1,6 +1,6 @@
 {
   "name": "linersh",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Liner — npm shim, Go TUI launcher, and headless methodology runner.",
   "type": "module",
   "license": "MIT",
@@ -48,11 +48,11 @@
     "yaml": "^2.6.1"
   },
   "optionalDependencies": {
-    "linersh-darwin-arm64": "1.1.0",
-    "linersh-darwin-x64": "1.1.0",
-    "linersh-linux-arm64": "1.1.0",
-    "linersh-linux-x64": "1.1.0",
-    "linersh-win32-x64": "1.1.0"
+    "linersh-darwin-arm64": "1.1.1",
+    "linersh-darwin-x64": "1.1.1",
+    "linersh-linux-arm64": "1.1.1",
+    "linersh-linux-x64": "1.1.1",
+    "linersh-win32-x64": "1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

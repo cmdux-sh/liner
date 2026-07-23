@@ -15,7 +15,7 @@ Astro site for the Liner landing page, docs, and changelog.
 - Layout shell and metadata: `src/layouts/BaseLayout.astro`
 - Brand logo asset: `public/liner-logo.svg`
 - Install CTA command: `npx linersh`
-- Product version shown in the page: `1.1.0`, matching `packages/tui/package.json`
+- Product version shown in the page: `1.1.1`, matching `packages/tui/package.json`
 
 The current landing page is a single long-form brand page with a terminal-native visual language: dark workspace, orange install panel, WebGL product shot, method rail, live terminal demo, install CTA, practical-edge cards, and footer marquee. The public product story starts with the plain object: a local CLI and terminal UI that turns focused research sources into files an AI assistant can use later. Internal nouns such as project, corpus, Operating Layer, Corpus Ready, and Project Complete should appear only after the page has explained the local folder, saved sources, compiled research, and AI instructions.
 
