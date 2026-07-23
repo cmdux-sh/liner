@@ -736,7 +736,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectSnapshotErr = ""
 		m.projectSnapshotAttempted = true
 		m.projectSnapshotLoading = false
-		if err := recordImprovementDecision(m.currentPath, "applied"); err != nil {
+		if err := recordAppliedImprovementDecision(m.currentPath); err != nil {
 			m.err = "Improvement was applied, but Liner could not save its completion marker: " + err.Error()
 		}
 		_ = os.RemoveAll(projectAbsPath(m.currentPath, improvementRunRelPath))

@@ -273,6 +273,14 @@ func TestImprovementRetryRebuildsWorkspaceFromFixedBaseline(t *testing.T) {
 
 func TestImprovementAcceptAppliesOnceAndRoutesToSynthesisReview(t *testing.T) {
 	m, _, _, _ := synthesisReviewProject(t)
+	auditPath := projectAbsPath(m.currentPath, operatingFitAuditRelPath)
+	audit := "# Operating-fit audit\n\nstatus: improvement_recommended\n\ngap: Missing outcome-bearing cases.\n"
+	if err := os.MkdirAll(filepath.Dir(auditPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(auditPath, []byte(audit), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	baseline := *m.projectSnapshot
 	originalID := strings.TrimSpace(*m.currentTape.Sources[0].ID)
 	delta := improvementDelta{Contract: improvementDeltaContract, Version: 1, Summary: "Add a focused worked example", Additions: []tape.Source{{
@@ -313,6 +321,23 @@ func TestImprovementAcceptAppliesOnceAndRoutesToSynthesisReview(t *testing.T) {
 	}
 	if len(refreshed.Sources) != len(m.currentTape.Sources)+1 || strings.TrimSpace(*refreshed.Sources[0].ID) != originalID {
 		t.Fatalf("atomic improvement must preserve accepted Source identity and add only the delta: %#v", refreshed.Sources)
+	}
+	resolvedAudit, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(resolvedAudit), "status: improvement_recommended") || !strings.Contains(string(resolvedAudit), "status: improvement_applied") {
+		t.Fatalf("successful improvement must leave the human-readable audit visibly resolved:\n%s", resolvedAudit)
+	}
+	decision, err := readImprovementDecision(m.currentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Disposition != "applied" || decision.AuditSHA256 != improvementAuditSHA256(audit) {
+		t.Fatalf("completion marker must retain the original audit identity: %#v", decision)
+	}
+	if operatingFitImprovementRecommended(m.currentPath) {
+		t.Fatal("a visibly resolved audit must not reopen the improvement gate")
 	}
 }
 

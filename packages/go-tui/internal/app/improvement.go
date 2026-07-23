@@ -705,6 +705,26 @@ func recordImprovementDecision(project string, disposition string) error {
 		Contract: improvementDecisionContract, Version: 1,
 		AuditSHA256: improvementAuditSHA256(audit.Body), Disposition: disposition,
 	}
+	return writeImprovementDecision(project, decision)
+}
+
+func recordAppliedImprovementDecision(project string) error {
+	audit, ok := operatingFitImprovementAudit(project)
+	if !ok {
+		return fmt.Errorf("the improvement recommendation is no longer available")
+	}
+	decision := improvementDecision{
+		Contract: improvementDecisionContract, Version: 1,
+		AuditSHA256: improvementAuditSHA256(audit.Body), Disposition: "applied",
+	}
+	resolved := resolveImprovementAuditBody(audit.Body)
+	if err := writeImprovementAudit(projectAbsPath(project, audit.RelPath), resolved); err != nil {
+		return err
+	}
+	return writeImprovementDecision(project, decision)
+}
+
+func writeImprovementDecision(project string, decision improvementDecision) error {
 	data, err := json.MarshalIndent(decision, "", "  ")
 	if err != nil {
 		return err
@@ -720,6 +740,48 @@ func recordImprovementDecision(project string, disposition string) error {
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
+func resolveImprovementAuditBody(body string) string {
+	lines := strings.Split(body, "\n")
+	replaced := false
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		key, value, ok := strings.Cut(trimmed, ":")
+		if !ok || !strings.EqualFold(strings.TrimSpace(key), "status") {
+			continue
+		}
+		normalized := strings.NewReplacer(" ", "_", "-", "_").Replace(strings.ToLower(strings.TrimSpace(value)))
+		if normalized != "improvement_recommended" {
+			continue
+		}
+		indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+		lines[index] = indent + "status: improvement_applied"
+		replaced = true
+		break
+	}
+	resolved := strings.TrimRight(strings.Join(lines, "\n"), "\n")
+	if !replaced {
+		resolved = "status: improvement_applied\n\n" + resolved
+	}
+	return resolved + "\n\n## Improvement resolution\n\nresolution: Focused Source additions were applied through a reviewed Core Change Set. The gap above is retained as the historical trigger.\n"
+}
+
+func writeImprovementAudit(path string, body string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".improvement-audit-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.WriteString(body); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -777,6 +839,10 @@ func operatingFitImprovementAudit(project string) (operatingFitAudit, bool) {
 
 func improvementRecommendationMarker(body string) bool {
 	lower := strings.ToLower(body)
+	if strings.Contains(lower, "status: improvement_applied") ||
+		strings.Contains(lower, "status: improvement applied") {
+		return false
+	}
 	return strings.Contains(lower, "status: improvement_recommended") ||
 		strings.Contains(lower, "status: improvement recommended") ||
 		strings.Contains(lower, "improvement recommended") ||
