@@ -90,6 +90,89 @@ func TestProjectSnapshotStaleStateRoutesRefreshThroughCore(t *testing.T) {
 	}
 }
 
+func TestInitialCorpusProgressPrecedesPrematureRefreshReview(t *testing.T) {
+	runner := testCoreRunner(t)
+	project := filepath.Join(t.TempDir(), "initial-corpus")
+	if err := runner.InitProject(project); err != nil {
+		t.Fatal(err)
+	}
+	paths := tape.ProjectAt(project)
+	if err := os.WriteFile(filepath.Join(paths.Path, ".liner-progress.json"), []byte("{\"step\":5,\"lastTouched\":\"2026-07-22T02:01:03Z\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	current, err := tape.ReadProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := projectSnapshotModel(project, core.MaintenanceProjectLifecycle{
+		Milestone:      "started",
+		Stale:          true,
+		Corpus:         core.MaintenanceLifecycleEvidence{State: "stale", Evidence: "mixtape/MIXTAPE.md"},
+		OperatingLayer: core.MaintenanceLifecycleEvidence{State: "pending", Evidence: "LINER.md"},
+		ProjectSkill:   core.MaintenanceProjectSkill{Status: "missing"},
+		Refresh: &core.MaintenanceProjectRefresh{
+			State:          "required",
+			Synthesis:      core.MaintenanceRefreshGate{State: "review_required"},
+			Corpus:         core.MaintenanceRefreshGate{State: "compile_required"},
+			OperatingLayer: core.MaintenanceRefreshGate{State: "approved"},
+		},
+	})
+	m.currentTape = current
+
+	if got := m.projectNextKind(); got != projectNextContinueCorpus {
+		t.Fatalf("initial corpus cursor must precede refresh review, got %v", got)
+	}
+	if got := m.projectPrimaryLabel(); got != "Continue Corpus Creation" {
+		t.Fatalf("initial corpus Next must continue the saved build, got %q", got)
+	}
+}
+
+func TestCompileCachedResultCannotSkipSynthesisAfterSourceRemoval(t *testing.T) {
+	project := t.TempDir()
+	synthesisPath := projectAbsPath(project, "synthesis.md")
+	if err := os.MkdirAll(filepath.Dir(synthesisPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(synthesisPath, []byte("# Current synthesis\n\nUse the retained evidence.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := projectSnapshotModel(project, core.MaintenanceProjectLifecycle{
+		Milestone:      "corpus_ready",
+		Stale:          true,
+		Corpus:         core.MaintenanceLifecycleEvidence{State: "stale", Evidence: "mixtape/MIXTAPE.md"},
+		OperatingLayer: core.MaintenanceLifecycleEvidence{State: "pending", Evidence: "LINER.md"},
+		ProjectSkill:   core.MaintenanceProjectSkill{Status: "missing"},
+		Refresh: &core.MaintenanceProjectRefresh{
+			State:          "required",
+			Synthesis:      core.MaintenanceRefreshGate{State: "review_required"},
+			Corpus:         core.MaintenanceRefreshGate{State: "compile_required"},
+			OperatingLayer: core.MaintenanceRefreshGate{State: "approved"},
+		},
+	})
+	m.runner = testCoreRunner(t)
+	m.screen = screenCompile
+	m.compilePane = compilePaneSources
+	m.compileRepairAttempted = true
+	m.compileResult = &core.CompileResultPayload{
+		Summary: core.CompileSummary{Total: 51, Succeeded: 50, Failed: 1},
+	}
+	m.synthesisReviewCurrent = newSynthesisReviewViewport(80, 8)
+	m.synthesisReviewPlanView = newSynthesisReviewViewport(80, 12)
+	m.synthesisReviewArea = newSynthesisReviewArea(80)
+
+	got, cmd := m.continueFromCompile()
+
+	if cmd == nil || !got.synthesisReviewLoading {
+		t.Fatalf("stale Core Snapshot must prepare Synthesis review, loading=%v cmd=%v err=%q", got.synthesisReviewLoading, cmd, got.err)
+	}
+	if got.screen != screenCompile {
+		t.Fatalf("prepared review should hold the Compile surface until planning returns, screen=%v", got.screen)
+	}
+	if got.synthesisReviewKind != semanticReviewSynthesis {
+		t.Fatalf("expected Synthesis review, kind=%v", got.synthesisReviewKind)
+	}
+}
+
 func TestReadOnlyProjectSnapshotBlocksEveryProjectWrite(t *testing.T) {
 	m := projectSnapshotModel(t.TempDir(), core.MaintenanceProjectLifecycle{
 		Milestone:      "corpus_ready",

@@ -62,7 +62,7 @@ def build_status_payload(project: ProjectFolder, manifest_payload: dict[str, Any
     runs_by_phase = _runs_by_phase(manifest_payload)
     phases: list[dict[str, Any]] = []
     for index, phase in enumerate(PHASES):
-        artifact = _artifact_status(folder, phase.artifact)
+        artifact = _artifact_status(folder, phase.artifact, phase_id=phase.id)
         phase_runs = runs_by_phase.get(phase.id, [])
         phase_payload: dict[str, Any] = {
             "id": phase.id,
@@ -171,7 +171,12 @@ def _read_gates(folder: Path) -> dict[str, bool]:
     return state
 
 
-def _artifact_status(folder: Path, rel_path: str | None) -> dict[str, Any] | None:
+def _artifact_status(
+    folder: Path,
+    rel_path: str | None,
+    *,
+    phase_id: str | None = None,
+) -> dict[str, Any] | None:
     if rel_path is None:
         return None
     path = folder / rel_path
@@ -181,7 +186,11 @@ def _artifact_status(folder: Path, rel_path: str | None) -> dict[str, Any] | Non
         "path": rel_path,
         "exists": exists,
         "bytes": size,
-        "has_real_content": _artifact_has_real_content(path),
+        "has_real_content": (
+            _synthesis_complete(path)
+            if phase_id == "synthesis"
+            else _artifact_has_real_content(path)
+        ),
     }
 
 

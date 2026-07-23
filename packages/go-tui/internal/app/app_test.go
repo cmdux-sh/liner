@@ -11867,12 +11867,21 @@ func completeAssemblyAcceptanceForTest(t *testing.T, m Model) Model {
 	return m
 }
 
+func writeReadySynthesisForAssemblyTest(t *testing.T, project string) {
+	t.Helper()
+	content := "# Synthesis\n\n## Generative rules\n\nUse the strongest accepted evidence.\n\n## Stances this corpus takes\n\nPreserve meaningful distinctions.\n"
+	if err := os.WriteFile(projectAbsPath(project, "synthesis.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAcceptAssemblyDraftWritesTapeAndRoutesToSynthesisReview(t *testing.T) {
 	runner := testCoreRunner(t)
 	project := filepath.Join(t.TempDir(), "initial-assembly")
 	if err := runner.InitProjectWithMetadata(project, "Launch", "Demo", "Arturo", "Assemble initial Sources safely."); err != nil {
 		t.Fatal(err)
 	}
+	writeReadySynthesisForAssemblyTest(t, project)
 	current, err := tape.ReadProject(project)
 	if err != nil {
 		t.Fatal(err)
@@ -12022,6 +12031,7 @@ func TestApprovedAssemblyKeepsOneStableTransitionUntilSynthesisReview(t *testing
 	if err := runner.InitProjectWithMetadata(project, "Launch", "Demo", "Arturo", "Assemble initial Sources safely."); err != nil {
 		t.Fatal(err)
 	}
+	writeReadySynthesisForAssemblyTest(t, project)
 	current, err := tape.ReadProject(project)
 	if err != nil {
 		t.Fatal(err)
@@ -13079,6 +13089,17 @@ emit({
 	}
 	if got := readDroppedCustomURLSources(notSelectedProject, notSelected.currentTape); len(got) != 1 {
 		t.Fatalf("missing custom YouTube source should be retried, got %#v", got)
+	}
+	retainedDir := projectAbsPath(notSelectedProject, filepath.Join(".liner-runs", "retained-sources"))
+	if err := os.MkdirAll(retainedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	retainedRecord := `{"contract":"liner.retained_source","source":{"type":"youtube","url":"https://www.youtube.com/watch?v=notselected1","priority":"required"}}`
+	if err := os.WriteFile(filepath.Join(retainedDir, "removed-source.json"), []byte(retainedRecord), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readDroppedCustomURLSources(notSelectedProject, notSelected.currentTape); len(got) != 0 {
+		t.Fatalf("intentionally retained Source must not return as a retryable custom source, got %#v", got)
 	}
 
 	localReadyProject := t.TempDir()

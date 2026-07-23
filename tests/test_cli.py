@@ -197,6 +197,7 @@ def test_status_json_includes_phase_report(tmp_path: Path) -> None:
     assert phases["gate0"]["status"] == "complete"
     assert phases["gate0"]["gate"]["accepted"] is True
     assert phases["candidates"]["status"] == "in_progress"
+    assert phases["synthesis"]["artifact"]["has_real_content"] is False
 
 
 def test_status_json_infers_phase_progress_when_cursor_is_missing(tmp_path: Path) -> None:

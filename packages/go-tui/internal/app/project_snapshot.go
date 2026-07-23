@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/cmdux/liner/packages/go-tui/internal/core"
+	linerprogress "github.com/cmdux/liner/packages/go-tui/internal/progress"
 )
 
 type projectNextKind int
@@ -74,6 +75,16 @@ func (m Model) projectNextKind() projectNextKind {
 			return projectNextOpenLiner
 		}
 		return projectNextUnavailable
+	}
+	// A Source added before the first corpus build gives Core a conservative
+	// refresh lifecycle, but the saved methodology cursor still owns the initial
+	// build order. Do not let that refresh gate skip Quality, curator approval,
+	// Synthesis, or Assembly. Once the cursor reaches Compile, the reviewed
+	// refresh lifecycle becomes authoritative again.
+	if snapshot.Lifecycle.Milestone == "started" &&
+		!m.hasCompiledMixtape() &&
+		projectPipelineStep(m.currentPath, m.currentTape) < projectPipelinePhaseIndex(linerprogress.PhaseCompile) {
+		return projectNextContinueCorpus
 	}
 	if snapshot.Lifecycle.Stale {
 		if refresh := snapshot.Lifecycle.Refresh; refresh != nil {

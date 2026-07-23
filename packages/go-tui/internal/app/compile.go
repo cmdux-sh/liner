@@ -957,6 +957,12 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 		}
 		m.note = "Returned to Compile Console."
 		return m, nil
+	case m.projectNextKind() == projectNextReviewSynthesis:
+		// Source maintenance can invalidate Synthesis and MIXTAPE.md while the
+		// Compile screen still holds a usable result from the previous source
+		// set. The refreshed Core Snapshot owns the lifecycle; never let that
+		// cached result skip the new Synthesis review and Compile pass.
+		return m.startPreparedSynthesisReview()
 	case m.compilePane == compilePaneIssues && m.compileHasSourceReviewItems():
 		return m.viewCompileSourcesNext(), nil
 	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():

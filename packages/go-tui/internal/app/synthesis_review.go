@@ -58,6 +58,10 @@ func (m Model) startSynthesisReview() (Model, tea.Cmd) {
 		m.err = "Liner Core does not currently require Review Synthesis."
 		return m, nil
 	}
+	if issue := synthesisAttention(m.currentPath); issue != "" {
+		m.err = "Review Synthesis is blocked: " + issue
+		return m, nil
+	}
 	current, err := os.ReadFile(projectAbsPath(m.currentPath, "synthesis.md"))
 	if err != nil {
 		m.err = "Review Synthesis could not read the current synthesis: " + err.Error()

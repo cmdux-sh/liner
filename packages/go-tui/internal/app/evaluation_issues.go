@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -275,6 +276,7 @@ func readDroppedCustomURLSources(project string, current tape.Tape) []droppedCus
 		}
 	}
 	acceptedKeys := sourceKeySet(accepted)
+	retainedKeys := readRetainedSourceKeys(project)
 	candidateIssues := readCandidateIssues(project, &evaluationIssueSummary{})
 	var out []droppedCustomSource
 	for _, item := range readLocalSourceManifest(project) {
@@ -286,7 +288,7 @@ func readDroppedCustomURLSources(project string, current tape.Tape) []droppedCus
 			continue
 		}
 		keys := issueKeysForSource(item.Source)
-		if keySetContainsAny(acceptedKeys, keys) {
+		if keySetContainsAny(acceptedKeys, keys) || keySetContainsAny(retainedKeys, keys) {
 			continue
 		}
 		issue, ok := candidateIssueForKeys(candidateIssues, keys)
@@ -307,6 +309,34 @@ func readDroppedCustomURLSources(project string, current tape.Tape) []droppedCus
 		})
 	}
 	return out
+}
+
+func readRetainedSourceKeys(project string) map[string]bool {
+	keys := map[string]bool{}
+	dir := projectAbsPath(project, filepath.Join(".liner-runs", "retained-sources"))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return keys
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".json" {
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if readErr != nil {
+			continue
+		}
+		var retained struct {
+			Source tape.Source `json:"source"`
+		}
+		if json.Unmarshal(data, &retained) != nil {
+			continue
+		}
+		for _, key := range issueKeysForSource(retained.Source) {
+			keys[key] = true
+		}
+	}
+	return keys
 }
 
 func readLocalSourceManifest(project string) []sourcepkg.StagedSource {

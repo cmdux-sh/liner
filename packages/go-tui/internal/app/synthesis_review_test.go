@@ -73,6 +73,19 @@ func TestSynthesisReviewStillCurrentUsesOneExactApprovalAndStartsCompile(t *test
 	}
 }
 
+func TestSynthesisReviewRejectsStarterPlaceholder(t *testing.T) {
+	m, synthesisPath, _, _ := synthesisReviewProject(t)
+	placeholder := "# Synthesis\n\n> Replace this placeholder with the curator's distilled understanding of the domain\n\nTODO — write the synthesis.\n"
+	if err := os.WriteFile(synthesisPath, []byte(placeholder), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	review, cmd := m.startSynthesisReview()
+	if cmd != nil || review.screen == screenSynthesisReview || !strings.Contains(review.err, "starter placeholder") {
+		t.Fatalf("placeholder synthesis must fail closed before approval: screen=%v err=%q cmd=%v", review.screen, review.err, cmd)
+	}
+}
+
 func TestPreparedSynthesisReviewShowsExactPlanBeforeItsOnlyApproval(t *testing.T) {
 	m, synthesisPath, mixtapePath, linerPath := synthesisReviewProject(t)
 	synthesisBefore := mustReadTestFile(t, synthesisPath)
