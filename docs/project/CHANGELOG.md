@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 - **Resumed interrupted corpus work from the last durable checkpoint.** If an
   agent run stops or a generated artifact fails validation, reopening the
