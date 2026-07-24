@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Resumed interrupted corpus work from the last durable checkpoint.** If an
+  agent run stops or a generated artifact fails validation, reopening the
+  Project restores the correct review or build action. Liner no longer treats
+  partial work as complete or sends the curator back to the beginning of the
+  corpus workflow.
+- **Preserved approved Sources through Assembly.** User-provided Sources keep
+  their accepted identity when the assembled corpus adds richer evaluation
+  metadata, and pending Assembly is now the primary action when it is the real
+  next step.
+- **Made focused corpus improvements durable and visible.** Improve Corpus
+  decisions survive restart, an applied improvement does not reopen the same
+  recommendation, and the human-readable operating-fit audit now records
+  `improvement_applied` while retaining the original gap as history.
+- **Kept transition and deletion flows focused.** Source and Synthesis
+  transitions show ordinary confirmation messages instead of internal result
+  payloads. Recoverable Project deletion now keeps focus and Enter behavior on
+  the exact confirmation step.
+
+## 1.1.0
+
 - **Prepared the maintenance stack as the Liner 1.1.0 release candidate.**
   Python, npm, platform packages, Go binaries, installed version output, and
   public version fields now agree on `1.1.0`. Release preparation fails closed
