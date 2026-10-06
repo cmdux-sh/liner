@@ -1,0 +1,968 @@
+candidates:
+  - url: https://journals.sagepub.com/doi/10.1518/hfes.46.1.50_30392
+    title: "Trust in Automation: Designing for Appropriate Reliance"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: The SAGE page timed out and one alternate full-text recovery did not
+      produce a readable article body, so this foundational candidate cannot
+      meet the evidence contract.
+  - url: https://web.mit.edu/16.459/www/parasuraman.pdf
+    title: "Humans and Automation: Use, Misuse, Disuse, Abuse"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: The direct MIT PDF exposed no readable text and one alternate
+      full-text recovery was blocked, leaving only metadata and snippets rather
+      than judgeable source content.
+  - url: https://scholars.duke.edu/publication/1163926
+    title: "Trust in Automation: Integrating Empirical Evidence on Factors That
+      Influence Trust"
+    decision: kept
+    section: "Section 1: The reliance decision"
+    rationale: This is a dense empirical synthesis that gives the agent a usable
+      distinction between trust and reliance and a context-sensitive model for
+      diagnosing calibration problems.
+    rating: 4
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Keep as the main empirical synthesis for calibrated reliance.
+      Value: Use the three trust layers and situational moderators to frame
+      feature-specific reliance decisions. Limitations: It reviews automation
+      studies from 2002–2013 and predates generative-AI interaction patterns."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The full review reports a systematic screen of 101 papers containing 127
+        eligible human-subject studies on trust-related behavior in automation.
+      - Its three-layer model separates dispositional, situational, and learned
+        trust, then connects those layers to design recommendations,
+        environmental moderators, and appropriate reliance.
+      - The review states that trust guides but does not completely determine
+        reliance, identifying decisional freedom, time pressure, comparison with
+        manual performance, and task complexity as important conditions.
+      - Its conclusion flags unresolved variation by error type and consequence,
+        rather than treating trust as a single stable user attitude.
+  - url: https://www.sciencedirect.com/science/article/pii/S0749597818303388
+    title: "Algorithm Appreciation: People Prefer Algorithmic to Human Judgment"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: ScienceDirect returned 403 and one author-manuscript recovery did not
+      yield a readable body, so the apparent multi-study findings cannot be
+      retained from snippets alone.
+  - url: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+    title: "Algorithm Aversion: People Erroneously Avoid Algorithms After Seeing
+      Them Err"
+    decision: kept
+    section: "Section 1: The reliance decision"
+    rationale: This primary study is a useful counterweight to over-reliance
+      narratives because it shows how imperfect outputs can also produce
+      premature abandonment of better automation.
+    rating: 4
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Keep as the failure-focused counterpoint to over-reliance research.
+      Value: Use its five-study evidence to ask whether error displays or early
+      failures will cause disuse even when the aid is superior. Limitations: The
+      forecasting and incentive tasks concern statistical prediction, not
+      generative explanations or product UI patterns."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Across five studies using real forecasting tasks, participants who saw
+        an algorithm perform became less likely to choose it, even when the
+        algorithm outperformed the human alternative.
+      - The paper reports that seeing the model perform reduced confidence and
+        optimism in its forecasts beyond the effect of the model's observed
+        errors alone, showing why visible mistakes can trigger disuse.
+      - The authors measure behavioral choice, confidence, beliefs, and
+        perceived attributes such as detecting exceptions and avoiding obvious
+        mistakes rather than relying only on stated trust.
+      - The discussion notes that some participants continued to use the
+        algorithm after errors, so aversion is not a universal response and
+        depends on the system and decision context.
+  - url: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+    title: "Beyond Accuracy: The Role of Mental Models in Human-AI Team Performance"
+    decision: kept
+    section: "Section 1: The reliance decision"
+    rationale: "This primary human-AI team study translates appropriate reliance
+      into an observable design problem: users need a learnable model of when
+      the system is likely to fail."
+    rating: 4
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Keep as the mental-model and error-boundary method. Value: Use it
+      to specify what users must learn before asking them to accept or override
+      an AI output and what feedback can teach them. Limitations: The controlled
+      binary-classifier game and MTurk sample do not directly establish patterns
+      for summaries, answers, or recommendations."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper defines an AI error boundary as the cases where the system is
+        correct or incorrect and argues that a human mental model of this
+        boundary determines when to accept or override a recommendation.
+      - In CAJA user studies, participants received feedback after
+        accept-or-override decisions; the experiments vary error-boundary
+        parsimony, stochasticity, task dimensionality, interaction length, and
+        the cost of mistakes.
+      - Results show that parsimonious and non-stochastic error boundaries
+        improve mental-model formation, while higher-dimensional or
+        representation-mismatched tasks make the boundary harder to learn.
+      - The worked assembly-line task shows early false accepts and false
+        overrides decreasing as users update their model from feedback, linking
+        learnability to team performance rather than accuracy alone.
+  - url: https://www.iis.seas.harvard.edu/papers/2021/bucinca2021trust.shtml
+    title: "To Trust or to Think: Cognitive Forcing Functions Can Reduce
+      Overreliance on AI in AI-Assisted Decision-Making"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: Drop as a duplicate representation of the same paper retained at
+      its canonical arXiv URL in Section 6, where its failure-focused evidence
+      has a clearer corpus role.
+  - url: https://www.microsoft.com/en-us/research/wp-content/uploads/2019/01/Guidelines-for-Human-AI-Interaction-camera-ready.pdf
+    title: Guidelines for Human-AI Interaction
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: Drop as a duplicate representation of the same guideline set
+      retained through the readable Microsoft Research page in Section 5, which
+      has the stronger interaction-and-safeguards role.
+  - url: https://arxiv.org/abs/2001.02114
+    title: Effect of Confidence and Explanation on Accuracy and Trust Calibration in
+      AI-Assisted Decision Making
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as the load-bearing empirical source: it directly tests
+      confidence and explanations as interface signals and warns that calibrated
+      trust is not the same as better outcomes."
+    rating: 5
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Foundational empirical test of confidence and local explanations.
+      Value: Use the experiment results to separate calibrated reliance from
+      actual decision improvement. Limitations: One controlled case study; its
+      explanation design and task do not generalize to every AI feature."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two human experiments in which showing case-specific
+        confidence calibrated trust, but did not by itself improve joint
+        decision accuracy.
+      - Its local-explanation experiment found no significant accuracy benefit
+        and discusses how feature-attribution explanations can be ambivalent in
+        low-certainty cases.
+  - url: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+    title: Explaining the Uncertainty in AI-Assisted Decision Making
+    decision: trim
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Trim because the short doctoral-consortium paper offers a useful
+      representation concept and vocabulary but no completed user evaluation or
+      demonstrated product outcome.
+    rating: 3
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Small conceptual counterpoint on explaining why confidence changes.
+      Value: Route to the counterfactual distinction and the
+      aleatoric-versus-epistemic vocabulary when choosing what uncertainty a UI
+      should expose. Limitations: Work in progress, only two pages, and lacks
+      validated user effects."
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The two-page AAAI paper proposes counterfactual explanations that
+        compare inputs from another class with same-class inputs at different
+        confidence levels to explain model uncertainty.
+      - It explicitly treats the work as in progress, calls for future study of
+        uncertainty in explanations, and separates aleatoric data uncertainty
+        from epistemic model uncertainty.
+  - url: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+    title: "Too Sure for Our Own Good: A User Study on AI Confidence and Human
+      Reliance"
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Keep as the strongest recent warning that a confidence cue is only as
+      safe as its calibration and can create both over-reliance and
+      under-reliance.
+    rating: 5
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Recent failure-focused evidence on confidence cues. Value: Use the
+      calibrated-versus-miscalibrated comparison to set a hard requirement for
+      validating any displayed confidence. Limitations: Logic-puzzle task and
+      controlled study; it does not establish the best visual or textual format
+      for other domains."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - In a within-subjects study with 184 participants, well-calibrated
+        confidence improved accuracy by about 20%, while miscalibrated
+        confidence improved it by about 2%.
+      - The results show high-confidence wrong recommendations increasing
+        automation bias, while low or miscalibrated confidence increased
+        conservatism bias and rejection of accurate advice.
+  - url: https://doi.org/10.1145/3588320
+    title: Effects of AI and Logic-Style Explanations on Users’ Decisions Under
+      Different Levels of Uncertainty
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Keep for its detailed comparison of explanation styles and its
+      evidence that perceived uncertainty, user confidence, and explanation
+      effects are not interchangeable.
+    rating: 4
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Comparative empirical evidence for explanation style under
+      uncertainty. Value: Use Sections 4–6 to reason about whether an
+      explanation helps people inspect an input or merely changes agreement.
+      Limitations: Classification tasks and tested logic styles are narrower
+      than product workflows such as summaries or recommendations."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two online user studies across image and text
+        classification, comparing no explanation with inductive, abductive, and
+        deductive explanation styles under different uncertainty conditions.
+      - Results found users relied most on the input instance and concluded that
+        user confidence cannot substitute for a model of user uncertainty; the
+        paper also reports overconfidence in high-user-uncertainty cases.
+  - url: https://arxiv.org/abs/2309.10852
+    title: Using AI Uncertainty Quantification to Improve Human Decision-Making
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Keep as the strongest direct source on when probabilistic uncertainty
+      can help and why representation choice must follow calibration and task
+      testing rather than numeric confidence alone.
+    rating: 4
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Empirical source on calibrated uncertainty quantification and
+      display forms. Value: Use the two experiments to compare point,
+      distribution, needle, and dotplot treatments against decision accuracy.
+      Limitations: Controlled behavioral tasks and model-level UQ; it does not
+      provide general copy guidance or prove transfer to high-stakes product
+      decisions."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Two behavioral experiments found instance-level, strictly calibrated
+        uncertainty improved decision performance over AI predictions alone and
+        produced benefits across probabilistic representations.
+      - The second experiment compares point versus distribution displays and
+        needle versus dotplot visualizations, while the paper cautions that
+        prediction probabilities can be overconfident without calibration.
+  - url: https://arxiv.org/abs/2403.09552
+    title: Are You Really Sure? Understanding the Effects of Human Self-Confidence
+      Calibration in AI-Assisted Decision Making
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as a human-centered complement to model-confidence studies: it
+      shows that the interface may need to calibrate the person’s judgment, not
+      only display a model score."
+    rating: 4
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Human-side calibrated-reliance evidence. Value: Use the study’s
+      mechanisms and mixed results when deciding whether a confidence display
+      should prompt reflection or comparison. Limitations: Controlled prediction
+      task and no answer to which model-uncertainty visual is best."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Across three studies, the paper tests Think the Opposite, Thinking in
+        Bets, and Calibration Status Feedback as mechanisms for calibrating the
+        person’s own confidence before or alongside AI advice.
+      - Calibration reduced under-reliance and improved some task-performance
+        measures, but Study 3 found mixed outcomes and no significant reduction
+        in over-reliance, especially when human and AI confidence were
+        mismatched.
+  - url: https://pair.withgoogle.com/chapter/explainability-trust/
+    title: Explainability + Trust
+    decision: kept
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Keep as a practitioner translation layer that turns confidence and
+      explanation research into concrete contextual examples and a user-testing
+      question.
+    rating: 4
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Product-design translation and worked guidance. Value: Route here
+      for concrete patterns such as missing-data caveats, example-based
+      explanations, and alternative options under low confidence. Limitations:
+      Practitioner guidance rather than controlled evidence; examples are
+      illustrative and should not override empirical calibration findings."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The chapter warns that misleadingly high confidence can make less-savvy
+        users blindly accept a result and recommends testing whether confidence
+        changes decisions before choosing a visualization.
+      - Its examples distinguish system explanations, example-based
+        explanations, and contextual reasons; a running-route example surfaces
+        missing street-light data and another shows alternative recommendations
+        for low-confidence situations.
+  - url: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+    title: Guidelines for Human-AI Interaction — HAX Toolkit
+    decision: dropped
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Drop because the fetched URL is a landing page that only routes
+      readers to the 18-guideline library and workbook; it does not expose
+      uncertainty-specific guidance or substantive interface cases at this URL.
+  - url: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+    title: Machine Learning — Human Interface Guidelines
+    decision: dropped
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: Drop because the direct page required JavaScript and the single
+      recovery search returned only a short indexed overview, not enough of the
+      underlying HIG guidance to evaluate or cite substantive uncertainty
+      patterns.
+  - url: https://aclanthology.org/2023.emnlp-main.398/
+    title: Enabling Large Language Models to Generate Text with Citations
+    decision: kept
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Keep as the load-bearing evaluation source because it shows that
+      citations must be tested for completeness and relevance, not treated as a
+      generic trust cue.
+    rating: 5
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Foundational method for evaluating inspectable generated answers.
+      Value: Separates correctness from citation support and gives reusable
+      recall/precision tests. Limitations: Benchmark findings concern retrieved
+      QA, not a finished product interaction."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The ALCE benchmark separates answer quality into fluency, correctness,
+        and citation quality, with citation quality decomposed into support
+        recall and citation precision.
+      - The paper reports that even the best ELI5 systems lack complete citation
+        support about half the time, and its human evaluation compares utility,
+        citation recall, and citation precision.
+  - url: https://arxiv.org/abs/2210.08726
+    title: "RARR: Researching and Revising What Language Models Say, Using Language
+      Models"
+    decision: kept
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Keep as a concrete inspect-and-repair method that connects evidence
+      retrieval to correction rather than stopping at explanation or citation
+      display.
+    rating: 5
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Core method for claim-level verification and repair. Value: Shows
+      how to expose evidence and correct only unsupported portions while
+      preserving useful structure. Limitations: Its automated web-search and
+      editing pipeline can inherit retrieval or source-quality errors and is not
+      a UI prescription."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - RARR generates claim-focused search queries, checks agreement between
+        each claim and retrieved evidence, and revises unsupported text while
+        preserving the original passage where possible.
+      - The paper’s nasal-cycle example changes an unsupported 45-minute claim
+        to an evidence-backed two-hour claim, while its attribution examples
+        distinguish fully supported claims from superficially overlapping
+        evidence.
+  - url: https://arxiv.org/abs/2112.09332
+    title: "WebGPT: Browser-assisted question-answering with human feedback"
+    decision: trim
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Trim to the browser-and-reference workflow and its source-quality
+      failure mode; the training and reward-model detail overlaps stronger
+      citation-method papers.
+    rating: 3
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Early system example linking browsing, references, and human
+      evaluation. Value: Use the environment design and TruthfulQA failure
+      analysis to explain why visible references do not guarantee reliable
+      evidence. Limitations: Dated model-training focus and limited
+      product-interface guidance; skip most optimization details."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - WebGPT trains a browser-using model with imitation learning and human
+        feedback, requiring it to collect references while browsing so
+        evaluators can judge factual accuracy.
+      - The TruthfulQA analysis reports that the system still sometimes quotes
+        unreliable sources after distribution shift, and the paper documents
+        labeler agreement and the long demonstration/comparison tasks.
+  - url: https://arxiv.org/abs/2203.11147
+    title: Teaching language models to support answers with verified quotes
+    decision: kept
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Keep because it provides a strong quote-level evidence model plus a
+      critical warning that support and truth are distinct judgments.
+    rating: 4
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Direct evidence-grounding and abstention reference. Value: Gives
+      the agent a concrete claim-plus-quote structure and a test for whether
+      evidence is sufficient, relevant, and truthful. Limitations: Model-centric
+      evaluation and paid-rater judgments do not establish that end users will
+      inspect quotes successfully."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - GopherCite presents answers with separate claims and quote evidence, and
+        human raters judge plausibility and whether the accompanying quote is
+        sufficient to support the whole answer.
+      - The results show substantially different supported-and-plausible rates
+        across retrieval and training setups, while the TruthfulQA examples
+        expose cases where evidence can support a claim literally without making
+        it truthful.
+  - url: https://aclanthology.org/2024.acl-long.161/
+    title: Training Language Models to Generate Text with Citations via Fine-Grained
+      Rewards
+    decision: trim
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: "Trim as a recent technical complement to ALCE: retain its
+      evidence/correctness tradeoff and concrete citation failure taxonomy, but
+      omit most fine-tuning mechanics."
+    rating: 3
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Failure-focused complement to the citation benchmarks. Value:
+      Demonstrates that answer correctness, citation recall, and citation
+      precision trade off, with concrete ID-mixup and redundancy errors.
+      Limitations: Primarily a fine-tuning paper; it offers little guidance on
+      how people should inspect citations in a product."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The method gives separate rewards for answer correctness, citation
+        recall, and citation precision, and shows that optimizing only
+        correctness causes citation quality to fall quickly.
+      - Its inspection of 30 test examples identifies citation-specific failures
+        including mixed-up passage IDs and redundant irrelevant citations, while
+        retrieval limits constrain what the model can support.
+  - url: https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/
+    title: Data Collection + Evaluation
+    decision: trim
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Trim as bridge evidence for judging whether displayed support is
+      grounded in representative data and known failure modes, not as a direct
+      inspectability method.
+    rating: 3
+    jtbd_fit: bridge
+    kind: prescription
+    note: "Role: Bridge from evidence presentation to evidence quality and
+      evaluation planning. Value: Helps the agent ask what data, labeling,
+      representativeness, and blindspots sit behind a displayed result.
+      Limitations: Much of the chapter concerns model development and data
+      operations rather than user-facing verification."
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The chapter connects data provenance and labeling choices to downstream
+        output quality, using a plant-recognition data-cascade example where
+        regional mismatch produces production errors.
+      - Its evaluation guidance recommends diverse target-user feedback,
+        blindspot inspection, ongoing testing, feedback mechanisms, and tracking
+        changes against acceptance of recommendations.
+  - url: https://pair.withgoogle.com/guidebook-v2/patterns
+    title: Patterns
+    decision: kept
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: "Keep as the practical interaction translation: it turns evidence,
+      confidence, error recovery, and supervision into observable product
+      patterns across recommendations and generated content."
+    rating: 4
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Practitioner pattern reference for turning evidence and uncertainty
+      into controls. Value: Supplies concrete “aim/avoid” guidance for sources,
+      confidence displays, feedback, supervision, and handoff. Limitations:
+      Google guidebook advice is not a controlled evaluation and its examples
+      should not be treated as outcome proof."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The patterns recommend adding third-party or expert context so users can
+        appraise recommendations, and explicitly warn that numeric confidence
+        can be hard to interpret without an alternative or recourse.
+      - The page connects errors to concrete responses—manual controls,
+        feedback/reporting, supervision, and human handoff—and includes examples
+        such as reviewing generated citations and flagging recommendations.
+  - url: https://www.ibm.com/design/ai/ethics/explainability/
+    title: Explainability
+    decision: dropped
+    section: "Section 3: Showing evidence people can inspect"
+    rationale: Drop because the readable page is vendor ethics guidance with broad
+      recommendations and one hotel-assistant illustration, but no evaluated
+      method, substantive case analysis, or evidence that the proposed
+      explanations improve checking or reliance.
+  - url: https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/
+    title: Feedback + Control
+    decision: kept
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: It gives concrete interaction patterns for correcting AI output and
+      retaining human control, though its feedback-loop emphasis extends beyond
+      one-off verification.
+    rating: 4
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Core interaction guidance for correction and control. Value: Use
+      the sections on manual fallback, editability, reset, and feedback impact
+      when designing recovery. Limitations: Mostly practitioner guidance, with
+      limited empirical validation of the patterns."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The chapter distinguishes implicit from explicit feedback and says users
+        should be told what is collected, why it is collected, and how they can
+        opt out or inspect their data.
+      - Its control guidance recommends manual fallbacks, editable preferences,
+        resettable personalization, and clear communication about when feedback
+        will change the experience.
+  - url: https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/
+    title: Errors + Graceful Failure
+    decision: kept
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: This is the strongest direct source in the section because it
+      connects uncertainty and error diagnosis to concrete correction paths,
+      safer alternatives, and human takeover.
+    rating: 5
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Load-bearing method for failure and recovery design. Value: Route
+      here for error taxonomy, risk-sensitive responses, feedback opportunities,
+      and handoff to manual control. Limitations: Google practitioner guidance;
+      examples are illustrative rather than independently evaluated product
+      results."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The chapter separates system-limitation, context, and background errors,
+        then asks teams to assess user impact and situational stakes rather than
+        treating every failure alike.
+      - It gives response patterns for low confidence, missing data, mislabeled
+        outputs, and irrelevant results, including explaining limits, offering
+        alternative paths, soliciting feedback, and returning control to the
+        user.
+      - Its recovery guidance says manual takeover must provide awareness of the
+        situation, the next action, and how to perform it, and warns that
+        high-stakes alternatives need an additional safety check.
+  - url: https://arxiv.org/abs/2001.02478
+    title: "Questioning the AI: Informing Design Practices for Explainable AI User
+      Experiences"
+    decision: dropped
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: The direct read exposed only the abstract and metadata, and the one
+      alternate HTML recovery failed, so the paper cannot meet the
+      substantive-content evidence contract.
+  - url: https://arxiv.org/abs/2104.03483
+    title: Question-Driven Design Process for Explainable AI User Experiences
+    decision: kept
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: It supplies a repeatable bridge from user questions to inspectable
+      explanations, reliability judgments, actionable correction, and
+      designer-engineer handoff.
+    rating: 5
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Core method for turning “how should I check this?” into design and
+      engineering requirements. Value: Use the question elicitation,
+      prioritization, mapping, and iterative evaluation steps. Limitations: The
+      worked case is healthcare prediction, and the final system was partly
+      proprietary."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper proposes eliciting user questions, probing the intent and
+        expected answer behind each question, clustering questions separately
+        from underlying requirements, and using those results to prioritize
+        explanations.
+      - In the healthcare case, participants asked about why a prediction
+        occurred, what could reduce risk, the training data, and where
+        performance degrades; the resulting requirements included assessing
+        prediction reliability and deciding when to investigate further.
+      - The iterative prototype exposed that raw contrastive explanations
+        suggested unchangeable risk factors; the team constrained the model and
+        linked actionable factors such as pneumonia risk and smoking to relevant
+        resources.
+  - url: https://pair.withgoogle.com/guidebook-v2/case-studies
+    title: People + AI Research — Case Studies
+    decision: trim
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: It is useful as a routing index plus one concrete
+      control-and-recovery case, but the index itself is shallow and does not
+      provide full rationale for every listed case.
+    rating: 3
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Selective worked-example directory. Value: Open the Google Photos
+      case for concrete control, sensitivity, and model-versus-rule tradeoffs,
+      then use the pattern labels to locate other cases. Limitations: The
+      candidate page is a gallery index; do not treat every listed case as read
+      evidence."
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - The index maps Google Photos, BenchSci, Google Flights, Read Along, and
+        Tune to patterns such as user supervision, confidence communication,
+        accountability for errors, feedback, and returning control after
+        automation fails.
+      - The linked Google Photos Memories case explains why sensitive memories
+        raised the cost of mistakes, combines model and rule-based filtering,
+        and adds controls to hide faces, dates, date ranges, or all memories.
+  - url: https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH
+    title: How Salesforce Builds Trust in Our AI Products
+    decision: trim
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: It offers concrete vendor examples of source checking, feedback, and
+      confirmation friction, but the short promotional framing does not
+      establish independent effectiveness.
+    rating: 3
+    jtbd_fit: direct
+    kind: example
+    note: "Role: Vendor-origin pattern counterpoint. Value: Mine the examples of
+      citations, editability, confirmation steps, and safety warnings as
+      implementation prompts. Limitations: Salesforce self-reporting and survey
+      claims are promotional; do not treat the described patterns as validated
+      outcomes."
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The article names five Salesforce pattern families—mindful friction, AI
+        awareness, bias and toxicity safeguards, explainability and accuracy,
+        and hallucination reduction.
+      - Its product examples include source citations for validation, AI-content
+        indicators, edits and thumbs feedback, confirmation before generated
+        email is saved or sent, equal visual weight for send versus edit, and
+        safety-detector popovers with corrective actions.
+  - url: https://www.youtube.com/watch?v=n3HsvqBJrlY
+    title: Getting Started with the People + AI Guidebook
+    decision: dropped
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: The direct YouTube read failed and the one search-based recovery
+      found only indirect summaries without a retrievable transcript for this
+      video, so its content cannot be evaluated honestly.
+  - url: https://www.nist.gov/itl/ai-risk-management-framework
+    title: AI Risk Management Framework
+    decision: kept
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The primary framework gives the agent an authoritative basis for
+      risk-sensitive refusal, staged release, human responsibility, and stopping
+      rules, while remaining general enough to apply across AI features.
+    rating: 4
+    jtbd_fit: direct
+    kind: reference
+    note: "Role: Keep as the primary authority for deciding when an AI feature's
+      risk and uncertainty should change its operating mode. Value: Use the
+      risk-tolerance, residual-risk, lifecycle, and stop-until-managed passages
+      to justify deferral, human confirmation, or escalation instead of treating
+      trust as a visual treatment. Limitations: It is voluntary, high-level, and
+      organizational; it does not specify user-facing copy, interaction layouts,
+      or a complete runtime abstention algorithm."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The recovered AI RMF 1.0 defines risk through both likelihood and
+        consequence, makes risk tolerance context- and use-case-specific, and
+        says unacceptable negative risk can require stopping development or
+        deployment until it is managed.
+      - The framework organizes action through GOVERN, MAP, MEASURE, and MANAGE,
+        and explicitly treats residual risk, lifecycle roles, testing,
+        evaluation, verification, and validation as operational responsibilities
+        rather than interface decoration.
+  - url: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+    title: "Artificial Intelligence Risk Management Framework: Generative Artificial
+      Intelligence Profile"
+    decision: kept
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: This is the strongest source in the chunk for converting
+      generative-AI failure modes into explicit refusal, oversight, feedback,
+      monitoring, and release decisions.
+    rating: 5
+    jtbd_fit: direct
+    kind: reference
+    note: "Role: Use as the generative-AI-specific authority for answer, defer,
+      refuse, and escalate boundaries. Value: Route to the sections on human-AI
+      configuration, refusal criteria, recourse, independent evaluation,
+      override monitoring, risk controls, and structured field testing when
+      designing a fallback state or human handoff. Limitations: The profile is
+      risk-management guidance rather than a tested interaction pattern; it does
+      not determine the right threshold for a particular product, user, or
+      regulated domain."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The recovered NIST AI 600-1 profile names confabulation as confidently
+        stated false content and human-AI configuration risks including
+        automation bias, over-reliance, and emotional entanglement.
+      - Its suggested actions call for refusal criteria for queries a GAI
+        application should not answer, user feedback and recourse mechanisms,
+        independent evaluations proportional to risk, monitoring of overrides,
+        and staged release or mitigation when risks exceed tolerance.
+  - url: https://airc.nist.gov/airmf-resources/airmf/5-sec-core/
+    title: AI RMF Core
+    decision: dropped
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The page is an accessible excerpt of the same AI RMF Core already
+      covered in the stronger recovered primary framework, so keeping it would
+      add duplicate governance vocabulary without additional product or
+      empirical evidence.
+  - url: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+    title: "Understanding Success Criterion 3.3.4: Error Prevention (Legal,
+      Financial, Data)"
+    decision: kept
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: This authoritative, behavior-level guidance supplies a transferable
+      rule for keeping uncertain AI output from directly causing irreversible
+      legal, financial, or data actions.
+    rating: 4
+    jtbd_fit: direct
+    kind: prescription
+    note: "Role: Keep as the concrete safeguard authority for consequential actions
+      that an AI feature may prepare or trigger. Value: Use its reversible,
+      checked, or confirmed pattern to turn uncertainty into a review,
+      correction, or draft-before-commit state. Limitations: It is an
+      accessibility success criterion for web pages and specified transaction
+      types, not an AI-specific abstention rule; apply the interaction pattern
+      without claiming WCAG conformance or complete risk coverage from it
+      alone."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - "The W3C explanation gives three concrete safeguards for consequential
+        submissions: make them reversible, check input and provide correction,
+        or provide a review-and-confirm mechanism before finalization."
+      - Its examples cover non-refundable airline tickets, stock purchases,
+        legal commitments, and unrecoverable data deletion, showing why
+        confirmation and recovery should scale with consequence.
+  - url: https://www.w3.org/TR/WCAG22/
+    title: Web Content Accessibility Guidelines (WCAG) 2.2
+    decision: trim
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The full standard is a useful implementation and accessibility
+      constraint for deferral, confirmation, and status states, but its breadth
+      is unnecessary for the core reliance decision and overlaps with the more
+      focused 3.3.4 explanation.
+    rating: 3
+    jtbd_fit: bridge
+    kind: reference
+    note: "Role: Use selectively as the normative bridge after deciding that a
+      feature needs confirmation, recovery, or a visible status change. Value:
+      Check the relevant success criteria for accessible error prevention and
+      announcement of processing or deferral states, especially 3.3.4 and 4.1.3.
+      Limitations: WCAG is not a trust-calibration framework and the full
+      standard is too broad to serve as the corpus's main guidance; do not
+      substitute conformance language for product-specific risk analysis."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The standard explains its layered structure of principles, guidelines,
+        testable success criteria, and sufficient or advisory techniques,
+        distinguishing normative checks from implementation guidance.
+      - The normative text includes Success Criterion 3.3.4 for reversible,
+        checked, or confirmed consequential submissions and Success Criterion
+        4.1.3 requiring programmatically determinable status messages that
+        assistive technologies can present without focus.
+  - url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+    title: Explaining Decisions Made with AI
+    decision: trim
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The source offers a useful boundary for meaningful explanations and
+      impact-sensitive presentation, but the supplied URL is an index page and
+      the guidance focuses on explanation practice rather than runtime
+      abstention or human escalation.
+    rating: 3
+    jtbd_fit: bridge
+    kind: prescription
+    note: "Role: Keep as a selective bridge when a deferral or handoff needs a
+      meaningful explanation rather than a generic warning. Value: Use its
+      impact- and use-case-sensitive selection of explanation types and its
+      translation from system rationale to understandable reasons to support
+      contestability and verification. Limitations: The supplied URL is a
+      navigation page, so this evaluation relies on a linked practical section;
+      the guidance is under review, compliance-oriented, and does not provide a
+      tested UI pattern or a decision rule for when the system must abstain."
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - The linked practical section structures the guidance around selecting
+        explanations by sector, use case, and impact on the individual, then
+        collecting explanation-aware data and extracting relevant explanation
+        types.
+      - Its workflow includes translating system rationales into usable reasons,
+        preparing implementers, and deciding how to build and present an
+        explanation to the decision recipient; it also states that the guidance
+        is practical advice rather than a statutory code.
+  - url: https://www.microsoft.com/en-us/research/?p=564561
+    title: Guidelines for Human-AI Interaction
+    decision: kept
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The source translates uncertainty and error into concrete product
+      behaviors—scope, degrade, dismiss, correct, explain, and gather
+      feedback—making it a strong interaction bridge for the authority sources.
+    rating: 4
+    jtbd_fit: direct
+    kind: prescription
+    note: 'Role: Keep as the practical interaction layer for implementing
+      uncertainty, graceful degradation, correction, and user control. Value:
+      Route to the "when wrong" guidelines and the AutoReplace example when
+      turning an abstention or deferral rule into an actionable product state
+      with alternatives, dismissal, correction, and explanation. Limitations:
+      The page is a concise guideline overview with only a small number of
+      examples, was developed for graphical interfaces, and does not establish
+      high-stakes safety thresholds or empirical evidence for every
+      recommendation.'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The readable Microsoft Research page groups 18 guidelines by initial
+        interaction, during interaction, when wrong, and over time, while
+        warning that the set is meant to stimulate tradeoff discussions rather
+        than function as a checklist.
+      - The "when wrong" guidance explicitly calls for efficient dismissal and
+        correction, scoping services when in doubt through disambiguation or
+        graceful degradation, and access to an explanation; examples include
+        AutoReplace showing multiple options and Excel Ideas soliciting feedback
+        on a suggestion.
+  - url: https://pubmed.ncbi.nlm.nih.gov/38184595/
+    title: "AI-driven decision support systems and epistemic reliance: a qualitative
+      study on obstetricians' and midwives' perspectives on integrating AI-driven
+      CTG into clinical decision making"
+    decision: trim
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: Trim as a verified frontline-practitioner stance on what evidence,
+      transparency, authority, and responsibility must mean when imperfect AI
+      enters a consequential workflow; its clinical scope limits transfer.
+    rating: 3
+    jtbd_fit: bridge
+    kind: principle
+    note: "Role: Use as the frontline domain-expert counterweight to generic
+      product guidance. Value: Treat professional responsibility and the user's
+      ability to judge reliability on their own terms as design constraints, not
+      as trust deficits to overcome. Limitations: Only the detailed abstract was
+      retrieved, the interview sample was 13 UK obstetricians and midwives, and
+      the cardiotocography setting cannot establish a general interface pattern."
+    fetch_status: partial
+    content_quality: high
+    evidence:
+      - The qualitative study used semi-structured interviews with eight
+        obstetricians and five midwives about when AI-driven cardiotocography
+        could justifiably enter decisions about interventions in labor.
+      - Participants required accuracy, efficiency, personalization,
+        transparency, and evidence of improved outcomes, while treating
+        themselves as the epistemic authorities and responsibility holders in
+        the clinical context.
+      - The paper concludes that clinicians need to evaluate system reliability
+        on their own terms, rather than being asked to accept institutional or
+        developer authority as a substitute.
+  - url: https://www.sciencedirect.com/science/article/pii/S000437022300098X
+    title: The Effects of Explanations on Automation Bias
+    decision: kept
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: The full paper supplies a primary, failure-focused test showing that
+      explanations can improve speed or accuracy without producing appropriately
+      calibrated reliance.
+    rating: 5
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Use as the empirical warning against treating explanations as an
+      automatic safeguard. Value: Its two-task comparison and first-impression
+      manipulation connect interface treatment to behavioral reliance.
+      Limitations: Findings are task- and explanation-specific; it does not
+      establish a universal best explanation pattern."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two experiments, using a Coloured Trails decision task
+        and a simulated radiological task, that measure automation bias,
+        decision accuracy, task load, trust, and completion time.
+      - Across the studies, explanations did not reduce agreement with erroneous
+        AI advice and sometimes increased automation bias, while local
+        explanations often improved accuracy and reduced completion time.
+      - The initial-training manipulation shows that positive versus negative
+        first impressions changed automation bias, accuracy, and trust, making
+        context and prior exposure part of the evaluation frame.
+  - url: https://arxiv.org/abs/2301.05578
+    title: Toward General Design Principles for Generative AI Applications
+    decision: trim
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: This readable design synthesis gives the agent useful evaluation
+      vocabulary and interface moves, but it is broad guidance rather than a
+      primary validation study.
+    rating: 3
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Use selectively as a principles-and-evaluation scaffold for
+      generative features. Value: The sections on imperfection, human review,
+      mental models, and harms connect failure conditions to interface choices.
+      Limitations: Workshop-era synthesis with cited examples, not evidence that
+      these principles improve reliance in a measured product context."
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The paper frames generative AI around variability and imperfection,
+        including misleading answers, missing constraints, code errors, and the
+        need to identify which output portions require human review.
+      - Its principles recommend multiple outputs, visualizing differences,
+        evaluation or domain-specific quality signals, controls or sandboxing,
+        and mental-model support so users understand variability and the AI's
+        role.
+      - The explanation section uses token-level uncertainty highlighting in
+        code translation as an example of turning model weakness into a cue for
+        understanding and user correction, while the harms section explicitly
+        says it does not prescribe complete mitigations.
+  - url: https://arxiv.org/abs/2302.10395
+    title: "Designerly Understanding: Information Needs for Model Transparency to
+      Support Design Ideation for AI-Powered User Experience"
+    decision: trim
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: The abstract provides enough evidence for a selective bridge source
+      about design-team information needs, but the failed HTML recovery prevents
+      judging the full study and it is not a runtime reliance evaluation.
+    rating: 3
+    jtbd_fit: bridge
+    kind: principle
+    note: "Role: Use as a bridge from model transparency to product-team design
+      decisions. Value: It names a qualitative method and a concrete gap between
+      technical reporting and designer needs. Limitations: Only the abstract was
+      recovered, and the study concerns design ideation rather than whether end
+      users check or appropriately rely on AI output."
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - The abstract reports interviews with 23 UX practitioners and finds that
+        practitioners frequently use pre-trained models but lack support for
+        UX-led ideation.
+      - A scenario-based design task identifies the goals for which designers
+        seek model understanding and the transparency information they need to
+        decide whether, where, and how to use AI.
+      - The paper positions model transparency and interrogation as ways to help
+        designers understand AI limitations, rather than assuming technical
+        model reports directly answer design questions.
+  - url: https://arxiv.org/abs/2102.09692
+    title: "To Trust or to Think: Cognitive Forcing Functions Can Reduce
+      Overreliance on AI in AI-Assisted Decision-Making"
+    decision: kept
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: This primary experiment directly tests behavioral reliance and shows
+      why verification friction, preference, trust, and subgroup effects must be
+      evaluated together.
+    rating: 5
+    jtbd_fit: direct
+    kind: principle
+    note: "Role: Use as the failure-focused empirical anchor for deciding when
+      explanations need deliberate verification friction. Value: It compares
+      concrete interaction patterns against behavioral error detection and
+      reports acceptability and subgroup tradeoffs. Limitations: The
+      food-substitution task is non-critical and the authors caution against
+      generalizing without further domain studies."
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The experiment with 199 participants compares three cognitive-forcing
+        designs with simple explainable-AI conditions and a no-AI baseline,
+        including on-demand disclosure, an initial human decision before AI
+        feedback, and a 30-second wait.
+      - When the simulated AI was wrong, cognitive-forcing conditions produced
+        more correct decisions and less overreliance than simple explanations
+        for key measures, although overreliance was reduced rather than
+        eliminated.
+      - The paper finds a tradeoff between effectiveness and acceptability, and
+        its subgroup analysis shows greater benefits for participants high in
+        Need for Cognition, with a single non-critical task limiting
+        generalization.
