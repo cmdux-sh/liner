@@ -1,0 +1,124 @@
+candidates:
+  - url: https://arxiv.org/abs/2001.02114
+    title: "Effect of Confidence and Explanation on Accuracy and Trust Calibration in AI-Assisted Decision Making"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two human experiments in which showing case-specific confidence calibrated trust, but did not by itself improve joint decision accuracy.
+      - Its local-explanation experiment found no significant accuracy benefit and discusses how feature-attribution explanations can be ambivalent in low-certainty cases.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as the load-bearing empirical source: it directly tests confidence and explanations as interface signals and warns that calibrated trust is not the same as better outcomes."
+    note: |
+      Role: Foundational empirical test of confidence and local explanations. Value: Use the experiment results to separate calibrated reliance from actual decision improvement. Limitations: One controlled case study; its explanation design and task do not generalize to every AI feature.
+
+  - url: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+    title: "Explaining the Uncertainty in AI-Assisted Decision Making"
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The two-page AAAI paper proposes counterfactual explanations that compare inputs from another class with same-class inputs at different confidence levels to explain model uncertainty.
+      - It explicitly treats the work as in progress, calls for future study of uncertainty in explanations, and separates aleatoric data uncertainty from epistemic model uncertainty.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Trim because the short doctoral-consortium paper offers a useful representation concept and vocabulary but no completed user evaluation or demonstrated product outcome."
+    note: |
+      Role: Small conceptual counterpoint on explaining why confidence changes. Value: Route to the counterfactual distinction and the aleatoric-versus-epistemic vocabulary when choosing what uncertainty a UI should expose. Limitations: Work in progress, only two pages, and lacks validated user effects.
+
+  - url: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+    title: "Too Sure for Our Own Good: A User Study on AI Confidence and Human Reliance"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - In a within-subjects study with 184 participants, well-calibrated confidence improved accuracy by about 20%, while miscalibrated confidence improved it by about 2%.
+      - The results show high-confidence wrong recommendations increasing automation bias, while low or miscalibrated confidence increased conservatism bias and rejection of accurate advice.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as the strongest recent warning that a confidence cue is only as safe as its calibration and can create both over-reliance and under-reliance."
+    note: |
+      Role: Recent failure-focused evidence on confidence cues. Value: Use the calibrated-versus-miscalibrated comparison to set a hard requirement for validating any displayed confidence. Limitations: Logic-puzzle task and controlled study; it does not establish the best visual or textual format for other domains.
+
+  - url: https://doi.org/10.1145/3588320
+    title: "Effects of AI and Logic-Style Explanations on Users’ Decisions Under Different Levels of Uncertainty"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two online user studies across image and text classification, comparing no explanation with inductive, abductive, and deductive explanation styles under different uncertainty conditions.
+      - Results found users relied most on the input instance and concluded that user confidence cannot substitute for a model of user uncertainty; the paper also reports overconfidence in high-user-uncertainty cases.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep for its detailed comparison of explanation styles and its evidence that perceived uncertainty, user confidence, and explanation effects are not interchangeable."
+    note: |
+      Role: Comparative empirical evidence for explanation style under uncertainty. Value: Use Sections 4–6 to reason about whether an explanation helps people inspect an input or merely changes agreement. Limitations: Classification tasks and tested logic styles are narrower than product workflows such as summaries or recommendations.
+
+  - url: https://arxiv.org/abs/2309.10852
+    title: "Using AI Uncertainty Quantification to Improve Human Decision-Making"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Two behavioral experiments found instance-level, strictly calibrated uncertainty improved decision performance over AI predictions alone and produced benefits across probabilistic representations.
+      - The second experiment compares point versus distribution displays and needle versus dotplot visualizations, while the paper cautions that prediction probabilities can be overconfident without calibration.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as the strongest direct source on when probabilistic uncertainty can help and why representation choice must follow calibration and task testing rather than numeric confidence alone."
+    note: |
+      Role: Empirical source on calibrated uncertainty quantification and display forms. Value: Use the two experiments to compare point, distribution, needle, and dotplot treatments against decision accuracy. Limitations: Controlled behavioral tasks and model-level UQ; it does not provide general copy guidance or prove transfer to high-stakes product decisions.
+
+  - url: https://arxiv.org/abs/2403.09552
+    title: "Are You Really Sure? Understanding the Effects of Human Self-Confidence Calibration in AI-Assisted Decision Making"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: calibrated-reliance foundations
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Across three studies, the paper tests Think the Opposite, Thinking in Bets, and Calibration Status Feedback as mechanisms for calibrating the person’s own confidence before or alongside AI advice.
+      - Calibration reduced under-reliance and improved some task-performance measures, but Study 3 found mixed outcomes and no significant reduction in over-reliance, especially when human and AI confidence were mismatched.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as a human-centered complement to model-confidence studies: it shows that the interface may need to calibrate the person’s judgment, not only display a model score."
+    note: |
+      Role: Human-side calibrated-reliance evidence. Value: Use the study’s mechanisms and mixed results when deciding whether a confidence display should prompt reflection or comparison. Limitations: Controlled prediction task and no answer to which model-uncertainty visual is best.
+
+  - url: https://pair.withgoogle.com/chapter/explainability-trust/
+    title: "Explainability + Trust"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: uncertainty representation and confidence limits
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The chapter warns that misleadingly high confidence can make less-savvy users blindly accept a result and recommends testing whether confidence changes decisions before choosing a visualization.
+      - Its examples distinguish system explanations, example-based explanations, and contextual reasons; a running-route example surfaces missing street-light data and another shows alternative recommendations for low-confidence situations.
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Keep as a practitioner translation layer that turns confidence and explanation research into concrete contextual examples and a user-testing question."
+    note: |
+      Role: Product-design translation and worked guidance. Value: Route here for concrete patterns such as missing-data caveats, example-based explanations, and alternative options under low confidence. Limitations: Practitioner guidance rather than controlled evidence; examples are illustrative and should not override empirical calibration findings.
+
+  - url: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+    title: "Guidelines for Human-AI Interaction — HAX Toolkit"
+    decision: dropped
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Drop because the fetched URL is a landing page that only routes readers to the 18-guideline library and workbook; it does not expose uncertainty-specific guidance or substantive interface cases at this URL."
+
+  - url: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+    title: "Machine Learning — Human Interface Guidelines"
+    decision: dropped
+    section: "Section 2: Representing uncertainty without false precision"
+    rationale: "Drop because the direct page required JavaScript and the single recovery search returned only a short indexed overview, not enough of the underlying HIG guidance to evaluate or cite substantive uncertainty patterns."

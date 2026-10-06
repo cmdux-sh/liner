@@ -1,0 +1,108 @@
+candidates:
+  - url: https://journals.sagepub.com/doi/10.1518/hfes.46.1.50_30392
+    title: "Trust in Automation: Designing for Appropriate Reliance"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: The SAGE page timed out and one alternate full-text recovery did not produce a readable article body, so this foundational candidate cannot meet the evidence contract.
+
+  - url: https://web.mit.edu/16.459/www/parasuraman.pdf
+    title: "Humans and Automation: Use, Misuse, Disuse, Abuse"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: The direct MIT PDF exposed no readable text and one alternate full-text recovery was blocked, leaving only metadata and snippets rather than judgeable source content.
+
+  - url: https://scholars.duke.edu/publication/1163926
+    title: "Trust in Automation: Integrating Empirical Evidence on Factors That Influence Trust"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: calibrated-reliance foundations
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The full review reports a systematic screen of 101 papers containing 127 eligible human-subject studies on trust-related behavior in automation.
+      - Its three-layer model separates dispositional, situational, and learned trust, then connects those layers to design recommendations, environmental moderators, and appropriate reliance.
+      - The review states that trust guides but does not completely determine reliance, identifying decisional freedom, time pressure, comparison with manual performance, and task complexity as important conditions.
+      - Its conclusion flags unresolved variation by error type and consequence, rather than treating trust as a single stable user attitude.
+    section: "Section 1: The reliance decision"
+    rationale: This is a dense empirical synthesis that gives the agent a usable distinction between trust and reliance and a context-sensitive model for diagnosing calibration problems.
+    note: |
+      Role: Keep as the main empirical synthesis for calibrated reliance. Value: Use the three trust layers and situational moderators to frame feature-specific reliance decisions. Limitations: It reviews automation studies from 2002–2013 and predates generative-AI interaction patterns.
+
+  - url: https://www.sciencedirect.com/science/article/pii/S0749597818303388
+    title: "Algorithm Appreciation: People Prefer Algorithmic to Human Judgment"
+    decision: dropped
+    section: "Section 1: The reliance decision"
+    rationale: ScienceDirect returned 403 and one author-manuscript recovery did not yield a readable body, so the apparent multi-study findings cannot be retained from snippets alone.
+
+  - url: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+    title: "Algorithm Aversion: People Erroneously Avoid Algorithms After Seeing Them Err"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: calibrated-reliance foundations
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - Across five studies using real forecasting tasks, participants who saw an algorithm perform became less likely to choose it, even when the algorithm outperformed the human alternative.
+      - The paper reports that seeing the model perform reduced confidence and optimism in its forecasts beyond the effect of the model's observed errors alone, showing why visible mistakes can trigger disuse.
+      - The authors measure behavioral choice, confidence, beliefs, and perceived attributes such as detecting exceptions and avoiding obvious mistakes rather than relying only on stated trust.
+      - The discussion notes that some participants continued to use the algorithm after errors, so aversion is not a universal response and depends on the system and decision context.
+    section: "Section 1: The reliance decision"
+    rationale: This primary study is a useful counterweight to over-reliance narratives because it shows how imperfect outputs can also produce premature abandonment of better automation.
+    note: |
+      Role: Keep as the failure-focused counterpoint to over-reliance research. Value: Use its five-study evidence to ask whether error displays or early failures will cause disuse even when the aid is superior. Limitations: The forecasting and incentive tasks concern statistical prediction, not generative explanations or product UI patterns.
+
+  - url: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+    title: "Beyond Accuracy: The Role of Mental Models in Human-AI Team Performance"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: calibrated-reliance foundations
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper defines an AI error boundary as the cases where the system is correct or incorrect and argues that a human mental model of this boundary determines when to accept or override a recommendation.
+      - In CAJA user studies, participants received feedback after accept-or-override decisions; the experiments vary error-boundary parsimony, stochasticity, task dimensionality, interaction length, and the cost of mistakes.
+      - Results show that parsimonious and non-stochastic error boundaries improve mental-model formation, while higher-dimensional or representation-mismatched tasks make the boundary harder to learn.
+      - The worked assembly-line task shows early false accepts and false overrides decreasing as users update their model from feedback, linking learnability to team performance rather than accuracy alone.
+    section: "Section 1: The reliance decision"
+    rationale: "This primary human-AI team study translates appropriate reliance into an observable design problem: users need a learnable model of when the system is likely to fail."
+    note: |
+      Role: Keep as the mental-model and error-boundary method. Value: Use it to specify what users must learn before asking them to accept or override an AI output and what feedback can teach them. Limitations: The controlled binary-classifier game and MTurk sample do not directly establish patterns for summaries, answers, or recommendations.
+
+  - url: https://www.iis.seas.harvard.edu/papers/2021/bucinca2021trust.shtml
+    title: "To Trust or to Think: Cognitive Forcing Functions Can Reduce Overreliance on AI in AI-Assisted Decision-Making"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: critique and validation evidence
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - In an experiment with 199 participants, three cognitive-forcing designs were compared with simple explainable-AI conditions and a no-AI baseline in a nutrition decision task with controlled AI errors.
+      - Cognitive forcing significantly reduced overreliance and improved detection of incorrect AI predictions relative to simple explanations, while participants rated the more protective designs less favorably.
+      - Trust and preference were negatively related to performance in the study, and trust was positively related to reliance on incorrect model predictions for the key error-detection task.
+      - The disaggregated analysis found stronger benefits for participants higher in Need for Cognition, making intervention-generated inequality a concrete evaluation concern.
+    section: "Section 1: The reliance decision"
+    rationale: This is the strongest failure-focused source in the chunk because it tests an actionable interaction intervention and exposes the tradeoff between subjective trust, cognitive effort, and behavioral calibration.
+    note: |
+      Role: Keep as the primary critique of explanation-first reliance design. Value: Use its cognitive-forcing comparison to justify deliberate checking friction when over-reliance is the dominant risk. Limitations: The simulated nutrition task and limited individual-difference audit require validation in the target workflow and audience.
+
+  - url: https://www.microsoft.com/en-us/research/wp-content/uploads/2019/01/Guidelines-for-Human-AI-Interaction-camera-ready.pdf
+    title: Guidelines for Human-AI Interaction
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: worked interface cases
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The paper derives 18 observable guidelines from 168 candidate guidelines, filters out vague principles such as “build trust,” and organizes the remainder into initially, during interaction, when wrong, and over time.
+      - It validates the guidelines through modified heuristic evaluations in which 49 design practitioners inspect 20 popular AI-infused products and identify applications and violations.
+      - Guideline 9 explicitly requires efficient correction, with examples of editing a wrongly located car and reverting an automatically corrected search query; Guideline 8 covers dismissal and ignoring unwanted AI services.
+      - The authors explain that they intentionally exclude modeling-layer guidance such as acting under expected costs, benefits, and uncertainty, and note that high-risk or regulated domains may need more specialized guidance.
+    section: "Section 1: The reliance decision"
+    rationale: The paper supplies concrete, inspectable UI behaviors for correction and dismissal, but its broad guideline synthesis and non-causal practitioner evaluation should support rather than anchor the reliance model.
+    note: |
+      Role: Trim for worked interface cases and a practical inspection vocabulary. Value: Route to the “when wrong” guidance on correction, dismissal, and observable violations. Limitations: The 2019 guidelines are not a causal test of calibrated reliance and deliberately omit model-level uncertainty and domain-specific safeguards.

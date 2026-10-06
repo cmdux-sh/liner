@@ -1,0 +1,118 @@
+candidates:
+  - url: 'https://aclanthology.org/2023.emnlp-main.398/'
+    title: 'Enabling Large Language Models to Generate Text with Citations'
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'The ALCE benchmark separates answer quality into fluency, correctness, and citation quality, with citation quality decomposed into support recall and citation precision.'
+      - 'The paper reports that even the best ELI5 systems lack complete citation support about half the time, and its human evaluation compares utility, citation recall, and citation precision.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Keep as the load-bearing evaluation source because it shows that citations must be tested for completeness and relevance, not treated as a generic trust cue.'
+    note: |
+      Role: Foundational method for evaluating inspectable generated answers. Value: Separates correctness from citation support and gives reusable recall/precision tests. Limitations: Benchmark findings concern retrieved QA, not a finished product interaction.
+
+  - url: 'https://arxiv.org/abs/2210.08726'
+    title: 'RARR: Researching and Revising What Language Models Say, Using Language Models'
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'RARR generates claim-focused search queries, checks agreement between each claim and retrieved evidence, and revises unsupported text while preserving the original passage where possible.'
+      - 'The paper’s nasal-cycle example changes an unsupported 45-minute claim to an evidence-backed two-hour claim, while its attribution examples distinguish fully supported claims from superficially overlapping evidence.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Keep as a concrete inspect-and-repair method that connects evidence retrieval to correction rather than stopping at explanation or citation display.'
+    note: |
+      Role: Core method for claim-level verification and repair. Value: Shows how to expose evidence and correct only unsupported portions while preserving useful structure. Limitations: Its automated web-search and editing pipeline can inherit retrieval or source-quality errors and is not a UI prescription.
+
+  - url: 'https://arxiv.org/abs/2112.09332'
+    title: 'WebGPT: Browser-assisted question-answering with human feedback'
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'WebGPT trains a browser-using model with imitation learning and human feedback, requiring it to collect references while browsing so evaluators can judge factual accuracy.'
+      - 'The TruthfulQA analysis reports that the system still sometimes quotes unreliable sources after distribution shift, and the paper documents labeler agreement and the long demonstration/comparison tasks.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Trim to the browser-and-reference workflow and its source-quality failure mode; the training and reward-model detail overlaps stronger citation-method papers.'
+    note: |
+      Role: Early system example linking browsing, references, and human evaluation. Value: Use the environment design and TruthfulQA failure analysis to explain why visible references do not guarantee reliable evidence. Limitations: Dated model-training focus and limited product-interface guidance; skip most optimization details.
+
+  - url: 'https://arxiv.org/abs/2203.11147'
+    title: 'Teaching language models to support answers with verified quotes'
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'GopherCite presents answers with separate claims and quote evidence, and human raters judge plausibility and whether the accompanying quote is sufficient to support the whole answer.'
+      - 'The results show substantially different supported-and-plausible rates across retrieval and training setups, while the TruthfulQA examples expose cases where evidence can support a claim literally without making it truthful.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Keep because it provides a strong quote-level evidence model plus a critical warning that support and truth are distinct judgments.'
+    note: |
+      Role: Direct evidence-grounding and abstention reference. Value: Gives the agent a concrete claim-plus-quote structure and a test for whether evidence is sufficient, relevant, and truthful. Limitations: Model-centric evaluation and paid-rater judgments do not establish that end users will inspect quotes successfully.
+
+  - url: 'https://aclanthology.org/2024.acl-long.161/'
+    title: 'Training Language Models to Generate Text with Citations via Fine-Grained Rewards'
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'The method gives separate rewards for answer correctness, citation recall, and citation precision, and shows that optimizing only correctness causes citation quality to fall quickly.'
+      - 'Its inspection of 30 test examples identifies citation-specific failures including mixed-up passage IDs and redundant irrelevant citations, while retrieval limits constrain what the model can support.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Trim as a recent technical complement to ALCE: retain its evidence/correctness tradeoff and concrete citation failure taxonomy, but omit most fine-tuning mechanics.'
+    note: |
+      Role: Failure-focused complement to the citation benchmarks. Value: Demonstrates that answer correctness, citation recall, and citation precision trade off, with concrete ID-mixup and redundancy errors. Limitations: Primarily a fine-tuning paper; it offers little guidance on how people should inspect citations in a product.
+
+  - url: 'https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/'
+    title: 'Data Collection + Evaluation'
+    decision: trim
+    rating: 3
+    jtbd_fit: bridge
+    source_role: supporting/background
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - 'The chapter connects data provenance and labeling choices to downstream output quality, using a plant-recognition data-cascade example where regional mismatch produces production errors.'
+      - 'Its evaluation guidance recommends diverse target-user feedback, blindspot inspection, ongoing testing, feedback mechanisms, and tracking changes against acceptance of recommendations.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Trim as bridge evidence for judging whether displayed support is grounded in representative data and known failure modes, not as a direct inspectability method.'
+    note: |
+      Role: Bridge from evidence presentation to evidence quality and evaluation planning. Value: Helps the agent ask what data, labeling, representativeness, and blindspots sit behind a displayed result. Limitations: Much of the chapter concerns model development and data operations rather than user-facing verification.
+
+  - url: 'https://pair.withgoogle.com/guidebook-v2/patterns'
+    title: 'Patterns'
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: 'Evidence and verification interaction methods'
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - 'The patterns recommend adding third-party or expert context so users can appraise recommendations, and explicitly warn that numeric confidence can be hard to interpret without an alternative or recourse.'
+      - 'The page connects errors to concrete responses—manual controls, feedback/reporting, supervision, and human handoff—and includes examples such as reviewing generated citations and flagging recommendations.'
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Keep as the practical interaction translation: it turns evidence, confidence, error recovery, and supervision into observable product patterns across recommendations and generated content.'
+    note: |
+      Role: Practitioner pattern reference for turning evidence and uncertainty into controls. Value: Supplies concrete “aim/avoid” guidance for sources, confidence displays, feedback, supervision, and handoff. Limitations: Google guidebook advice is not a controlled evaluation and its examples should not be treated as outcome proof.
+
+  - url: 'https://www.ibm.com/design/ai/ethics/explainability/'
+    title: 'Explainability'
+    decision: dropped
+    section: 'Section 3: Showing evidence people can inspect'
+    rationale: 'Drop because the readable page is vendor ethics guidance with broad recommendations and one hotel-assistant illustration, but no evaluated method, substantive case analysis, or evidence that the proposed explanations improve checking or reliance.'

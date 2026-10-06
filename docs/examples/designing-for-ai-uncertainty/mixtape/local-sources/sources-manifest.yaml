@@ -1,0 +1,453 @@
+sources:
+    - id: 2e031c09a95c
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/chapter/explainability-trust/
+      destination: fetch on compile
+      status: ready
+      source:
+        id: 31e27eeb-c42b-57bb-8178-fb62951a8b2f
+        type: web
+        url: https://pair.withgoogle.com/chapter/explainability-trust/
+        priority: required
+        kind: principle
+    - id: 62ff03765a82
+      active: true
+      type: web
+      label: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+      destination: fetch on compile
+      status: ready
+      source:
+        id: 48fdf0d6-f5df-57dd-bb7a-2e75fca32815
+        type: web
+        url: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+        priority: required
+        kind: principle
+    - id: 36b31b959d09
+      active: true
+      type: web
+      label: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+      destination: fetch on compile
+      status: ready
+      source:
+        id: b4f36445-04ab-5e84-82a5-9e599c1376b8
+        type: web
+        url: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+        priority: required
+        kind: principle
+    - id: c18696ad0f9c
+      active: true
+      type: web
+      label: https://scholars.duke.edu/publication/1163926
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://scholars.duke.edu/publication/1163926
+        note: 'Role: Keep as the main empirical synthesis for calibrated reliance. Value: Use the three trust layers and situational moderators to frame feature-specific reliance decisions. Limitations: It reviews automation studies from 2002–2013 and predates generative-AI interaction patterns.'
+        section: foundations
+        priority: required
+        kind: principle
+    - id: f88dba96db70
+      active: true
+      type: web
+      label: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+        note: 'Role: Keep as the failure-focused counterpoint to over-reliance research. Value: Use its five-study evidence to ask whether error displays or early failures will cause disuse even when the aid is superior. Limitations: The forecasting and incentive tasks concern statistical prediction, not generative explanations or product UI patterns.'
+        section: foundations
+        priority: required
+        kind: principle
+    - id: 571b8dd42cc3
+      active: true
+      type: web
+      label: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+        note: 'Role: Keep as the mental-model and error-boundary method. Value: Use it to specify what users must learn before asking them to accept or override an AI output and what feedback can teach them. Limitations: The controlled binary-classifier game and MTurk sample do not directly establish patterns for summaries, answers, or recommendations.'
+        section: foundations
+        priority: required
+        kind: example
+    - id: 18a9e93ebc41
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2001.02114
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2001.02114
+        note: 'Role: Foundational empirical test of confidence and local explanations. Value: Use the experiment results to separate calibrated reliance from actual decision improvement. Limitations: One controlled case study; its explanation design and task do not generalize to every AI feature.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: 68520e4129c7
+      active: true
+      type: web
+      label: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+        note: 'Role: Recent failure-focused evidence on confidence cues. Value: Use the calibrated-versus-miscalibrated comparison to set a hard requirement for validating any displayed confidence. Limitations: Logic-puzzle task and controlled study; it does not establish the best visual or textual format for other domains.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: e4444201a2e0
+      active: true
+      type: web
+      label: https://doi.org/10.1145/3588320
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://doi.org/10.1145/3588320
+        note: 'Role: Comparative empirical evidence for explanation style under uncertainty. Value: Use Sections 4–6 to reason about whether an explanation helps people inspect an input or merely changes agreement. Limitations: Classification tasks and tested logic styles are narrower than product workflows such as summaries or recommendations.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: 305e1ea3a649
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2309.10852
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2309.10852
+        note: 'Role: Empirical source on calibrated uncertainty quantification and display forms. Value: Use the two experiments to compare point, distribution, needle, and dotplot treatments against decision accuracy. Limitations: Controlled behavioral tasks and model-level UQ; it does not provide general copy guidance or prove transfer to high-stakes product decisions.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: 0313f78d8102
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2403.09552
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2403.09552
+        note: 'Role: Human-side calibrated-reliance evidence. Value: Use the study’s mechanisms and mixed results when deciding whether a confidence display should prompt reflection or comparison. Limitations: Controlled prediction task and no answer to which model-uncertainty visual is best.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: abeb8b7eb06f
+      active: true
+      type: web
+      label: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+        note: 'Role: Small conceptual counterpoint on explaining why confidence changes. Value: Route to the counterfactual distinction and the aleatoric-versus-epistemic vocabulary when choosing what uncertainty a UI should expose. Limitations: Work in progress, only two pages, and lacks validated user effects.'
+        section: uncertainty-signals
+        priority: required
+        kind: principle
+    - id: 82e5c531b2d8
+      active: true
+      type: web
+      label: https://aclanthology.org/2023.emnlp-main.398/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://aclanthology.org/2023.emnlp-main.398/
+        note: 'Role: Foundational method for evaluating inspectable generated answers. Value: Separates correctness from citation support and gives reusable recall/precision tests. Limitations: Benchmark findings concern retrieved QA, not a finished product interaction.'
+        section: inspectable-evidence
+        priority: required
+        kind: principle
+    - id: 29df10d26b4f
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2210.08726
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2210.08726
+        note: 'Role: Core method for claim-level verification and repair. Value: Shows how to expose evidence and correct only unsupported portions while preserving useful structure. Limitations: Its automated web-search and editing pipeline can inherit retrieval or source-quality errors and is not a UI prescription.'
+        section: inspectable-evidence
+        priority: required
+        kind: example
+    - id: c4d447e80ef7
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2203.11147
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2203.11147
+        note: 'Role: Direct evidence-grounding and abstention reference. Value: Gives the agent a concrete claim-plus-quote structure and a test for whether evidence is sufficient, relevant, and truthful. Limitations: Model-centric evaluation and paid-rater judgments do not establish that end users will inspect quotes successfully.'
+        section: inspectable-evidence
+        priority: required
+        kind: example
+    - id: d419a263d1c5
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/guidebook-v2/patterns
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pair.withgoogle.com/guidebook-v2/patterns
+        note: 'Role: Practitioner pattern reference for turning evidence and uncertainty into controls. Value: Supplies concrete “aim/avoid” guidance for sources, confidence displays, feedback, supervision, and handoff. Limitations: Google guidebook advice is not a controlled evaluation and its examples should not be treated as outcome proof.'
+        section: inspectable-evidence
+        priority: required
+        kind: prescription
+    - id: b6b9700ba9a1
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2112.09332
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2112.09332
+        note: 'Role: Early system example linking browsing, references, and human evaluation. Value: Use the environment design and TruthfulQA failure analysis to explain why visible references do not guarantee reliable evidence. Limitations: Dated model-training focus and limited product-interface guidance; skip most optimization details.'
+        section: inspectable-evidence
+        priority: required
+        kind: example
+    - id: 7929dad216b6
+      active: true
+      type: web
+      label: https://aclanthology.org/2024.acl-long.161/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://aclanthology.org/2024.acl-long.161/
+        note: 'Role: Failure-focused complement to the citation benchmarks. Value: Demonstrates that answer correctness, citation recall, and citation precision trade off, with concrete ID-mixup and redundancy errors. Limitations: Primarily a fine-tuning paper; it offers little guidance on how people should inspect citations in a product.'
+        section: inspectable-evidence
+        priority: required
+        kind: example
+    - id: 5785b1b141db
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/
+        note: 'Role: Bridge from evidence presentation to evidence quality and evaluation planning. Value: Helps the agent ask what data, labeling, representativeness, and blindspots sit behind a displayed result. Limitations: Much of the chapter concerns model development and data operations rather than user-facing verification.'
+        section: inspectable-evidence
+        priority: required
+        kind: prescription
+    - id: f8d9501839dd
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/
+        note: 'Role: Load-bearing method for failure and recovery design. Value: Route here for error taxonomy, risk-sensitive responses, feedback opportunities, and handoff to manual control. Limitations: Google practitioner guidance; examples are illustrative rather than independently evaluated product results.'
+        section: verification-and-recovery
+        priority: required
+        kind: prescription
+    - id: 21f72853c46a
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2104.03483
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2104.03483
+        note: 'Role: Core method for turning “how should I check this?” into design and engineering requirements. Value: Use the question elicitation, prioritization, mapping, and iterative evaluation steps. Limitations: The worked case is healthcare prediction, and the final system was partly proprietary.'
+        section: verification-and-recovery
+        priority: required
+        kind: prescription
+    - id: 9c3d29f06e66
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/
+        note: 'Role: Core interaction guidance for correction and control. Value: Use the sections on manual fallback, editability, reset, and feedback impact when designing recovery. Limitations: Mostly practitioner guidance, with limited empirical validation of the patterns.'
+        section: verification-and-recovery
+        priority: required
+        kind: prescription
+    - id: 4697f766b916
+      active: true
+      type: web
+      label: https://pair.withgoogle.com/guidebook-v2/case-studies
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pair.withgoogle.com/guidebook-v2/case-studies
+        note: 'Role: Selective worked-example directory. Value: Open the Google Photos case for concrete control, sensitivity, and model-versus-rule tradeoffs, then use the pattern labels to locate other cases. Limitations: The candidate page is a gallery index; do not treat every listed case as read evidence.'
+        section: verification-and-recovery
+        priority: required
+        kind: example
+    - id: a61dcbde0fe9
+      active: false
+      type: web
+      label: https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH
+        note: 'Role: Vendor-origin pattern counterpoint. Value: Mine the examples of citations, editability, confirmation steps, and safety warnings as implementation prompts. Limitations: Salesforce self-reporting and survey claims are promotional; do not treat the described patterns as validated outcomes.'
+        section: verification-and-recovery
+        priority: required
+        kind: example
+    - id: 0e13a46900ba
+      active: true
+      type: web
+      label: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+        note: 'Role: Use as the generative-AI-specific authority for answer, defer, refuse, and escalate boundaries. Value: Route to the sections on human-AI configuration, refusal criteria, recourse, independent evaluation, override monitoring, risk controls, and structured field testing when designing a fallback state or human handoff. Limitations: The profile is risk-management guidance rather than a tested interaction pattern; it does not determine the right threshold for a particular product, user, or regulated domain.'
+        section: abstention-and-escalation
+        priority: required
+        kind: reference
+    - id: 000024ffef5d
+      active: true
+      type: web
+      label: https://www.nist.gov/itl/ai-risk-management-framework
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.nist.gov/itl/ai-risk-management-framework
+        note: 'Role: Keep as the primary authority for deciding when an AI feature''s risk and uncertainty should change its operating mode. Value: Use the risk-tolerance, residual-risk, lifecycle, and stop-until-managed passages to justify deferral, human confirmation, or escalation instead of treating trust as a visual treatment. Limitations: It is voluntary, high-level, and organizational; it does not specify user-facing copy, interaction layouts, or a complete runtime abstention algorithm.'
+        section: abstention-and-escalation
+        priority: required
+        kind: reference
+    - id: 758eaafde505
+      active: true
+      type: web
+      label: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+        note: 'Role: Keep as the concrete safeguard authority for consequential actions that an AI feature may prepare or trigger. Value: Use its reversible, checked, or confirmed pattern to turn uncertainty into a review, correction, or draft-before-commit state. Limitations: It is an accessibility success criterion for web pages and specified transaction types, not an AI-specific abstention rule; apply the interaction pattern without claiming WCAG conformance or complete risk coverage from it alone.'
+        section: abstention-and-escalation
+        priority: required
+        kind: prescription
+    - id: 0ea938bf82ea
+      active: true
+      type: web
+      label: https://www.microsoft.com/en-us/research/?p=564561
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.microsoft.com/en-us/research/?p=564561
+        note: 'Role: Keep as the practical interaction layer for implementing uncertainty, graceful degradation, correction, and user control. Value: Route to the "when wrong" guidelines and the AutoReplace example when turning an abstention or deferral rule into an actionable product state with alternatives, dismissal, correction, and explanation. Limitations: The page is a concise guideline overview with only a small number of examples, was developed for graphical interfaces, and does not establish high-stakes safety thresholds or empirical evidence for every recommendation.'
+        section: abstention-and-escalation
+        priority: required
+        kind: prescription
+    - id: 50aa798edd31
+      active: true
+      type: web
+      label: https://www.w3.org/TR/WCAG22/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.w3.org/TR/WCAG22/
+        note: 'Role: Use selectively as the normative bridge after deciding that a feature needs confirmation, recovery, or a visible status change. Value: Check the relevant success criteria for accessible error prevention and announcement of processing or deferral states, especially 3.3.4 and 4.1.3. Limitations: WCAG is not a trust-calibration framework and the full standard is too broad to serve as the corpus''s main guidance; do not substitute conformance language for product-specific risk analysis.'
+        section: abstention-and-escalation
+        priority: required
+        kind: reference
+    - id: 1937145d7ea6
+      active: true
+      type: web
+      label: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+        note: 'Role: Keep as a selective bridge when a deferral or handoff needs a meaningful explanation rather than a generic warning. Value: Use its impact- and use-case-sensitive selection of explanation types and its translation from system rationale to understandable reasons to support contestability and verification. Limitations: The supplied URL is a navigation page, so this evaluation relies on a linked practical section; the guidance is under review, compliance-oriented, and does not provide a tested UI pattern or a decision rule for when the system must abstain.'
+        section: abstention-and-escalation
+        priority: required
+        kind: prescription
+    - id: 9aa192ec967a
+      active: true
+      type: web
+      label: https://www.sciencedirect.com/science/article/pii/S000437022300098X
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://www.sciencedirect.com/science/article/pii/S000437022300098X
+        note: 'Role: Use as the empirical warning against treating explanations as an automatic safeguard. Value: Its two-task comparison and first-impression manipulation connect interface treatment to behavioral reliance. Limitations: Findings are task- and explanation-specific; it does not establish a universal best explanation pattern.'
+        section: evaluation-and-critique
+        priority: required
+        kind: principle
+    - id: b7bdac543680
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2102.09692
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2102.09692
+        note: 'Role: Use as the failure-focused empirical anchor for deciding when explanations need deliberate verification friction. Value: It compares concrete interaction patterns against behavioral error detection and reports acceptability and subgroup tradeoffs. Limitations: The food-substitution task is non-critical and the authors caution against generalizing without further domain studies.'
+        section: evaluation-and-critique
+        priority: required
+        kind: principle
+    - id: 997781905c2b
+      active: true
+      type: web
+      label: https://pubmed.ncbi.nlm.nih.gov/38184595/
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://pubmed.ncbi.nlm.nih.gov/38184595/
+        note: 'Role: Use as the frontline domain-expert counterweight to generic product guidance. Value: Treat professional responsibility and the user''s ability to judge reliability on their own terms as design constraints, not as trust deficits to overcome. Limitations: Only the detailed abstract was retrieved, the interview sample was 13 UK obstetricians and midwives, and the cardiotocography setting cannot establish a general interface pattern.'
+        section: evaluation-and-critique
+        priority: required
+        kind: principle
+    - id: 0de2e4e8fc6b
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2301.05578
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2301.05578
+        note: 'Role: Use selectively as a principles-and-evaluation scaffold for generative features. Value: The sections on imperfection, human review, mental models, and harms connect failure conditions to interface choices. Limitations: Workshop-era synthesis with cited examples, not evidence that these principles improve reliance in a measured product context.'
+        section: evaluation-and-critique
+        priority: required
+        kind: principle
+    - id: c187d02d353a
+      active: true
+      type: web
+      label: https://arxiv.org/abs/2302.10395
+      destination: fetch on compile
+      status: ready
+      source:
+        type: web
+        url: https://arxiv.org/abs/2302.10395
+        note: 'Role: Use as a bridge from model transparency to product-team design decisions. Value: It names a qualitative method and a concrete gap between technical reporting and designer needs. Limitations: Only the abstract was recovered, and the study concerns design ideation rather than whether end users check or appropriately rely on AI output.'
+        section: evaluation-and-critique
+        priority: required
+        kind: principle

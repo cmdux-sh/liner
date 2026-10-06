@@ -1,0 +1,18 @@
+{
+  "schema": "liner.clarification-draft.v1",
+  "jtbd": "When an AI feature in my product can be wrong, I want to show how far to trust it and let people check its work, so they rely on it the right amount.",
+  "questions": [
+    "In what specific product situation, for which people, would an AI feature being wrong cause the most confusion or harm—and what kind of wrongness matters most?",
+    "What should a future AI session help the product team decide or produce: a trust label, evidence display, verification steps, uncertainty language, escalation rule, or something else?",
+    "What decisions or actions must the feature never encourage without human checking, and are there legal, safety, privacy, financial, medical, or organizational boundaries the agent must respect?",
+    "When given an AI output, its supporting evidence, or a proposed interface, what should the future agent return—and should it ask clarifying questions when context is missing or make the best grounded recommendation autonomously?"
+  ],
+  "answers": [
+    "Product teams adding AI to tools people use for real work: generated summaries, suggested answers, extracted data and recommendations that someone acts on. The harmful kind of wrong is confident and plausible: a fluent answer with a wrong fact, a missing caveat or an unsupported claim that the person accepts without checking.",
+    "Interface decisions for one AI feature: how to express uncertainty in words and visuals, when a numeric confidence helps or misleads, what evidence or sources to show beside an answer, how people verify or correct it, and when the feature should defer to a person instead of answering.",
+    "The feature should never encourage irreversible or high-stakes actions, such as sending, paying, deleting, or medical, legal and financial decisions, on an unchecked AI output. The guidance is for interface design in general products, not regulated domains; it should flag where regulated contexts need specialist review rather than give compliance advice.",
+    "Return a concrete recommendation for the interface: the uncertainty treatment, the evidence to show, the verification path and the fallback, each with the sources behind it and the tradeoff it accepts. Ask one clarifying question only when the stakes or the audience are unknown; otherwise make the best grounded recommendation and state its assumptions."
+  ],
+  "step": 3,
+  "updated": "2026-10-03T03:50:23Z"
+}

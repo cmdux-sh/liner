@@ -1,0 +1,176 @@
+links:
+    - active: true
+      id: 2e031c09a95c
+      label: https://pair.withgoogle.com/chapter/explainability-trust/
+      type: web
+      url: https://pair.withgoogle.com/chapter/explainability-trust/
+    - active: true
+      id: 62ff03765a82
+      label: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+      type: web
+      url: https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/
+    - active: true
+      id: 36b31b959d09
+      label: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+      type: web
+      url: https://developer.apple.com/design/human-interface-guidelines/machine-learning
+    - active: true
+      id: c18696ad0f9c
+      label: https://scholars.duke.edu/publication/1163926
+      type: web
+      url: https://scholars.duke.edu/publication/1163926
+    - active: true
+      id: f88dba96db70
+      label: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+      type: web
+      url: https://faculty.wharton.upenn.edu/wp-content/uploads/2016/11/20-Dietvorst-Simmons-Massey-2015.pdf
+    - active: true
+      id: 571b8dd42cc3
+      label: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+      type: web
+      url: https://ojs.aaai.org/index.php/HCOMP/article/view/5285
+    - active: true
+      id: 18a9e93ebc41
+      label: https://arxiv.org/abs/2001.02114
+      type: web
+      url: https://arxiv.org/abs/2001.02114
+    - active: true
+      id: 68520e4129c7
+      label: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+      type: web
+      url: https://ojs.aaai.org/index.php/AAAI/article/view/38798
+    - active: true
+      id: e4444201a2e0
+      label: https://doi.org/10.1145/3588320
+      type: web
+      url: https://doi.org/10.1145/3588320
+    - active: true
+      id: 305e1ea3a649
+      label: https://arxiv.org/abs/2309.10852
+      type: web
+      url: https://arxiv.org/abs/2309.10852
+    - active: true
+      id: 0313f78d8102
+      label: https://arxiv.org/abs/2403.09552
+      type: web
+      url: https://arxiv.org/abs/2403.09552
+    - active: true
+      id: abeb8b7eb06f
+      label: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+      type: web
+      url: https://ojs.aaai.org/index.php/AAAI/article/view/26920
+    - active: true
+      id: 82e5c531b2d8
+      label: https://aclanthology.org/2023.emnlp-main.398/
+      type: web
+      url: https://aclanthology.org/2023.emnlp-main.398/
+    - active: true
+      id: 29df10d26b4f
+      label: https://arxiv.org/abs/2210.08726
+      type: web
+      url: https://arxiv.org/abs/2210.08726
+    - active: true
+      id: c4d447e80ef7
+      label: https://arxiv.org/abs/2203.11147
+      type: web
+      url: https://arxiv.org/abs/2203.11147
+    - active: true
+      id: d419a263d1c5
+      label: https://pair.withgoogle.com/guidebook-v2/patterns
+      type: web
+      url: https://pair.withgoogle.com/guidebook-v2/patterns
+    - active: true
+      id: b6b9700ba9a1
+      label: https://arxiv.org/abs/2112.09332
+      type: web
+      url: https://arxiv.org/abs/2112.09332
+    - active: true
+      id: 7929dad216b6
+      label: https://aclanthology.org/2024.acl-long.161/
+      type: web
+      url: https://aclanthology.org/2024.acl-long.161/
+    - active: true
+      id: 5785b1b141db
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/
+      type: web
+      url: https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/
+    - active: true
+      id: f8d9501839dd
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/
+      type: web
+      url: https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/
+    - active: true
+      id: 21f72853c46a
+      label: https://arxiv.org/abs/2104.03483
+      type: web
+      url: https://arxiv.org/abs/2104.03483
+    - active: true
+      id: 9c3d29f06e66
+      label: https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/
+      type: web
+      url: https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/
+    - active: true
+      id: 4697f766b916
+      label: https://pair.withgoogle.com/guidebook-v2/case-studies
+      type: web
+      url: https://pair.withgoogle.com/guidebook-v2/case-studies
+    - active: false
+      id: a61dcbde0fe9
+      label: https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH
+      type: web
+      url: https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH
+    - active: true
+      id: 0e13a46900ba
+      label: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+      type: web
+      url: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+    - active: true
+      id: 000024ffef5d
+      label: https://www.nist.gov/itl/ai-risk-management-framework
+      type: web
+      url: https://www.nist.gov/itl/ai-risk-management-framework
+    - active: true
+      id: 758eaafde505
+      label: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+      type: web
+      url: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+    - active: true
+      id: 0ea938bf82ea
+      label: https://www.microsoft.com/en-us/research/?p=564561
+      type: web
+      url: https://www.microsoft.com/en-us/research/?p=564561
+    - active: true
+      id: 50aa798edd31
+      label: https://www.w3.org/TR/WCAG22/
+      type: web
+      url: https://www.w3.org/TR/WCAG22/
+    - active: true
+      id: 1937145d7ea6
+      label: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+      type: web
+      url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+    - active: true
+      id: 9aa192ec967a
+      label: https://www.sciencedirect.com/science/article/pii/S000437022300098X
+      type: web
+      url: https://www.sciencedirect.com/science/article/pii/S000437022300098X
+    - active: true
+      id: b7bdac543680
+      label: https://arxiv.org/abs/2102.09692
+      type: web
+      url: https://arxiv.org/abs/2102.09692
+    - active: true
+      id: 997781905c2b
+      label: https://pubmed.ncbi.nlm.nih.gov/38184595/
+      type: web
+      url: https://pubmed.ncbi.nlm.nih.gov/38184595/
+    - active: true
+      id: 0de2e4e8fc6b
+      label: https://arxiv.org/abs/2301.05578
+      type: web
+      url: https://arxiv.org/abs/2301.05578
+    - active: true
+      id: c187d02d353a
+      label: https://arxiv.org/abs/2302.10395
+      type: web
+      url: https://arxiv.org/abs/2302.10395

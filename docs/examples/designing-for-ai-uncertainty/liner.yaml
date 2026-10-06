@@ -1,0 +1,18 @@
+artifact: liner
+id: 9e7e7d9c-769f-4524-ab39-30f21a763885
+mixtape: mixtape
+project_skill:
+    name: liner-designing-for-ai-uncertainty
+    path: SKILL.md
+    status: active
+status:
+    corpus:
+        evidence: mixtape/MIXTAPE.md
+        state: ready
+    milestone: project_complete
+    operating_layer:
+        evidence: LINER.md
+        state: ready
+    stale: false
+    updated: "2026-10-03T04:45:29.842951Z"
+version: 2

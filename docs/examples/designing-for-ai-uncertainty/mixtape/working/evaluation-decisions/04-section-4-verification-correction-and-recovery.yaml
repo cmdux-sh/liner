@@ -1,0 +1,94 @@
+candidates:
+  - url: "https://pair.withgoogle.com/guidebook-v2/chapter/feedback-controls/"
+    title: "Feedback + Control"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: "Evidence and verification interaction methods"
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - "The chapter distinguishes implicit from explicit feedback and says users should be told what is collected, why it is collected, and how they can opt out or inspect their data."
+      - "Its control guidance recommends manual fallbacks, editable preferences, resettable personalization, and clear communication about when feedback will change the experience."
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "It gives concrete interaction patterns for correcting AI output and retaining human control, though its feedback-loop emphasis extends beyond one-off verification."
+    note: |
+      Role: Core interaction guidance for correction and control. Value: Use the sections on manual fallback, editability, reset, and feedback impact when designing recovery. Limitations: Mostly practitioner guidance, with limited empirical validation of the patterns.
+
+  - url: "https://pair.withgoogle.com/guidebook-v2/chapter/errors-failing/"
+    title: "Errors + Graceful Failure"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: "Verification, correction, and recovery"
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - "The chapter separates system-limitation, context, and background errors, then asks teams to assess user impact and situational stakes rather than treating every failure alike."
+      - "It gives response patterns for low confidence, missing data, mislabeled outputs, and irrelevant results, including explaining limits, offering alternative paths, soliciting feedback, and returning control to the user."
+      - "Its recovery guidance says manual takeover must provide awareness of the situation, the next action, and how to perform it, and warns that high-stakes alternatives need an additional safety check."
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "This is the strongest direct source in the section because it connects uncertainty and error diagnosis to concrete correction paths, safer alternatives, and human takeover."
+    note: |
+      Role: Load-bearing method for failure and recovery design. Value: Route here for error taxonomy, risk-sensitive responses, feedback opportunities, and handoff to manual control. Limitations: Google practitioner guidance; examples are illustrative rather than independently evaluated product results.
+
+  - url: "https://arxiv.org/abs/2001.02478"
+    title: "Questioning the AI: Informing Design Practices for Explainable AI User Experiences"
+    decision: dropped
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "The direct read exposed only the abstract and metadata, and the one alternate HTML recovery failed, so the paper cannot meet the substantive-content evidence contract."
+
+  - url: "https://arxiv.org/abs/2104.03483"
+    title: "Question-Driven Design Process for Explainable AI User Experiences"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: "Caller handoff and design method"
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - "The paper proposes eliciting user questions, probing the intent and expected answer behind each question, clustering questions separately from underlying requirements, and using those results to prioritize explanations."
+      - "In the healthcare case, participants asked about why a prediction occurred, what could reduce risk, the training data, and where performance degrades; the resulting requirements included assessing prediction reliability and deciding when to investigate further."
+      - "The iterative prototype exposed that raw contrastive explanations suggested unchangeable risk factors; the team constrained the model and linked actionable factors such as pneumonia risk and smoking to relevant resources."
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "It supplies a repeatable bridge from user questions to inspectable explanations, reliability judgments, actionable correction, and designer-engineer handoff."
+    note: |
+      Role: Core method for turning “how should I check this?” into design and engineering requirements. Value: Use the question elicitation, prioritization, mapping, and iterative evaluation steps. Limitations: The worked case is healthcare prediction, and the final system was partly proprietary.
+
+  - url: "https://pair.withgoogle.com/guidebook-v2/case-studies"
+    title: "People + AI Research — Case Studies"
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: "Worked interface cases across core output types"
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - "The index maps Google Photos, BenchSci, Google Flights, Read Along, and Tune to patterns such as user supervision, confidence communication, accountability for errors, feedback, and returning control after automation fails."
+      - "The linked Google Photos Memories case explains why sensitive memories raised the cost of mistakes, combines model and rule-based filtering, and adds controls to hide faces, dates, date ranges, or all memories."
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "It is useful as a routing index plus one concrete control-and-recovery case, but the index itself is shallow and does not provide full rationale for every listed case."
+    note: |
+      Role: Selective worked-example directory. Value: Open the Google Photos case for concrete control, sensitivity, and model-versus-rule tradeoffs, then use the pattern labels to locate other cases. Limitations: The candidate page is a gallery index; do not treat every listed case as read evidence.
+
+  - url: "https://www.salesforce.com/news/stories/ai-trust-patterns/?bc=OTH"
+    title: "How Salesforce Builds Trust in Our AI Products"
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: "Worked interface cases"
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - "The article names five Salesforce pattern families—mindful friction, AI awareness, bias and toxicity safeguards, explainability and accuracy, and hallucination reduction."
+      - "Its product examples include source citations for validation, AI-content indicators, edits and thumbs feedback, confirmation before generated email is saved or sent, equal visual weight for send versus edit, and safety-detector popovers with corrective actions."
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "It offers concrete vendor examples of source checking, feedback, and confirmation friction, but the short promotional framing does not establish independent effectiveness."
+    note: |
+      Role: Vendor-origin pattern counterpoint. Value: Mine the examples of citations, editability, confirmation steps, and safety warnings as implementation prompts. Limitations: Salesforce self-reporting and survey claims are promotional; do not treat the described patterns as validated outcomes.
+
+  - url: "https://www.youtube.com/watch?v=n3HsvqBJrlY"
+    title: "Getting Started with the People + AI Guidebook"
+    decision: dropped
+    section: "Section 4: Verification, correction, and recovery"
+    rationale: "The direct YouTube read failed and the one search-based recovery found only indirect summaries without a retrievable transcript for this video, so its content cannot be evaluated honestly."

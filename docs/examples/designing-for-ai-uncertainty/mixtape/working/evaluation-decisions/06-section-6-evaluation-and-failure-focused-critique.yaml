@@ -1,0 +1,68 @@
+candidates:
+  - url: "https://www.sciencedirect.com/science/article/pii/S000437022300098X"
+    title: The Effects of Explanations on Automation Bias
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: critique and validation evidence
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The paper reports two experiments, using a Coloured Trails decision task and a simulated radiological task, that measure automation bias, decision accuracy, task load, trust, and completion time.
+      - Across the studies, explanations did not reduce agreement with erroneous AI advice and sometimes increased automation bias, while local explanations often improved accuracy and reduced completion time.
+      - The initial-training manipulation shows that positive versus negative first impressions changed automation bias, accuracy, and trust, making context and prior exposure part of the evaluation frame.
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: The full paper supplies a primary, failure-focused test showing that explanations can improve speed or accuracy without producing appropriately calibrated reliance.
+    note: |
+      Role: Use as the empirical warning against treating explanations as an automatic safeguard. Value: Its two-task comparison and first-impression manipulation connect interface treatment to behavioral reliance. Limitations: Findings are task- and explanation-specific; it does not establish a universal best explanation pattern.
+
+  - url: "https://arxiv.org/abs/2301.05578"
+    title: Toward General Design Principles for Generative AI Applications
+    decision: trim
+    rating: 3
+    jtbd_fit: direct
+    source_role: critique and validation evidence
+    fetch_status: readable
+    content_quality: medium
+    evidence:
+      - The paper frames generative AI around variability and imperfection, including misleading answers, missing constraints, code errors, and the need to identify which output portions require human review.
+      - Its principles recommend multiple outputs, visualizing differences, evaluation or domain-specific quality signals, controls or sandboxing, and mental-model support so users understand variability and the AI's role.
+      - The explanation section uses token-level uncertainty highlighting in code translation as an example of turning model weakness into a cue for understanding and user correction, while the harms section explicitly says it does not prescribe complete mitigations.
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: This readable design synthesis gives the agent useful evaluation vocabulary and interface moves, but it is broad guidance rather than a primary validation study.
+    note: |
+      Role: Use selectively as a principles-and-evaluation scaffold for generative features. Value: The sections on imperfection, human review, mental models, and harms connect failure conditions to interface choices. Limitations: Workshop-era synthesis with cited examples, not evidence that these principles improve reliance in a measured product context.
+
+  - url: "https://arxiv.org/abs/2302.10395"
+    title: "Designerly Understanding: Information Needs for Model Transparency to Support Design Ideation for AI-Powered User Experience"
+    decision: trim
+    rating: 3
+    jtbd_fit: bridge
+    source_role: critique and validation evidence
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - The abstract reports interviews with 23 UX practitioners and finds that practitioners frequently use pre-trained models but lack support for UX-led ideation.
+      - A scenario-based design task identifies the goals for which designers seek model understanding and the transparency information they need to decide whether, where, and how to use AI.
+      - The paper positions model transparency and interrogation as ways to help designers understand AI limitations, rather than assuming technical model reports directly answer design questions.
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: The abstract provides enough evidence for a selective bridge source about design-team information needs, but the failed HTML recovery prevents judging the full study and it is not a runtime reliance evaluation.
+    note: |
+      Role: Use as a bridge from model transparency to product-team design decisions. Value: It names a qualitative method and a concrete gap between technical reporting and designer needs. Limitations: Only the abstract was recovered, and the study concerns design ideation rather than whether end users check or appropriately rely on AI output.
+
+  - url: "https://arxiv.org/abs/2102.09692"
+    title: "To Trust or to Think: Cognitive Forcing Functions Can Reduce Overreliance on AI in AI-Assisted Decision-Making"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: critique and validation evidence
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The experiment with 199 participants compares three cognitive-forcing designs with simple explainable-AI conditions and a no-AI baseline, including on-demand disclosure, an initial human decision before AI feedback, and a 30-second wait.
+      - When the simulated AI was wrong, cognitive-forcing conditions produced more correct decisions and less overreliance than simple explanations for key measures, although overreliance was reduced rather than eliminated.
+      - The paper finds a tradeoff between effectiveness and acceptability, and its subgroup analysis shows greater benefits for participants high in Need for Cognition, with a single non-critical task limiting generalization.
+    section: "Section 6: Evaluation and failure-focused critique"
+    rationale: This primary experiment directly tests behavioral reliance and shows why verification friction, preference, trust, and subgroup effects must be evaluated together.
+    note: |
+      Role: Use as the failure-focused empirical anchor for deciding when explanations need deliberate verification friction. Value: It compares concrete interaction patterns against behavioral error detection and reports acceptability and subgroup tradeoffs. Limitations: The food-substitution task is non-critical and the authors caution against generalizing without further domain studies.

@@ -1,0 +1,102 @@
+candidates:
+  - url: https://www.nist.gov/itl/ai-risk-management-framework
+    title: AI Risk Management Framework
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: deferral, safeguards, and human-control authority
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The recovered AI RMF 1.0 defines risk through both likelihood and consequence, makes risk tolerance context- and use-case-specific, and says unacceptable negative risk can require stopping development or deployment until it is managed.
+      - The framework organizes action through GOVERN, MAP, MEASURE, and MANAGE, and explicitly treats residual risk, lifecycle roles, testing, evaluation, verification, and validation as operational responsibilities rather than interface decoration.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The primary framework gives the agent an authoritative basis for risk-sensitive refusal, staged release, human responsibility, and stopping rules, while remaining general enough to apply across AI features.
+    note: |
+      Role: Keep as the primary authority for deciding when an AI feature's risk and uncertainty should change its operating mode. Value: Use the risk-tolerance, residual-risk, lifecycle, and stop-until-managed passages to justify deferral, human confirmation, or escalation instead of treating trust as a visual treatment. Limitations: It is voluntary, high-level, and organizational; it does not specify user-facing copy, interaction layouts, or a complete runtime abstention algorithm.
+
+  - url: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+    title: "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile"
+    decision: kept
+    rating: 5
+    jtbd_fit: direct
+    source_role: deferral, safeguards, and human-control authority
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The recovered NIST AI 600-1 profile names confabulation as confidently stated false content and human-AI configuration risks including automation bias, over-reliance, and emotional entanglement.
+      - Its suggested actions call for refusal criteria for queries a GAI application should not answer, user feedback and recourse mechanisms, independent evaluations proportional to risk, monitoring of overrides, and staged release or mitigation when risks exceed tolerance.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: This is the strongest source in the chunk for converting generative-AI failure modes into explicit refusal, oversight, feedback, monitoring, and release decisions.
+    note: |
+      Role: Use as the generative-AI-specific authority for answer, defer, refuse, and escalate boundaries. Value: Route to the sections on human-AI configuration, refusal criteria, recourse, independent evaluation, override monitoring, risk controls, and structured field testing when designing a fallback state or human handoff. Limitations: The profile is risk-management guidance rather than a tested interaction pattern; it does not determine the right threshold for a particular product, user, or regulated domain.
+
+  - url: https://airc.nist.gov/airmf-resources/airmf/5-sec-core/
+    title: AI RMF Core
+    decision: dropped
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The page is an accessible excerpt of the same AI RMF Core already covered in the stronger recovered primary framework, so keeping it would add duplicate governance vocabulary without additional product or empirical evidence.
+
+  - url: https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html
+    title: "Understanding Success Criterion 3.3.4: Error Prevention (Legal, Financial, Data)"
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: deferral, safeguards, and human-control authority
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The W3C explanation gives three concrete safeguards for consequential submissions: make them reversible, check input and provide correction, or provide a review-and-confirm mechanism before finalization.
+      - Its examples cover non-refundable airline tickets, stock purchases, legal commitments, and unrecoverable data deletion, showing why confirmation and recovery should scale with consequence.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: This authoritative, behavior-level guidance supplies a transferable rule for keeping uncertain AI output from directly causing irreversible legal, financial, or data actions.
+    note: |
+      Role: Keep as the concrete safeguard authority for consequential actions that an AI feature may prepare or trigger. Value: Use its reversible, checked, or confirmed pattern to turn uncertainty into a review, correction, or draft-before-commit state. Limitations: It is an accessibility success criterion for web pages and specified transaction types, not an AI-specific abstention rule; apply the interaction pattern without claiming WCAG conformance or complete risk coverage from it alone.
+
+  - url: https://www.w3.org/TR/WCAG22/
+    title: Web Content Accessibility Guidelines (WCAG) 2.2
+    decision: trim
+    rating: 3
+    jtbd_fit: bridge
+    source_role: deferral, safeguards, and human-control authority
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The standard explains its layered structure of principles, guidelines, testable success criteria, and sufficient or advisory techniques, distinguishing normative checks from implementation guidance.
+      - The normative text includes Success Criterion 3.3.4 for reversible, checked, or confirmed consequential submissions and Success Criterion 4.1.3 requiring programmatically determinable status messages that assistive technologies can present without focus.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The full standard is a useful implementation and accessibility constraint for deferral, confirmation, and status states, but its breadth is unnecessary for the core reliance decision and overlaps with the more focused 3.3.4 explanation.
+    note: |
+      Role: Use selectively as the normative bridge after deciding that a feature needs confirmation, recovery, or a visible status change. Value: Check the relevant success criteria for accessible error prevention and announcement of processing or deferral states, especially 3.3.4 and 4.1.3. Limitations: WCAG is not a trust-calibration framework and the full standard is too broad to serve as the corpus's main guidance; do not substitute conformance language for product-specific risk analysis.
+
+  - url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/artificial-intelligence/explaining-decisions-made-with-artificial-intelligence/
+    title: Explaining Decisions Made with AI
+    decision: trim
+    rating: 3
+    jtbd_fit: bridge
+    source_role: evidence and verification interaction methods
+    fetch_status: partial
+    content_quality: medium
+    evidence:
+      - The linked practical section structures the guidance around selecting explanations by sector, use case, and impact on the individual, then collecting explanation-aware data and extracting relevant explanation types.
+      - Its workflow includes translating system rationales into usable reasons, preparing implementers, and deciding how to build and present an explanation to the decision recipient; it also states that the guidance is practical advice rather than a statutory code.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The source offers a useful boundary for meaningful explanations and impact-sensitive presentation, but the supplied URL is an index page and the guidance focuses on explanation practice rather than runtime abstention or human escalation.
+    note: |
+      Role: Keep as a selective bridge when a deferral or handoff needs a meaningful explanation rather than a generic warning. Value: Use its impact- and use-case-sensitive selection of explanation types and its translation from system rationale to understandable reasons to support contestability and verification. Limitations: The supplied URL is a navigation page, so this evaluation relies on a linked practical section; the guidance is under review, compliance-oriented, and does not provide a tested UI pattern or a decision rule for when the system must abstain.
+
+  - url: https://www.microsoft.com/en-us/research/?p=564561
+    title: Guidelines for Human-AI Interaction
+    decision: kept
+    rating: 4
+    jtbd_fit: direct
+    source_role: deferral, safeguards, and human-control authority
+    fetch_status: readable
+    content_quality: high
+    evidence:
+      - The readable Microsoft Research page groups 18 guidelines by initial interaction, during interaction, when wrong, and over time, while warning that the set is meant to stimulate tradeoff discussions rather than function as a checklist.
+      - The "when wrong" guidance explicitly calls for efficient dismissal and correction, scoping services when in doubt through disambiguation or graceful degradation, and access to an explanation; examples include AutoReplace showing multiple options and Excel Ideas soliciting feedback on a suggestion.
+    section: "Section 5: Abstention, deferral, and escalation"
+    rationale: The source translates uncertainty and error into concrete product behaviors—scope, degrade, dismiss, correct, explain, and gather feedback—making it a strong interaction bridge for the authority sources.
+    note: |
+      Role: Keep as the practical interaction layer for implementing uncertainty, graceful degradation, correction, and user control. Value: Route to the "when wrong" guidelines and the AutoReplace example when turning an abstention or deferral rule into an actionable product state with alternatives, dismissal, correction, and explanation. Limitations: The page is a concise guideline overview with only a small number of examples, was developed for graphical interfaces, and does not establish high-stakes safety thresholds or empirical evidence for every recommendation.
