@@ -5,21 +5,24 @@ interface Props {
   command: string;
   prompt?: string;
   label?: string;
+  accessibleLabel?: string;
   tone?: "dark" | "accent";
 }
 
-const { command, prompt = "$", label = "Copy", tone = "dark" } = Astro.props;
+const { command, prompt = "$", label = "Copy", accessibleLabel, tone = "dark" } = Astro.props;
 const lines = command.split("\n");
 const isMultiline = lines.length > 1;
 ---
 
 <div class:list={["command-snippet", "not-content", `command-snippet--${tone}`, { "is-multiline": isMultiline }]}>
-  <pre aria-label="Command to run"><code>{lines.map((line, index) => <span class="command-line"><span class="command-prompt">{index === 0 ? prompt : ""}</span><span>{line}</span></span>)}</code></pre>
+  <pre tabindex="0" aria-label="Command to run"><code>{lines.map((line, index) => <span class="command-line"><span class="command-prompt" aria-hidden="true">{index === 0 ? prompt : ""}</span><span>{line}</span></span>)}</code></pre>
   <button
+    data-pagefind-ignore
+    data-copy-button
     type="button"
     class="copy-install-cmd docs-copy-command"
     data-command={command}
-    aria-label={`Copy command: ${command.replace(/\s+/g, " ")}`}
+    aria-label={accessibleLabel ?? `Copy command: ${command.replace(/\s+/g, " ")}`}
   >
     <span data-copy-icon>
       <Icon name="copy" size={13} strokeWidth={2} aria-hidden="true" />
@@ -30,46 +33,31 @@ const isMultiline = lines.length > 1;
       Copied
     </span>
   </button>
+  <span class="copy-status" role="status" data-pagefind-ignore></span>
 </div>
 
-<script is:inline>
-  (function () {
-    document.querySelectorAll(".docs-copy-command").forEach(function (btn) {
-      if (btn.dataset.bound === "true") return;
-      btn.dataset.bound = "true";
-
-      const icon = btn.querySelector("[data-copy-icon]");
-      const done = btn.querySelector("[data-copy-done]");
-      let timer;
-
-      btn.addEventListener("click", function () {
-        if (navigator.clipboard) navigator.clipboard.writeText(btn.dataset.command || "");
-        icon.style.display = "none";
-        done.style.display = "flex";
-        clearTimeout(timer);
-        timer = setTimeout(function () {
-          done.style.display = "none";
-          icon.style.display = "flex";
-        }, 2000);
-      });
-    });
-  })();
+<script>
+  import { bindCommandCopy } from "../scripts/copy-command";
+  bindCommandCopy();
 </script>
 
 <style>
   .command-snippet {
+    position: relative;
     display: inline-flex;
     align-items: stretch;
     width: fit-content;
     max-width: 100%;
-    min-height: 2.125rem;
+    min-block-size: var(--control-size);
     margin: 0.85rem 0 1.1rem;
     overflow: hidden;
     border: 1px solid var(--color-line-strong);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--color-bg-deep);
-    border-color: rgb(255 255 255 / 0.16);
+    border-color: var(--color-control-border);
   }
+
+  .command-snippet:has(:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 4px; }
 
   .command-snippet.is-multiline {
     display: inline-flex;
@@ -94,7 +82,7 @@ const isMultiline = lines.length > 1;
     border-radius: 0;
     padding: 0.5rem 0.75rem;
     background: transparent;
-    color: #fff;
+    color: var(--color-text-primary);
     font-family: var(--font-mono);
     font-size: 0.875rem;
     line-height: 1.45;
@@ -115,21 +103,42 @@ const isMultiline = lines.length > 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 5.35rem;
+    min-inline-size: 5.75rem;
+    flex: none;
     border: 0;
-    border-left: 1px solid var(--color-line-medium);
-    background: rgb(255 255 255 / 0.05);
-    color: rgb(255 255 255 / 0.75);
+    border-inline-start: 1px solid var(--color-line-medium);
+    background: var(--color-control-fill);
+    color: var(--color-text-secondary);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--type-label);
     letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
   }
 
-  .docs-copy-command:hover {
-    color: var(--color-text-primary);
-    background: rgb(255 255 255 / 0.08);
+  @media (hover: hover) and (pointer: fine) {
+    .docs-copy-command:hover { background: var(--color-control-hover); }
+  }
+  .docs-copy-command:active { background: var(--color-control-hover); }
+  .docs-copy-command:disabled { cursor: wait; }
+  .copy-status {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .command-snippet:has([data-copy-state="error"]) { flex-wrap: wrap; }
+  .command-snippet:has([data-copy-state="error"]) .copy-status {
+    position: static;
+    inline-size: 100%;
+    block-size: auto;
+    padding: var(--space-control);
+    clip-path: none;
+    white-space: normal;
+    color: var(--color-text-secondary);
+    font-size: var(--type-body);
   }
 
   .docs-copy-command span {
@@ -144,7 +153,7 @@ const isMultiline = lines.length > 1;
   }
 
   .command-snippet--accent {
-    border-color: rgb(255 255 255 / 0.16);
+    border-color: var(--color-control-border);
     background: var(--color-bg-deep);
   }
 

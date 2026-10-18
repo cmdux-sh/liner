@@ -1,0 +1,95 @@
+/* Shared by the landing page, changelog, and Starlight docs. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-v20.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC,
+    U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-v24.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC,
+    U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+
+:root {
+  color-scheme: dark;
+  --site-font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: var(--site-font-sans);
+  --site-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-mono: var(--site-font-mono);
+  --site-shell: #f4f3ed;
+  --color-shell: var(--site-shell);
+  --site-shell-line: #0a0a0a;
+  --color-shell-line: var(--site-shell-line);
+  --site-bg-void: #0a0a0a;
+  --color-bg-void: var(--site-bg-void);
+  --site-bg-workspace: #0f0f0f;
+  --color-bg-workspace: var(--site-bg-workspace);
+  --site-bg-deep: #050505;
+  --color-bg-deep: var(--site-bg-deep);
+  --site-line-soft: rgb(255 255 255 / 0.05);
+  --color-line-soft: var(--site-line-soft);
+  --site-line-medium: rgb(255 255 255 / 0.1);
+  --color-line-medium: var(--site-line-medium);
+  --site-line-strong: rgb(255 255 255 / 0.2);
+  --color-line-strong: var(--site-line-strong);
+  --site-text-primary: #ffffff;
+  --color-text-primary: var(--site-text-primary);
+  --site-text-bright: #f4f3ed;
+  --color-text-bright: var(--site-text-bright);
+  --site-text-secondary: #d4d4d8;
+  --color-text-secondary: var(--site-text-secondary);
+  --site-text-muted: #a1a1aa;
+  --color-text-muted: var(--site-text-muted);
+  --site-text-dim: #8a8a93;
+  --color-text-dim: var(--site-text-dim);
+  --site-text-dimmer: #7a7a83;
+  --color-text-dimmer: var(--site-text-dimmer);
+  --site-accent: #ff4500;
+  --color-accent: var(--site-accent);
+  --site-accent-secondary: #ffb800;
+  --color-accent-secondary: var(--site-accent-secondary);
+  --site-accent-tertiary: #9a00ff;
+  --color-accent-tertiary: var(--site-accent-tertiary);
+  --site-tui-orange: #ff4500;
+  --color-tui-orange: var(--site-tui-orange);
+  --site-tui-green: #00ac11;
+  --color-tui-green: var(--site-tui-green);
+  --site-tui-gold: #b68800;
+  --color-tui-gold: var(--site-tui-gold);
+  --site-tui-purple: #ab65ff;
+  --color-tui-purple: var(--site-tui-purple);
+  --site-tui-pink: #ff0086;
+  --color-tui-pink: var(--site-tui-pink);
+  --site-tui-blue: #daf1fd;
+  --color-tui-blue: var(--site-tui-blue);
+  --site-tui-grey: #9a9a9a;
+  --color-tui-grey: var(--site-tui-grey);
+  --type-display: clamp(2.5rem, 1.5rem + 4vw, 4.75rem);
+  --type-heading: clamp(1.75rem, 1.25rem + 2vw, 2.5rem);
+  --type-campaign: clamp(2.5rem, 1.5rem + 4vw, 5rem);
+  --type-title: 1.5rem;
+  --type-body: 1rem;
+  --type-label: 0.75rem;
+  --space-section: clamp(4.5rem, 3rem + 4vw, 7rem);
+  --space-control: 0.75rem;
+  --space-panel: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+  --radius-control: 0.375rem;
+  --control-size: 2.75rem;
+  --color-focus: var(--color-text-primary);
+  --color-control-fill: rgb(255 255 255 / 0.05);
+  --color-control-hover: rgb(255 255 255 / 0.08);
+  --color-control-border: rgb(255 255 255 / 0.16);
+  --color-text-on-accent: #0a0a0a;
+}

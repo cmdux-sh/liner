@@ -5,44 +5,48 @@ description: Fix common Liner install, compile, rendering, and transcript issues
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 
-## Check The Installed Version
+## Check the installed version
 
 <CommandSnippet command="npx linersh@latest --version" />
 
-Expected current output:
+For version 1.1.1, the output is the following.
 
-<CommandSnippet command="liner 1.1.1 (tui) · 1.1.1 (core)" prompt=">" label="Copy" />
+```text
+liner 1.1.1 (tui) · 1.1.1 (core)
+```
 
 If the platform core binary cannot be resolved, the version command prints only the TUI package version.
 
-## JavaScript Rendering Needed
+## Enable JavaScript rendering
 
-If compile says a page needs headless Chromium, run:
+If compile says a page needs headless Chromium, choose the command for your installation.
 
-<CommandSnippet command={`npx --yes linersh@latest setup-js
-liner setup-js`} />
+For one-shot use, run this command.
 
-Use the `npx` form for one-shot installs, or `liner setup-js` after a global install. The terminal UI can also run this from the compile screen when it shows the JS rendering callout.
+<CommandSnippet command="npx --yes linersh@latest setup-js" />
 
-## YouTube Transcript Problems
+For a global install, run this command.
 
-YouTube can block transcript fetching for age-restricted, region-locked, or rate-limited videos. Use a Netscape-format cookies file:
+<CommandSnippet command="liner setup-js" />
+
+The terminal UI also offers setup from the compile screen when it shows the JavaScript rendering notice.
+
+## Recover YouTube transcripts
+
+YouTube can block transcript fetching for age-restricted, region-locked, or rate-limited videos. A Netscape-format cookies file can help when your browser session can access the video.
 
 <CommandSnippet command="liner compile mobile-design-foundations --cookies ~/cookies.txt" />
 
-You can also set a default in `~/.liner/config.toml`.
+You can also set the Core fetcher's default in `~/.liner/config.toml`. The AI runner uses the separate `~/.liner/config.yaml` file.
 
-## TUI Cannot Find The Core
+## Help the terminal UI find the CLI
 
-For local development, point the npm TUI at a specific Python core binary:
+For local development, point the npm launcher at a specific CLI core binary.
 
 <CommandSnippet command="LINER_BIN=/path/to/liner liner" />
 
-The resolver tries `LINER_BIN`, the bundled platform package, the repo-local virtualenv, then `liner` on `PATH`.
+The resolver tries `LINER_BIN`, the repo-local virtualenv, the bundled platform package, then `liner` on `PATH`.
 
-## Reset Local State
+## Reset local state
 
-<CommandSnippet command={`npx --yes linersh@latest uninstall --yes
-liner uninstall --yes`} />
-
-Use the `npx` form for one-shot installs, or `liner uninstall --yes` after a global install. This removes Liner's local state, Playwright Chromium cache, and npm's npx execution cache. It is useful when testing a clean `npx linersh` install.
+See [Uninstall](/docs/install/#uninstall) to review and remove Liner's local state and shared execution/browser caches. Saved Projects outside the removed paths remain in place.

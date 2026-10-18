@@ -1,65 +1,60 @@
 ---
 title: Liner Docs
-description: Install the tool, build reusable AI context, and safely maintain Liner Projects with the CLI or an optional agent adapter.
+description: Install Liner, turn focused sources into a local research folder, and write instructions your AI assistant can reuse.
 ---
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 
-Liner is a local CLI and terminal UI for turning focused research sources into reusable AI context.
+Liner is a local CLI and terminal UI for turning focused research into files your AI assistant can reuse.
 
-You give it URLs, transcripts, PDFs, local files, or pasted text. It saves those materials, compiles the useful research into Markdown, and writes instruction files future AI sessions can read.
+Bring URLs, YouTube videos, PDFs, local files, or pasted text. The terminal UI helps you choose the evidence, review a research summary called a synthesis, compile the research into Markdown, and write AI instructions. AI-assisted research uses your installed, authenticated Codex CLI or Claude Code runner and that account's limits or charges. Files are saved locally; material read by the runner is processed under your provider's terms. Compile and instruction-file creation make no model calls.
 
-A Liner Project is the durable local folder that stores that work. It contains a curated Mixtape plus `LINER.md`, a root `SKILL.md`, and `liner.yaml`.
+The saved folder is a **Liner Project**. Its research packet is called a **Mixtape**. The packet lives under `mixtape/`; the Project's instruction and status files live at the root.
 
-## What Liner Is For
+<CommandSnippet command="npx linersh" />
+
+## Focused work
 
 Use it when source choice changes the quality of the AI's work. It fits focused jobs like reviewing a native iOS flow, comparing API migration patterns, preparing a hiring rubric, or grounding a strategy review in a specific body of evidence.
 
-The workflow helps you:
+Use Liner to do the following.
 
 - frame the task and desired output
 - gather and evaluate source material
 - write a summary the AI should inherit
 - fetch source content into local Markdown files
 - create instruction files for future AI sessions
-- safely maintain Project and Source state over time
+- review and record changes to Projects and Sources
 - package the folder for reuse or sharing
 
-## The Core Workflow
+## The creation workflow
 
-1. Create a Liner Project and define its Job to Be Done in Job Story form.
-2. Add any material you already have through the Source Inbox, review the active Sources, and save that selection.
-3. Clarify Job so the desired outcome, situation, and boundaries are explicit.
-4. Build the corpus with your configured local AI runner.
-5. Review the draft Source set and accept the Sources you want to keep.
-6. Review the Synthesis separately. Record approval when it accurately represents the accepted Sources, or edit it before approval.
-7. Liner starts Compile after Synthesis approval and writes the Mixtape.
-8. Create the Operating Layer files in the terminal UI.
-9. Give the Liner Project to your AI tool.
-10. Optionally install a Maintenance Adapter so Codex or Claude can maintain it through Liner's reviewed CLI workflow.
+1. Create a Project and describe the task using the prompted Job Story form.
+2. Add material you already have. Review the sources and save your selection.
+3. Use **Clarify Job** to make the situation, desired outcome, and boundaries explicit.
+4. Run **Build Corpus** with your configured local AI runner. A corpus is the body of research for the task.
+5. Review the draft sources and accept the ones you want to keep.
+6. Review the synthesis separately. Approve it when it accurately represents the accepted evidence, or edit it first.
+7. Liner starts **Compile** after synthesis approval and writes the Mixtape.
+8. Run **Create Operating Layer** to write the AI instruction files.
+9. Give the Project folder to an AI tool that can read files, or paste `mixtape/MIXTAPE.md` into a conversation.
 
-<CommandSnippet command="npx linersh" />
+For optional agent-assisted updates, see [Maintain with an Agent](/docs/maintenance/).
 
-## Key Ideas
+## Terms used in these docs
 
-**Tape:** the small YAML recipe. It lists metadata and source entries.
-
-**Mixtape:** the research packet inside the project. In v2 projects it lives under `mixtape/` and contains the tape, synthesis, extracted sources, working notes, and compiled output.
-
-**Liner Project:** the full working folder. It contains the Mixtape plus AI instructions, a root skill file, status, and maintenance metadata.
-
-**Synthesis:** the curator's distilled framing. This is copied into the top of `MIXTAPE.md`.
-
-**Sources:** web pages, YouTube transcripts, or local files that Liner fetches and stores as Markdown.
-
-**Project and Source IDs:** immutable identifiers assigned by Liner. Renaming or moving a Project keeps its Project ID. Editing Source metadata or its locator keeps its Source ID; replacing the meaning of a Source creates a successor ID and records lineage.
-
-**Instruction files:** `LINER.md`, root `SKILL.md`, and `liner.yaml`. These files tell future AI sessions how to use the saved research and what state to trust. In the TUI, the action that creates them is called Create Operating Layer.
-
-**Optional Maintenance Adapter:** a thin Codex or Claude skill that routes Project and Source changes through the installed CLI. It previews a Project Change Set, waits for Curator approval when required, and leaves a Change Receipt after apply. It does not replace the Project Skill.
-
-**Project Snapshot, Change Set, and Change Receipt:** the safe maintenance sequence. A Snapshot is read-only current state, a Change Set is an exact write-free plan for one Project revision, and a Receipt is the durable redacted record of the applied plan.
+| Term | Meaning |
+| --- | --- |
+| Tape | The YAML recipe in `mixtape/tape.yaml`. It lists metadata and source entries. |
+| Mixtape | The research packet inside the Project. It lives under `mixtape/` and contains the tape, synthesis, extracted sources, working notes, and compiled output. |
+| Liner Project | The full working folder. It contains the Mixtape plus AI instructions, a root skill file, status, and maintenance metadata. |
+| Synthesis | Your summary and interpretation of the selected evidence. It appears at the top of `MIXTAPE.md`. The interface calls the person choosing and approving the research the curator. |
+| Sources | Selected web pages, YouTube transcripts, local files, pasted text, or skill references. Liner extracts their content into Markdown. |
+| Project and Source IDs | Immutable identifiers assigned by Liner. Renaming or moving a Project keeps its Project ID. Editing Source metadata or its locator keeps its Source ID. Replacing the meaning of a Source creates a successor ID and records lineage. |
+| Instruction files | `LINER.md`, root `SKILL.md`, and `liner.yaml` tell future AI sessions how to use the saved research and what state to trust. The TUI action that creates them is called Create Operating Layer. |
+| Optional Maintenance Adapter | A Codex or Claude skill that routes Project and Source changes through the installed CLI. It previews a Project Change Set, waits for Curator approval when required, and leaves a Change Receipt after apply. It works alongside the Project Skill. |
+| Project Snapshot, Change Set, and Change Receipt | A Snapshot records current state without writing. A Change Set is an exact write-free plan for one Project revision. A Receipt is the durable redacted record of the applied plan. |
 
 ## Next
 
-Start with [Install](/docs/install/), walk through [Build a Project](/docs/build-a-mixtape/), then see [Maintain a Project with an Agent](/docs/maintenance/) when you want Codex or Claude to update it safely.
+Start with [Install](/docs/install/), walk through [Build a Project](/docs/build-a-mixtape/), then see [Maintain a Project with an Agent](/docs/maintenance/) when you want Codex or Claude to update it through reviewed changes.

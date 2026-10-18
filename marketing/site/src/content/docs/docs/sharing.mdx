@@ -1,22 +1,22 @@
 ---
 title: Sharing
-description: Package, import, and safely share saved research folders.
+description: Export and import .mixtape archives, choose their contents, and check private material before sharing.
 ---
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 import FileTree from "../../../components/FileTree.astro";
 
-Projects are shared as `.mixtape` archives.
+Export a Project as a `.mixtape` archive to move it between machines or share it. Check its contents first, since local source files are included by default.
 
 ## Export
 
 <CommandSnippet command="liner share mobile-design-foundations" />
 
-This writes:
+This writes an archive in the current directory.
 
 <FileTree
   root="."
-  label="Archive Output"
+  label="Archive output"
   items={[
     { name: "mobile-design-foundations.mixtape", kind: "file", accent: true },
   ]}
@@ -28,22 +28,45 @@ The archive is a zip file with the saved folder contents.
 
 <CommandSnippet command="liner import mobile-design-foundations.mixtape" />
 
-The CLI unzips the archive and refetches uncached web and YouTube sources unless you pass:
+The CLI extracts the archive and refetches uncached web and YouTube sources. To skip refetching, use this command.
 
 <CommandSnippet command="liner import mobile-design-foundations.mixtape --no-refetch" />
 
-The terminal UI import flow skips refetching. It extracts the archive into your Liner workspace, then you can open the folder and compile when you want fresh extracted source files.
+The terminal UI import flow skips refetching. It extracts the archive into your Liner workspace. Open that folder and compile to produce or update extracted source files. Compile normally reuses valid cached content. Use `liner compile <folder> --no-cache` when you need a new fetch.
 
-## Export Options
+## Export options
 
-<CommandSnippet command={`liner share mobile-design-foundations --minimal
-liner share mobile-design-foundations --no-working-notes
-liner share mobile-design-foundations --no-source-content
-liner share mobile-design-foundations --no-personal
-liner share mobile-design-foundations --out ~/Desktop/mobile.mixtape`} />
+Choose the option for the archive you want. These are separate exports; running another command for the same output path replaces the previous archive.
 
-## Private Material
+Export only the tape recipe.
 
-The `local-sources/` folder is included by default when sharing. Legacy `personal/` folders are included too. Use care before publishing or sending archives that contain local PDFs, exports, or company material.
+<CommandSnippet command="liner share mobile-design-foundations --minimal" />
 
-For library-style submissions, use public sources and pass `--no-personal` so private local-source files are not included.
+Exclude working-note directories.
+
+<CommandSnippet command="liner share mobile-design-foundations --no-working-notes" />
+
+Exclude extracted source directories.
+
+<CommandSnippet command="liner share mobile-design-foundations --no-source-content" />
+
+Exclude raw local-source directories.
+
+<CommandSnippet command="liner share mobile-design-foundations --no-personal" />
+
+Choose a destination for a full export.
+
+<CommandSnippet command="liner share mobile-design-foundations --out ~/Desktop/mobile.mixtape" />
+
+## Private material
+
+The archive includes local source files by default, along with hidden files and run logs. In current Projects, local sources live under `mixtape/local-sources/`; legacy `personal/` folders can be included too.
+
+The export flags filter specific directories. They do not remove private material from every saved artifact.
+
+- `--no-personal` excludes raw `local-sources/` and legacy `personal/` directories. It can leave copies in extracted sources, synthesis, compiled output, and logs.
+- `--no-source-content` excludes `sources/`. It can leave raw local files and derived content elsewhere.
+- `--no-working-notes` excludes `working/`. It can leave hidden run logs and other saved files.
+- `--minimal` includes only the tape recipe, which can still contain private URLs, notes, and metadata.
+
+Inspect the full archive before sharing it, including derived files, hidden files, and raw runner logs. Choose only material you are allowed to share.

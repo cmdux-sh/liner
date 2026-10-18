@@ -1,15 +1,15 @@
 ---
 title: Terminal UI
-description: Navigate the interactive terminal UI.
+description: Use keyboard shortcuts to create Projects, review sources and synthesis, compile research, and write AI instructions.
 ---
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 
-Open the terminal UI:
+Open the terminal UI.
 
 <CommandSnippet command="npx linersh" />
 
-The UI is keyboard-first. First-run setup creates a Liner Project, captures its Job to Be Done in Job Story form, and uses Clarify Job to make the outcome and boundaries explicit. It then helps you curate a Mixtape, compile its research, and write AI instruction files. It uses the active Go TUI, not the archived Ink interface.
+The terminal UI is keyboard-first. Install and authenticate Codex CLI or Claude Code for AI-assisted research. The runner uses your provider account and processes the material it reads under that provider's terms. First-run setup connects your AI runner; Project creation then asks for a task and its desired outcome. **Clarify Job** helps define the situation and boundaries. The remaining steps guide source selection, synthesis review, compile, and AI instruction writing.
 
 ## Home
 
@@ -36,7 +36,7 @@ Home is the command hub. It shows folder actions only when a folder is open and 
 | `g` | Open Settings. |
 | `r` | Refresh the project list. |
 | `esc` | Return to Home. |
-| `q` | Quit. |
+| `ctrl+c` | Quit. |
 
 ## Project
 
@@ -49,16 +49,15 @@ Home is the command hub. It shows folder actions only when a folder is open and 
 | `p` | Preview `mixtape/MIXTAPE.md` after compile. |
 | `l` | Preview or create `LINER.md`. |
 | `m` | Open Core-backed Project and Source maintenance. |
-| `k` | Open project skills when available. |
-| `u` | Open audits when available. |
+| `u` | Retry excluded local sources from the Sources pane when available. |
 | `o` | Open the saved folder. |
 | `h` | Return Home. |
 | `esc` | Return to Projects. |
-| `q` | Quit. |
+| `ctrl+c` | Quit. |
 
-The Project screen is a sectioned workspace for one saved folder. Health, Flow, Sources, Artifacts, Operating Layer, and Usage summarize the current state without forcing you into a separate editor.
+The Project screen shows the state of one saved folder in six sections. Health, Flow, Sources, Artifacts, Operating Layer, and Usage summarize its research, instructions, and current progress.
 
-## Add Sources
+## Add sources
 
 | Key | Action |
 | --- | --- |
@@ -70,19 +69,19 @@ The Project screen is a sectioned workspace for one saved folder. Health, Flow, 
 | `ctrl+o` | Open `local-sources/` after it exists. |
 | `esc` | Go back. |
 
-New projects ask whether you already have sources right after the folder is created. Choose paste sources to open the inbox, open the source editor for manual entry, or skip and let the methodology discover sources later.
+New projects ask whether you already have sources right after the folder is created. Choose paste sources to open the inbox, open the source editor for manual entry, or skip and let Build Corpus discover sources.
 
-The source inbox accepts web URLs, YouTube URLs, GitHub skill URLs, installed skill names, local file paths, existing `local-sources/...` paths, and pasted website/article text. Absolute local files are copied into the folder's `local-sources/` directory automatically. Pasted article text is saved under `local-sources/captured/` and added as a local file source.
+The source inbox accepts web URLs, YouTube URLs, GitHub skill URLs, installed skill names, local file paths, existing `local-sources/...` paths, and pasted website/article text. In current Projects, absolute local files are copied into `mixtape/local-sources/` automatically. Pasted article text is saved under `mixtape/local-sources/captured/` and added as a local file source. Recipe paths in `mixtape/tape.yaml` remain relative to `mixtape/`.
 
-For multiple sources, paste URLs together separated by spaces, commas, or new lines. For multiple full article bodies, put `--- source ---` on its own line between articles; each article block becomes its own captured local source. The inbox creates and shows the project's `local-sources/` folder so you can also drop `.md`, `.txt`, `.html`, `.htm`, or `.pdf` files there.
+For multiple sources, paste URLs together separated by spaces, commas, or new lines. For multiple full article bodies, put `--- source ---` on its own line between articles; each article block becomes its own captured local source. The inbox creates and shows the Project's `mixtape/local-sources/` folder so you can also drop `.md`, `.txt`, `.html`, `.htm`, or `.pdf` files there.
 
-For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then paste it into the source inbox. The TUI stores the pasted content under `local-sources/captured/`. Browser capture is future work, so treat pasted text as the current path.
+For authenticated or paid sources, open the page in your browser, copy the useful article text, and paste it into the source inbox. The terminal UI saves that text under `mixtape/local-sources/captured/`. Automatic browser capture is not available.
 
 Finishing entry opens **Review User-Provided Sources**. Toggle any row you do not want to save, then press Enter to prepare the save. The confirmation names how many Sources are new or already present, states that the change is additive, and shows the next step. Press Enter again to save the active Sources through Liner Core and continue to Clarify Job. Existing Sources stay unchanged.
 
 ## Build Corpus
 
-Build Corpus runs the research-building methodology through the configured Claude or Codex runner. The TUI streams progress, writes working files, validates the framing, and prepares draft Sources and Synthesis for review before Compile.
+**Build Corpus** runs the research workflow through your configured Claude Code or Codex runner. A corpus is the body of research assembled for the task. The TUI streams progress, writes working files, validates the framing, and prepares draft Sources and Synthesis for review before Compile.
 
 When research finishes, **Review Draft Sources** shows the proposed canonical Source set. Toggle the checked rows, inspect their notes and roles, then accept the selection. Liner saves that Source batch atomically, keeps already-present Sources unchanged, refreshes the Project Snapshot, and opens Synthesis approval.
 
@@ -92,7 +91,7 @@ When research finishes, **Review Draft Sources** shows the proposed canonical So
 
 | Key | Action |
 | --- | --- |
-| `enter` | Continue through the recommended compile step: view sources, repair sources, rebuild corpus after recovery, or create the Operating Layer. |
+| `enter` | Continue with the recommended action. This opens source review, repairs sources, rebuilds the corpus after recovery, or creates the Operating Layer as needed. |
 | `r` | Repair unavailable custom sources when possible, otherwise retry compile. |
 | `p` | Preview `mixtape/MIXTAPE.md`. |
 | `v` | Preview compile logs when available. |
@@ -103,19 +102,17 @@ When research finishes, **Review Draft Sources** shows the proposed canonical So
 | `o` / `d` | Open or drop the selected warning/source row when that action is available. |
 | `esc` | Go back. |
 
-Compile opens with a compact result summary. When source detail is needed,
-press Enter to open Sources review; rows with errors, retryable custom sources,
-and recovered content needing Build Corpus rise to the top. Press `r` to retry
+Compile opens with a compact result summary. Press Enter to review individual sources. Rows with errors, custom sources you can retry, and recovered content needing Build Corpus appear first. Press `r` to retry
 unavailable custom YouTube or web sources. If a source needs browser rendering,
 the repair flow installs JS support first, then retries recovery. Recovered
-content is saved under `local-sources/recovered/` and the TUI asks for Build
+content is saved under `mixtape/local-sources/recovered/` and the TUI asks for Build
 Corpus only when the AI needs to reconsider new local material.
 
 Compile treats a written `mixtape/MIXTAPE.md` as usable even when warnings
 remain. Reviewed warnings stay visible, but a usable partial result can continue
 to Operating Layer creation.
 
-## Maintain Project
+## Maintain project
 
 Choose **Maintain project** from Home when an existing Project or Source needs a
 supported change. The TUI asks Liner Core for a read-only Project Snapshot and a
@@ -132,14 +129,14 @@ Removal retains Source content in the Retention Vault. Purge is a separate,
 destructive operation. The TUI never reconstructs Core's risk or writes
 canonical Project files directly for supported maintenance.
 
-**Delete Project** is recoverable. It requires typing the exact Project name, then uses the same reviewed, approval-required Project move contract to move the entire folder out of the active Project library into the Liner Trash path shown in the preview. The Project disappears from the active Projects list, while its Project ID, user files, and Change Receipt remain intact; no Project files are erased. Use the reviewed trash path and identity-preserving Project move workflow if you need to restore it.
+**Delete Project** moves the whole folder to recoverable Liner Trash. Type the exact Project name, review the destination, and approve the move. The folder leaves the active Projects list while its Project ID, files, and Change Receipt remain intact. To restore it, inspect the trash path and use the reviewed Project move workflow to move it back to an unoccupied destination in your Project library.
 
-## Operating Layer
+## AI instruction files
 
-After the research packet is compiled, the TUI can create `LINER.md`, root `SKILL.md`, and `liner.yaml`. This step tells future AI sessions how to discover and use the saved work.
+**Create Operating Layer** writes the instruction files. After the research packet is compiled, the TUI can create `LINER.md`, root `SKILL.md`, and `liner.yaml`. This step tells future AI sessions how to discover and use the saved work.
 
 ## Import
 
 The terminal UI imports `.mixtape` archives with a file picker. Press `i` from Projects or choose Import Project from Home, select an archive, and import it into your Liner workspace.
 
-TUI import does not refetch sources. After import, open the folder and compile when you want fresh extracted source files.
+TUI import does not refetch sources. After import, open the folder and compile to produce or update extracted source files. Compile normally reuses valid cached content. Use `liner compile <folder> --no-cache` when you need a new fetch.

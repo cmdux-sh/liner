@@ -1,11 +1,11 @@
 ---
-title: Liner Projects and Mixtapes
+title: Projects and Mixtapes
 description: Understand the durable Liner Project, its Mixtape research packet, instruction files, status, and source files.
 ---
 
 import FileTree from "../../../components/FileTree.astro";
 
-Liner saves each job as a durable Liner Project. A Mixtape is the curated research packet inside that project.
+Each task has a local working folder called a Liner Project. Its research packet is called a Mixtape. The tree below shows the research inside `mixtape/` and the AI instructions at the Project root.
 
 <FileTree
   root="mobile-design-foundations/"
@@ -37,27 +37,25 @@ Liner saves each job as a durable Liner Project. A Mixtape is the curated resear
 
 The tape is small enough to review, fork, and store in Git.
 
-For supported changes after creation, use Liner's Project and Source maintenance
-commands instead of editing canonical files directly. Core preserves identity,
-plans the exact file effects, and records a Change Receipt after apply.
+Use Liner's Project and Source maintenance commands for changes after creation. The CLI checks stable IDs, plans the exact file effects, and records the applied result in a Change Receipt. Direct edits bypass those checks.
 
-## Durable Identity And Maintenance Records
+## Identity and change records
 
-Each current Project has an immutable Project ID in `liner.yaml`. Each canonical Source has an immutable Source ID in `mixtape/tape.yaml`. Display names, folder paths, URLs, titles, notes, and sections can change without becoming identity.
+Each current Project has an immutable Project ID in `liner.yaml`. Each canonical Source has an immutable Source ID in `mixtape/tape.yaml`. Renaming a Project, moving its folder, or editing a Source's URL, title, notes, or section keeps the corresponding ID.
 
 - Project rename and move preserve the Project ID.
 - Source metadata and locator updates preserve the Source ID.
 - Semantic Source replacement creates a successor Source ID and records predecessor lineage.
 - Source removal retains content and provenance; purge is a separate destructive action.
 
-Before a supported change, Liner reads a versioned **Project Snapshot** and creates a write-free **Project Change Set** for that exact revision. After apply, it writes a redacted **Change Receipt** under `mixtape/.liner-runs/maintenance/`. The receipt records identity, effects, validation, stale derived artifacts, and next actions without copying Source bodies or private notes.
+Before a supported change, Liner reads a versioned **Project Snapshot**, which records current state, and creates a write-free **Project Change Set**, which plans the exact effects for that revision. After apply, it writes a redacted **Change Receipt** under `mixtape/.liner-runs/maintenance/`. The receipt records identity, effects, validation, stale derived artifacts, and next actions without copying Source bodies or private notes.
 
 ## Liner Project
 
-The Liner Project owns the Mixtape plus the instruction files future AI sessions need.
+At the Project root, these files guide future AI sessions.
 
 - `LINER.md` tells an AI how to use the saved research.
-- `SKILL.md` is the default skill file for local AI assistants.
+- Root `SKILL.md` is the Project entry point for compatible local AI assistants.
 - `liner.yaml` records status, evidence pointers, and instruction-file state.
 - `working/` is for audits and maintenance notes.
 
@@ -65,24 +63,24 @@ The Liner Project owns the Mixtape plus the instruction files future AI sessions
 
 The Mixtape is the research packet. It lives under `mixtape/` and includes the tape, synthesis, extracted sources, optional private source copies, methodology notes, and compiled output.
 
-## Consumable Output
+## Compiled research
 
 `mixtape/MIXTAPE.md` is the research entry point. It includes the curator synthesis and a source index with links to extracted files in `mixtape/sources/`. A written `MIXTAPE.md` means the research packet is compiled, but the AI instruction files may still need to be created.
 
-## Instruction Files
+## AI instruction files
 
 In the terminal UI, **Create Operating Layer** is the guided action that writes `LINER.md`, root `SKILL.md`, and `liner.yaml`.
 
-Use it when a future AI session should load the whole folder, follow the method from the saved research, and understand status without reading every working note first.
+The instruction files help a new AI session load the folder, follow the method from the research, and check its status before reading the working notes.
 
-## Curator Notes
+## Curator notes
 
-Every source should explain why it belongs. A source with no note is just a bookmark. A useful note tells the AI what matters, what to skim, and any limitation to keep in mind.
+Give each source a note explaining why it belongs. Tell the AI which parts matter, what to skim, and which limitations apply.
 
-## Skills And Projects
+## Skills and Projects
 
-Skills carry reusable method: steps, style, rules, and taste.
+Skills carry reusable methods, including steps, style, rules, and taste.
 
-Mixtapes carry job-specific research context: primary docs, examples, contested takes, and local files.
+Mixtapes carry evidence for a specific task, including primary docs, examples, competing views, and local files.
 
-A Liner Project combines both: job-specific evidence in the Mixtape, plus task-specific method in the root skill file.
+A Project combines the evidence with a method for the task in its root skill file.

@@ -96,7 +96,7 @@ const links = [
     flex: 0 0 auto;
     background: var(--color-accent);
     box-shadow: 0 0 0 0 rgb(255 69 0 / 0.65);
-    animation: record-pulse 1.45s ease-out infinite;
+
   }
 
   @keyframes record-pulse {
@@ -127,7 +127,7 @@ const links = [
   .site-nav {
     gap: 1.5rem;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--type-label);
     line-height: 1.2;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -136,6 +136,9 @@ const links = [
   }
 
   .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--control-size);
     color: var(--color-text-secondary);
     text-decoration: none;
     transition: color 160ms ease-out;
@@ -173,23 +176,25 @@ const links = [
       padding-inline: 1.5rem;
     }
 
-    .site-header--has-center {
-      grid-template-columns: auto minmax(2.75rem, 11rem);
-      justify-content: space-between;
-      gap: 0.75rem;
-    }
-
-    .site-header--has-center .site-nav {
-      display: none;
-    }
-
     .site-nav {
       gap: 1rem;
-      font-size: 11px;
+      font-size: var(--type-label);
       letter-spacing: 0.08em;
     }
 
     .github-link {
+      display: none;
+    }
+  }
+  /* Starlight's fixed menu control remains visible below its 50rem breakpoint. */
+  @media (width < 50rem) {
+    .site-header--has-center {
+      grid-template-columns: minmax(0, 1fr) var(--control-size);
+      gap: 1rem;
+      padding-inline: 1.5rem calc(var(--sl-nav-pad-x, 1rem) + var(--control-size) + 1rem);
+    }
+
+    .site-header--has-center .site-nav {
       display: none;
     }
   }

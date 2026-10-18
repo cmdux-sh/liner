@@ -1,0 +1,5 @@
+{
+  "search.label": "Search docs",
+  "search.devWarning": "Search is available in the production preview. Build and preview the site to test it.",
+  "404.text": "This page couldn't be found. Check the address or search the docs."
+}

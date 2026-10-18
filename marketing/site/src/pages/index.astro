@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import Icon from "../components/Icon.astro";
+import CommandSnippet from "../components/CommandSnippet.astro";
 
 const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "utf8").trim();
 
@@ -22,12 +23,14 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
 ---
 
 <BaseLayout>
+  <SiteHeader className="site-header--hero absolute top-0 left-0 z-30" />
+  <main id="content" tabindex="-1">
   {/* ===================================================================
        HERO: Aether dark workspace, full-bleed.
        =================================================================== */}
 
       {/* Dark workspace */}
-      <main
+      <div
         data-home-section="hero"
         class="hero-shell relative flex w-full flex-col overflow-hidden lg:flex-row"
         style="background: var(--color-bg-workspace); min-height: 85vh;"
@@ -46,7 +49,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
         </div>
 
         {/* ---- Horizontal header rail ---- */}
-        <SiteHeader className="site-header--hero absolute top-0 left-0 z-30" />
+
 
         {/* =====================================================
              LEFT COLUMN: editorial / typographic reveal
@@ -58,17 +61,17 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
           <div class="mb-16 lg:mb-auto">
             {/* Eyebrow */}
             <div class="eyebrow eyebrow--accent mb-6 flex items-center">
-              <span>Local AI Research Tool</span>
+              <span>Local research toolkit</span>
             </div>
 
             {/* Masked-reveal headline */}
             <h1 class="display hero-title">
               <span class="block">Build reusable</span>
-              <span class="block"><span style="color: var(--color-text-dim);">AI</span><br class="hero-title-break" /> <span style="color: var(--color-accent);">context.</span></span>
+              <span class="block"><span style="color: var(--color-text-dim);">AI </span><span style="color: var(--color-accent);">context.</span></span>
             </h1>
 
             <p class="mt-6 max-w-xl text-base leading-relaxed md:mt-8 md:text-lg" style="color: var(--color-text-secondary);">
-              Liner turns focused research into a durable Liner Project: a local working folder with a curated Mixtape inside. Define a Job to Be Done in Job Story form, Clarify Job, then add URLs, transcripts, PDFs, local files, or pasted text; Liner compiles the evidence and writes task-specific AI instructions.
+              Liner is a local CLI and terminal UI for turning focused research into files your AI assistant can use. Bring URLs, YouTube videos, PDFs, local files, or pasted text. Choose the evidence, review the research summary, and save it with instructions for the next session.
             </p>
           </div>
 
@@ -78,8 +81,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
               <span class="h-3 w-[1px]" style="background: var(--color-line-strong);"></span>
               <span class="flex items-center gap-1">
                 <span class="pulse-dot h-1.5 w-1.5 rounded-full" style="background: var(--color-accent);"></span>
-                Active
-              </span>
+                Current version              </span>
             </div>
           </div>
         </section>
@@ -97,7 +99,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
               class="eyebrow absolute top-4 left-4 z-10 flex items-center gap-2 border px-2 py-1 backdrop-blur-sm"
               style="border-color: var(--color-line-soft); background: rgb(15 15 15 / 0.8); color: var(--color-text-dim);"
             >
-              <span>Instructions Written</span>
+              <span>Research and instructions</span>
             </div>
             {/* Corner crop top-right */}
             <div class="absolute top-0 right-0 h-4 w-4 border-b border-l" style="border-color: var(--color-line-strong);"></div>
@@ -105,7 +107,9 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             <canvas
               class="webgl-canvas absolute inset-0 block h-full w-full opacity-100"
               data-seed="14.2"
+              aria-hidden="true"
             ></canvas>
+            <button class="motion-toggle" type="button" aria-pressed="false">Pause animation</button>
           </div>
 
           {/* Bottom: Vivid Orange Accent Panel */}
@@ -125,37 +129,18 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
               style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 16px 16px;"
             ></div>
 
-            <header class="relative z-10 flex justify-between text-[10px] uppercase tracking-widest mono" style="color: #0a0a0a;">
-              <span>Install</span>
+            <header class="relative z-10 flex justify-between text-[length:var(--type-label)] uppercase tracking-widest mono" style="color: #0a0a0a;">
+              <span>Start here</span>
               <Icon name="cassette-tape" size={22} strokeWidth={1.7} aria-hidden="true" style="color: white;" />
             </header>
 
             <div class="relative z-10 mt-8">
               <p class="mb-3 text-3xl font-light mix-blend-plus-lighter" style="color: white;">
-                Open the builder,<br />in one command.
+                Open the terminal UI<br />with one command.
               </p>
-              <div class="mt-5 inline-flex w-fit items-stretch overflow-hidden rounded-md border" style="background: #0a0a0a; border-color: rgb(10 10 10 / 0.32);">
-                <code class="mono flex select-all items-center px-3 py-2 text-sm" style="color: #fff;">
-                  <span class="mr-2" style="color: rgb(255 255 255 / 0.42);">$</span>npx linersh
-                </code>
-                <button
-                  type="button"
-                  aria-label="Copy the install command"
-                  class="copy-install-cmd mono flex items-center justify-center gap-2 border-l px-3 text-[10px] uppercase tracking-widest transition-colors hover:brightness-125"
-                  style="border-color: rgb(255 255 255 / 0.16); background: rgb(255 255 255 / 0.08); color: rgb(255 255 255 / 0.76); width: 5.35rem;"
-                >
-                  <span data-copy-icon style="display: flex; align-items: center; gap: 0.4rem;">
-                    <Icon name="copy" size={13} strokeWidth={2} aria-hidden="true" />
-                    Copy
-                  </span>
-                  <span data-copy-done style="display: none; align-items: center; gap: 0.4rem; color: var(--color-accent-secondary);">
-                    <Icon name="check" size={13} strokeWidth={2} aria-hidden="true" />
-                    Copied
-                  </span>
-                </button>
-              </div>
-              <p class="mono mt-3 text-[10px] uppercase tracking-widest" style="color: #0a0a0a;">
-                Free · MIT · local · macOS, Linux &amp; Windows
+              <CommandSnippet command="npx linersh" tone="accent" accessibleLabel="Copy the install command" />
+              <p class="mono mt-3 text-[length:var(--type-label)] uppercase tracking-widest" style="color: #0a0a0a;">
+                Free · MIT licensed · macOS, Linux &amp; Windows x64
               </p>
               <a href="https://github.com/cmdux-sh/liner" class="mono mt-5 inline-flex items-center gap-1.5 text-xs" style="color: #0a0a0a; border-bottom: 1px solid rgb(10 10 10 / 0.45); padding-bottom: 2px;">
                 View on GitHub
@@ -164,7 +149,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             </div>
 
             {/* Ornamental mark */}
-            <div class="absolute bottom-14 right-6 mono text-[10px] tracking-widest mix-blend-plus-lighter" style="color: rgb(255 255 255 / 0.45);">
+            <div class="absolute bottom-14 right-6 mono text-[length:var(--type-label)] tracking-widest mix-blend-plus-lighter" style="color: rgb(255 255 255 / 0.45);">
               /// v{releaseVersion}
             </div>
           </div>
@@ -174,10 +159,10 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
              BOTTOM: Infinite marquee
              ===================================================== */}
         <div
-          class="hero-marquee absolute bottom-0 left-0 z-30 flex h-8 w-full items-center overflow-hidden border-t"
+          aria-hidden="true" class="hero-marquee absolute bottom-0 left-0 z-30 flex h-8 w-full items-center overflow-hidden border-t"
           style="border-color: var(--color-line-medium); background: var(--color-bg-void);"
         >
-          <div class="marquee-track mono pl-12 text-[10px] uppercase tracking-widest" style="color: var(--color-text-dim);">
+          <div class="marquee-track mono pl-12 text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dim);">
             <span class="flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
               Sources selected /// task defined
@@ -188,11 +173,11 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             </span>
             <span class="flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-              Running locally /// no telemetry
+              Local tool /// no telemetry
             </span>
             <span class="flex items-center gap-2" style="color: var(--color-accent);">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              AI instructions /// LINER.md · SKILL.md · liner.yaml
+              Research and instructions /// MIXTAPE.md · LINER.md · SKILL.md
             </span>
 
             {/* duplicate for continuous loop */}
@@ -206,15 +191,15 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             </span>
             <span class="flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-              Running locally /// no telemetry
+              Local tool /// no telemetry
             </span>
             <span class="flex items-center gap-2" style="color: var(--color-accent);">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              AI instructions /// LINER.md · SKILL.md · liner.yaml
+              Research and instructions /// MIXTAPE.md · LINER.md · SKILL.md
             </span>
           </div>
         </div>
-      </main>
+      </div>
 
   {/* ===================================================================
        WebGL shader: brutalist column-of-blocks ambient animation.
@@ -299,13 +284,29 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
         return s;
       }
 
+      const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
+      const motionButton = document.querySelector(".motion-toggle");
+      let paused = false;
+      function syncMotion() {
+        const reduced = motionPreference.matches;
+        document.documentElement.dataset.motion = paused || reduced ? "paused" : "running";
+        motionButton.disabled = reduced;
+        motionButton.textContent = reduced ? "Reduced motion" : paused ? "Resume animation" : "Pause animation";
+        motionButton.setAttribute("aria-pressed", String(paused || reduced));
+        document.dispatchEvent(new Event("site-motion-change"));
+      }
+      motionButton.addEventListener("click", () => { paused = !paused; syncMotion(); });
+      motionPreference.addEventListener("change", syncMotion);
+      syncMotion();
+
       function initWebGL(canvas) {
-        const gl = canvas.getContext("webgl");
+        const gl = canvas.getContext("webgl", { alpha: false, antialias: false });
         if (!gl) return;
 
         const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
         const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
 
+        if (!vs || !fs) return;
         const program = gl.createProgram();
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
@@ -327,7 +328,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
 
         function resize() {
           const rect = canvas.getBoundingClientRect();
-          const dpr = window.devicePixelRatio || 1;
+          const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
           const w = Math.max(1, Math.round(rect.width * dpr));
           const h = Math.max(1, Math.round(rect.height * dpr));
           if (canvas.width !== w || canvas.height !== h) {
@@ -337,7 +338,6 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
         }
 
         function draw(time) {
-          resize();
           gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
           gl.useProgram(program);
           gl.enableVertexAttribArray(posLoc);
@@ -349,14 +349,37 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
           gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
 
-        function render(time) {
-          draw(time * 0.0005);
-          requestAnimationFrame(render);
+        let frame = 0;
+        let visible = true;
+        let lastTime = 0;
+        let elapsed = 0;
+        function shouldAnimate() {
+          return visible && !document.hidden && !paused && !motionPreference.matches;
         }
-
-        const observer = new ResizeObserver(() => draw(performance.now() * 0.0005));
-        observer.observe(canvas.parentElement || canvas);
-        requestAnimationFrame(render);
+        function render(time) {
+          frame = 0;
+          if (!shouldAnimate()) return;
+          if (time - lastTime >= 1000 / 30) {
+            elapsed += lastTime ? Math.min(time - lastTime, 100) : 0;
+            lastTime = time;
+            draw(elapsed * 0.0005);
+          }
+          frame = requestAnimationFrame(render);
+        }
+        function sync() {
+          cancelAnimationFrame(frame);
+          frame = 0;
+          lastTime = 0;
+          if (shouldAnimate()) frame = requestAnimationFrame(render);
+          else draw(elapsed * 0.0005);
+        }
+        new ResizeObserver(() => { resize(); draw(elapsed * 0.0005); }).observe(canvas.parentElement || canvas);
+        new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; sync(); }).observe(canvas);
+        document.addEventListener("visibilitychange", sync);
+        document.addEventListener("site-motion-change", sync);
+        resize();
+        draw(0);
+        sync();
       }
 
       document.querySelectorAll(".webgl-canvas").forEach(initWebGL);
@@ -368,19 +391,19 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
   <section data-home-section="project-proof" class="relative border-t px-6 py-20 md:px-12 md:py-28 lg:px-20" style="background: var(--color-bg-workspace); border-color: var(--color-line-medium);">
     <div class="mx-auto max-w-7xl">
       <div class="mb-12 max-w-3xl">
-        <p class="eyebrow eyebrow--accent mb-4">From ask to Project</p>
-        <h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">One request becomes a reusable Liner Project.</h2>
-        <p class="mono mt-4 text-sm leading-relaxed" style="color: var(--color-text-muted);">Start with one narrow job. The builder helps define the evidence, approve the useful Sources, confirm the synthesis, and save both the research and the instructions a later AI session should follow.</p>
+        <p class="eyebrow eyebrow--accent mb-4">From task to files</p>
+        <h2 class="h1" style="font-size: var(--type-heading);">Keep the research behind the answer.</h2>
+        <p class="mono mt-4 text-sm leading-relaxed" style="color: var(--color-text-muted);">A saved folder keeps your selected sources, research summary, and AI instructions together. Open it in a new AI session to work from the same evidence and boundaries. Liner calls this folder a Project.</p>
       </div>
       <div class="grid gap-px lg:grid-cols-[0.9fr_1.1fr]" style="background: var(--color-line-medium);">
         <div class="relative p-8 md:p-10" style="background: var(--color-bg-workspace);">
-          <p class="eyebrow mb-4" style="color: var(--color-text-dim);">Starting point</p>
-          <p class="text-xl leading-snug md:text-2xl" style="font-weight: 400; color: var(--color-text-primary);">“Help my AI write App Store review-safe copy for a mental-health app.”</p>
+          <p class="eyebrow mb-4" style="color: var(--color-text-dim);">Example task</p>
+          <p class="text-xl leading-snug md:text-2xl" style="font-weight: 400; color: var(--color-text-primary);">“Help my AI write copy for a mental-health app using the App Store review rules.”</p>
           <div class="mt-8 space-y-5">
             {[
-              { n: "01", title: "Clarify the job", body: "Name the situation, desired outcome, and claims the AI should avoid." },
-              { n: "02", title: "Choose the evidence", body: "Add review rules, health-claim examples, privacy guidance, and rejection notes." },
-              { n: "03", title: "Confirm what the AI inherits", body: "After Sources are saved, you review the synthesis and boundaries before Compile. Liner records that accountable decision with the Project." },
+              { n: "01", title: "Clarify the job", body: "Name the situation, desired output, and claims the AI should avoid." },
+              { n: "02", title: "Choose the evidence", body: "Add review rules, privacy guidance, claim examples, and rejection notes. Review the proposed sources before saving them." },
+              { n: "03", title: "Approve the synthesis", body: "Read the summary of the accepted evidence. Edit it if needed, then approve it before the research is compiled." },
             ].map((item) => (
               <div class="grid gap-2 border-t pt-5 first:border-t-0 first:pt-0 md:grid-cols-[4rem_1fr]" style="border-color: var(--color-line-medium);">
                 <p class="mono text-xs" style="color: var(--color-accent);">{item.n}</p>
@@ -391,8 +414,8 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
         </div>
         <div class="relative p-8 md:p-10" style="background: var(--color-bg-deep);">
           <div class="absolute top-0 right-0 h-3 w-3 border-b border-l" style="border-color: var(--color-accent);"></div>
-          <div class="mb-6 flex items-center justify-between gap-4"><p class="eyebrow" style="color: var(--color-accent);">app-review-health-claims/</p><span class="mono text-[10px] uppercase tracking-widest" style="color: var(--color-text-dimmer);">local files</span></div>
-          <pre class="mono overflow-x-auto text-xs leading-relaxed" style="color: var(--color-text-bright);">liner.yaml
+          <div class="mb-6 flex items-center justify-between gap-4"><p class="eyebrow" style="color: var(--color-accent);">app-review-health-claims/</p><span class="mono text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dimmer);">Local files</span></div>
+          <pre tabindex="0" class="mono overflow-x-auto text-xs leading-relaxed" style="color: var(--color-text-bright);">liner.yaml
 LINER.md
 SKILL.md
 mixtape/
@@ -405,11 +428,11 @@ mixtape/
     03-medical-claims-boundary.md</pre>
         </div>
       </div>
-      <div class="mt-px grid gap-px md:grid-cols-3" style="background: var(--color-line-medium);">
+      <div class="content-tiles mt-px grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { title: "MIXTAPE.md", body: "Compiled research, synthesis, and links back to saved Source files." },
-          { title: "LINER.md", body: "Task-specific instructions for using the evidence and knowing where to stop." },
-          { title: "SKILL.md", body: "The Project entry point that lets a file-reading AI load the work directly." },
+          { title: "MIXTAPE.md", body: "Compiled research with your synthesis and links to the saved source files." },
+          { title: "LINER.md", body: "Instructions for using the evidence, following the method, and respecting its limits." },
+          { title: "SKILL.md", body: "The Project's entry point for an AI assistant that can read local files." },
         ].map((artifact) => (
           <article class="p-6 md:p-8" style="background: var(--color-bg-workspace);"><h3 class="mono text-sm" style="color: var(--color-accent);">{artifact.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-muted);">{artifact.body}</p></article>
         ))}
@@ -422,15 +445,15 @@ mixtape/
     <span id="use-cases" aria-hidden="true"></span>
     <div class="mx-auto max-w-7xl">
       <div class="mb-12 max-w-3xl">
-        <p class="eyebrow eyebrow--accent mb-4">Where it helps</p>
-        <h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">Three jobs where source choice changes the output.</h2>
-        <p class="mt-4 text-base leading-relaxed" style="color: var(--color-text-secondary);">Use a Project when the task is narrow, the evidence needs judgment, and another session should be able to inspect the same foundation.</p>
+        <p class="eyebrow eyebrow--accent mb-4">Focused work</p>
+        <h2 class="h1" style="font-size: var(--type-heading);">Build research for a specific task.</h2>
+        <p class="mt-4 text-base leading-relaxed" style="color: var(--color-text-secondary);">Save a Project when you need to choose the evidence carefully and use it again in another session. You could build research for tasks like these.</p>
       </div>
-      <div class="grid gap-px md:grid-cols-3" style="background: var(--color-line-medium);">
+      <div class="content-tiles grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { role: "App developer", job: "Write App Store review-safe copy for a mental-health app.", input: "Review rules, privacy guidance, rejected claims", output: "Evidence-backed rewrite instructions" },
-          { role: "Product designer", job: "Turn visual references into a concrete web art-direction brief.", input: "Reference notes, layout patterns, web constraints", output: "A buildable direction with explicit boundaries" },
-          { role: "Engineer", job: "Plan a risky API migration from framework docs and past failures.", input: "Official guides, breaking changes, postmortems", output: "A migration plan and review checklist" },
+          { role: "App developer", job: "Write mental-health app copy grounded in App Store review rules.", input: "Review rules, privacy guidance, rejected claims", output: "Evidence-backed writing instructions" },
+          { role: "Product designer", job: "Turn visual references into a web art-direction brief.", input: "Reference notes, layout patterns, web constraints", output: "A direction with explicit design boundaries" },
+          { role: "Engineer", job: "Plan an API migration using framework docs and failure reports.", input: "Official guides, breaking changes, postmortems", output: "A migration plan and review checklist" },
         ].map((example, i) => (
           <article class="relative flex flex-col p-8 md:p-10" style="background: var(--color-bg-workspace);">
             <div class="absolute top-0 right-0 h-3 w-3 border-b border-l" style="border-color: var(--color-line-strong);"></div>
@@ -450,16 +473,16 @@ mixtape/
   <section id="pipeline" data-home-section="workflow" class="relative overflow-hidden border-t px-6 py-20 md:px-12 md:py-28 lg:px-20" style="background: var(--color-bg-deep); border-color: var(--color-line-medium);">
     <div class="pointer-events-none absolute inset-0 opacity-[0.035]" style="background-image: linear-gradient(rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.55) 1px, transparent 1px); background-size: 56px 56px;"></div>
     <div class="relative mx-auto max-w-7xl">
-      <div class="mb-12 max-w-3xl"><p class="eyebrow eyebrow--accent mb-4">The path through the work</p><h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">Four visible steps from task to Project.</h2></div>
-      <div class="grid gap-px md:grid-cols-2 lg:grid-cols-4" style="background: var(--color-line-medium);">
+      <div class="mb-12 max-w-3xl"><p class="eyebrow eyebrow--accent mb-4">From research to reuse</p><h2 class="h1" style="font-size: var(--type-heading);">Four steps to a folder your AI can use.</h2></div>
+      <div class="workflow-tiles grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { n: "01", title: "Frame", body: "Define the job in a plain sentence, then use Job Story and Clarify Job to sharpen it before research starts.", proof: "specific job" },
-          { n: "02", title: "Gather", body: "Bring in known material and review candidates. Before saving, Liner shows the Sources that will be added and leaves existing Sources unchanged.", proof: "source roles" },
-          { n: "03", title: "Review", body: "After the Sources are saved, confirm the synthesis before Compile. You can edit it first when it no longer represents the accepted evidence.", proof: "accountable judgment" },
-          { n: "04", title: "Use", body: "Add the AI instructions that travel with the research through Create Operating Layer.", proof: "Project Complete" },
+          { n: "01", title: "Frame", body: "Define one task and the output you need. The terminal UI helps clarify its situation and boundaries before research begins.", proof: "A specific job" },
+          { n: "02", title: "Gather", body: "Add material you already have, then build and review the research with your configured Claude Code or Codex runner. Choose which proposed sources to keep.", proof: "Selected evidence" },
+          { n: "03", title: "Review", body: "Approve the synthesis separately from the source selection. Compile then fetches the source content and writes the research packet.", proof: "Research compiled" },
+          { n: "04", title: "Use", body: "Create the AI instruction files in the terminal UI. Give the whole folder to a file-reading assistant, or paste MIXTAPE.md into a conversation.", proof: "Instructions written" },
         ].map((step) => (
           <article class="p-7 md:p-8" style="background: var(--color-bg-deep);">
-            <p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-5 text-2xl" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-secondary);">{step.body}</p><p class="mono mt-6 text-[10px] uppercase tracking-widest" style="color: var(--color-text-dim);">{step.proof}</p>
+            <p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-5 text-2xl" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-secondary);">{step.body}</p><p class="mono mt-6 text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dim);">{step.proof}</p>
           </article>
         ))}
       </div>
@@ -471,16 +494,16 @@ mixtape/
     <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
       <div class="max-w-xl">
         <p class="eyebrow eyebrow--accent mb-4">Optional agent maintenance</p>
-        <h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">Let Codex or Claude maintain the Project safely.</h2>
-        <p class="mt-5 text-base leading-relaxed" style="color: var(--color-text-secondary);">Install the Maintenance Adapter when you want a coding assistant to update an existing Project. The installed CLI remains the writer: it checks the saved Project identity, shows the exact change before approval, and records what happened after apply.</p>
-        <div class="mt-6 max-w-full overflow-x-auto border" style="background: var(--color-bg-void); border-color: var(--color-line-strong);"><code class="mono flex w-max select-all items-center px-4 py-3 text-sm" style="color: #fff;"><span class="mr-2" style="color: var(--color-text-dimmer);">$</span>liner adapters install codex --yes</code></div>
+        <h2 class="h1" style="font-size: var(--type-heading);">Update the Project through Codex or Claude Code.</h2>
+        <p class="mt-5 text-base leading-relaxed" style="color: var(--color-text-secondary);">Install the Maintenance Adapter to let a coding assistant request changes through Liner's CLI. The CLI checks Project identity, previews the file changes, requires approval for higher-risk operations, and records the result.</p>
+        <CommandSnippet command="liner adapters install codex --yes" />
         <a href="/docs/maintenance/" class="mono mt-5 inline-flex items-center gap-2 text-xs" style="color: var(--color-accent);">Read the maintenance guide <Icon name="arrow-up-right" size={13} strokeWidth={2} aria-hidden="true" /></a>
       </div>
-      <div class="grid gap-px sm:grid-cols-3" style="background: var(--color-line-medium);">
+      <div class="maintenance-steps grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { n: "01", title: "Request", body: "Add a Source, rename or move a Project, or archive a Project you no longer need." },
-          { n: "02", title: "Project Change Set", body: "Review the exact effects before an approval-required change writes to the Project." },
-          { n: "03", title: "Change Receipt", body: "Keep durable proof of the applied plan. Deleting a Project moves it to recoverable Liner Trash instead of erasing its files." },
+          { n: "01", title: "Request a change", body: "Add a source, rename or move a Project, or move an unused Project to Liner Trash." },
+          { n: "02", title: "Review the plan", body: "A Project Change Set shows the exact effects. Operations that require approval wait for your decision on that preview." },
+          { n: "03", title: "Keep the record", body: "A Change Receipt records what was applied. Project deletion moves the folder to recoverable Liner Trash and preserves its files." },
         ].map((step) => (
           <article class="p-6" style="background: var(--color-bg-workspace);"><p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-4 text-lg leading-snug" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-2 text-sm leading-relaxed" style="color: var(--color-text-muted);">{step.body}</p></article>
         ))}
@@ -491,16 +514,16 @@ mixtape/
   {/* Fit and trust */}
   <section data-home-section="fit-trust" class="relative border-t px-6 py-20 md:px-12 md:py-28 lg:px-20" style="background: var(--color-bg-workspace); border-color: var(--color-line-medium);">
     <div class="mx-auto max-w-7xl">
-      <div class="mb-12 max-w-3xl"><p class="eyebrow eyebrow--accent mb-4">The right size of work</p><h2 class="h1" style="font-size: clamp(1.75rem, 3vw, 2.75rem);">Use it when the evidence needs to outlive the chat.</h2></div>
+      <div class="mb-12 max-w-3xl"><p class="eyebrow eyebrow--accent mb-4">The right size of work</p><h2 class="h1" style="font-size: var(--type-heading);">Keep research ready for another session.</h2></div>
       <div class="grid gap-px md:grid-cols-2" style="background: var(--color-line-medium);">
-        <div class="p-8 md:p-10" style="background: var(--color-bg-workspace);"><p class="eyebrow mb-5" style="color: var(--color-accent);">Worth a Project</p><ul class="space-y-4 text-base leading-relaxed"><li>Source choice changes the quality of the output.</li><li>A later AI session needs the same evidence and boundaries.</li><li>The task is narrow enough to define and important enough to reuse.</li></ul></div>
-        <div class="p-8 md:p-10" style="background: var(--color-bg-deep);"><p class="eyebrow mb-5" style="color: var(--color-text-muted);">A chat is enough</p><ul class="space-y-4 text-base leading-relaxed" style="color: var(--color-text-secondary);"><li>You only need one quick answer.</li><li>The evidence changes hour by hour.</li><li>The data belongs in a system outside a local folder.</li></ul></div>
+        <div class="p-8 md:p-10" style="background: var(--color-bg-workspace);"><p class="eyebrow mb-5" style="color: var(--color-accent);">Keep a Project</p><ul class="space-y-4 text-base leading-relaxed"><li>Source choice changes the quality of the output.</li><li>Another AI session needs the same evidence and boundaries.</li><li>The task is specific enough to define and useful enough to repeat.</li></ul></div>
+        <div class="p-8 md:p-10" style="background: var(--color-bg-deep);"><p class="eyebrow mb-5" style="color: var(--color-text-muted);">A chat is enough</p><ul class="space-y-4 text-base leading-relaxed" style="color: var(--color-text-secondary);"><li>You need one quick answer.</li><li>The evidence changes hour by hour.</li><li>The data belongs in a system outside a local folder.</li></ul></div>
       </div>
-      <div class="mt-px grid gap-px md:grid-cols-3" style="background: var(--color-line-medium);">
+      <div class="content-tiles mt-px grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { title: "Inspectable files", body: "Sources, synthesis, instructions, and status stay visible as Markdown and YAML." },
-          { title: "Local by default", body: "The tool runs locally with no telemetry and uses your configured Codex or Claude account." },
-          { title: "Portable with care", body: "A .mixtape archive can include saved content, so check private Sources before sharing it." },
+          { title: "Inspectable files", body: "Read the sources, synthesis, and instructions in Markdown. Inspect the recipe and status in YAML." },
+          { title: "Your local tools", body: "The installed tool has no telemetry. AI-assisted research uses your configured Codex CLI or Claude Code runner and its account limits or charges. Files are saved locally; material read by the runner is processed under your provider's terms. Compile and instruction-file creation make no model calls." },
+          { title: "Check before sharing", body: "A .mixtape archive can include local source files and saved content. Review its contents before sending or publishing it." },
         ].map((item) => (
           <article class="p-6 md:p-8" style="background: var(--color-bg-workspace);"><h3 class="text-lg" style="font-weight: 400; color: var(--color-text-primary);">{item.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-muted);">{item.body}</p></article>
         ))}
@@ -513,62 +536,17 @@ mixtape/
     <div class="pointer-events-none absolute inset-0 mix-blend-overlay blur-2xl transition-transform duration-[2s] group-hover:scale-110" style="background: linear-gradient(to bottom right, rgb(255 184 0 / 0.4), transparent, rgb(154 0 255 / 0.3));"></div>
     <div class="pointer-events-none absolute inset-0 opacity-10" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 16px 16px;"></div>
     <div class="relative z-10 mx-auto max-w-5xl">
-      <p class="eyebrow mb-6" style="color: #0a0a0a;">Install</p>
-      <h2 class="reveal-container mb-10 leading-[1.05] mix-blend-plus-lighter" style="font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 300; color: white;"><span class="reveal-line"><span class="reveal-word">Start building</span></span><br /><span class="reveal-line"><span class="reveal-word">reusable AI context.</span></span></h2>
+      <p class="eyebrow mb-6" style="color: #0a0a0a;">Start here</p>
+      <h2 class="reveal-container mb-10 leading-[1.05] mix-blend-plus-lighter" style="font-size: var(--type-campaign); font-weight: 300; color: white;"><span class="reveal-line"><span class="reveal-word">Build context</span></span><br /><span class="reveal-line"><span class="reveal-word">you can use again.</span></span></h2>
       <div class="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
-        <div class="max-w-full overflow-x-auto rounded-md border" style="background: var(--color-bg-deep); border-color: rgb(255 255 255 / 0.16);">
-          <div class="flex w-max items-stretch">
-            <code class="mono flex select-all items-center px-4 py-3 text-base md:text-lg" style="color: #fff;"><span class="mr-2" style="color: rgb(255 255 255 / 0.4);">$</span>npx linersh</code>
-            <button type="button" aria-label="Copy the install command" class="copy-install-cmd mono flex items-center justify-center gap-2 border-l px-3 text-[10px] uppercase tracking-widest transition-colors hover:brightness-125" style="border-color: rgb(255 255 255 / 0.14); background: rgb(255 255 255 / 0.05); color: rgb(255 255 255 / 0.75); min-width: 6rem;">
-              <span data-copy-icon style="display: flex; align-items: center; gap: 0.45rem;"><Icon name="copy" size={14} strokeWidth={2} aria-hidden="true" />Copy</span>
-              <span data-copy-done style="display: none; align-items: center; gap: 0.45rem; color: var(--color-accent-secondary);"><Icon name="check" size={14} strokeWidth={2} aria-hidden="true" />Copied</span>
-            </button>
-          </div>
-        </div>
+        <CommandSnippet command="npx linersh" tone="accent" accessibleLabel="Copy the install command" />
         <a href="/docs/" class="mono flex items-center gap-2 text-sm" style="color: #0a0a0a;"><span style="border-bottom: 1px solid rgb(10 10 10 / 0.45); padding-bottom: 2px;">Read the docs</span><Icon name="arrow-up-right" size={14} strokeWidth={2} aria-hidden="true" /></a>
       </div>
-      <div class="mono mt-10 flex flex-wrap gap-x-8 gap-y-3 text-xs" style="color: #0a0a0a;"><span>macOS, Linux &amp; Windows</span><span>Free and MIT licensed</span><span>Local, no telemetry</span></div>
+      <div class="mono mt-10 flex flex-wrap gap-x-8 gap-y-3 text-xs" style="color: #0a0a0a;"><span>macOS, Linux &amp; Windows x64</span><span>Free and MIT licensed</span><span>Local tool, no telemetry</span></div>
     </div>
   </section>
 
-  <script is:inline>
-    (function () {
-      document.querySelectorAll(".copy-install-cmd").forEach(function (btn) {
-        const ico = btn.querySelector("[data-copy-icon]");
-        const done = btn.querySelector("[data-copy-done]");
-        let t;
-        btn.addEventListener("click", function () {
-          if (navigator.clipboard) navigator.clipboard.writeText("npx linersh");
-          ico.style.display = "none";
-          done.style.display = "flex";
-          clearTimeout(t);
-          t = setTimeout(function () { done.style.display = "none"; ico.style.display = "flex"; }, 2000);
-        });
-      });
-    })();
-  </script>
-
-  <script is:inline>
-    (function () {
-      const hydrateMarquees = function () {
-        document.querySelectorAll(".marquee-track").forEach(function (track) {
-          const source = track.innerHTML;
-          const parent = track.parentElement;
-          if (!parent) return;
-          const fill = function () {
-            track.innerHTML = source + source;
-            while (track.scrollWidth / 2 < parent.clientWidth + 64) track.insertAdjacentHTML("beforeend", source + source);
-            track.style.setProperty("--marquee-duration", Math.max(30, Math.round(track.scrollWidth / 120)) + "s");
-          };
-          fill();
-          if ("ResizeObserver" in window) new ResizeObserver(fill).observe(parent);
-          else window.addEventListener("resize", fill);
-        });
-      };
-      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hydrateMarquees, { once: true });
-      else hydrateMarquees();
-    })();
-  </script>
+  </main>
 
   {/* ===================================================================
        Footer. (minimal, mono, with closing marquee)
@@ -578,14 +556,14 @@ mixtape/
     style="background: var(--color-bg-void); border-color: var(--color-line-medium);"
   >
     {/* Closing marquee */}
-    <div class="flex h-8 w-full items-center overflow-hidden border-b" style="border-color: var(--color-line-medium);">
-      <div class="marquee-track mono pl-12 text-[10px] uppercase tracking-widest" style="color: var(--color-text-dimmer);">
+    <div aria-hidden="true" class="flex h-8 w-full items-center overflow-hidden border-b" style="border-color: var(--color-line-medium);">
+      <div class="marquee-track mono pl-12 text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dimmer);">
         <span class="flex items-center gap-2">/// liner v{releaseVersion}</span>
-        <span class="flex items-center gap-2">/// running locally · no telemetry</span>
+        <span class="flex items-center gap-2">/// local tool · no telemetry</span>
         <span class="flex items-center gap-2">/// free · MIT licensed · open source</span>
         <span class="flex items-center gap-2" style="color: var(--color-accent);">/// build reusable AI context</span>
         <span class="flex items-center gap-2">/// liner v{releaseVersion}</span>
-        <span class="flex items-center gap-2">/// running locally · no telemetry</span>
+        <span class="flex items-center gap-2">/// local tool · no telemetry</span>
         <span class="flex items-center gap-2">/// free · MIT licensed · open source</span>
         <span class="flex items-center gap-2" style="color: var(--color-accent);">/// build reusable AI context</span>
       </div>
@@ -596,7 +574,7 @@ mixtape/
         <div>
           <img src="/liner-logo.svg" alt="Liner" class="mb-5 h-10 w-auto object-contain opacity-95 md:h-16" style="filter: invert(1);" />
           <p class="mono max-w-md text-xs leading-relaxed" style="color: var(--color-text-dim);">
-            Build reusable AI context from focused research. Free, local-first, MIT licensed.
+            Focused research, saved sources, and instructions your AI can reuse. Free and MIT licensed.
           </p>
         </div>
         <nav class="mono flex flex-wrap gap-x-6 gap-y-3 text-xs uppercase tracking-widest" aria-label="Footer">
@@ -606,7 +584,7 @@ mixtape/
         </nav>
       </div>
 
-      <div class="mono mt-12 flex justify-between text-[10px] uppercase tracking-widest" style="color: var(--color-text-dimmer);">
+      <div class="mono mt-12 flex justify-between text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dimmer);">
         <span>© 2026 Liner</span>
         <span>/// 007 · END OF SEQUENCE</span>
       </div>
