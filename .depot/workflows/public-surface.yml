@@ -1,0 +1,53 @@
+name: Public Surface
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release truth and public site
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Enforce free-trial cutoff
+        shell: bash
+        run: |
+          if [[ "$(date -u +%s)" -ge 1793119680 ]]; then
+            echo 'Depot trial ended; hosted work is paused.' >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Verify canonical release metadata
+        run: uv run python scripts/release-version.py --check
+
+      - name: Verify public maintenance command documentation
+        run: uv run python scripts/validate-public-commands.py
+
+      - name: Verify public agent-maintenance story
+        run: uv run python scripts/validate-public-surfaces.py
+
+      - name: Install public site dependencies
+        working-directory: marketing/site
+        run: npm ci
+
+      - name: Build public site
+        working-directory: marketing/site
+        run: npm run build
