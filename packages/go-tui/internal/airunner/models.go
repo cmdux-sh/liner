@@ -1,5 +1,23 @@
 package airunner
 
+import "strings"
+
+// Built-in defaults. OpenAI Auto runs Sol 6.1 at Medium for every task; Claude
+// runs Sonnet 5.5 at Medium unless Settings chooses otherwise.
+const (
+	AutoOpenAIModel     = "gpt-6.1-sol"
+	AutoOpenAIEffort    = "medium"
+	DefaultClaudeModel  = "claude-sonnet-5-5"
+	DefaultClaudeEffort = "medium"
+)
+
+// legacyClaudeModels maps Claude Code aliases saved by earlier Liner versions
+// to the models that replaced them in Settings.
+var legacyClaudeModels = map[string]string{
+	"sonnet": "claude-sonnet-5-5",
+	"opus":   "claude-opus-5-5",
+}
+
 type ModelOption struct {
 	Label  string
 	Value  string
@@ -13,22 +31,45 @@ type ReasoningEffortOption struct {
 }
 
 func ReasoningEffortOptions(provider string) []ReasoningEffortOption {
-	if normalizeAgent(provider) != "codex" {
-		return nil
+	switch normalizeAgent(provider) {
+	case "codex":
+		return []ReasoningEffortOption{
+			{Label: "Model default"},
+			{Label: "None", Value: "none"},
+			{Label: "Low", Value: "low"},
+			{Label: "Medium", Value: "medium"},
+			{Label: "High", Value: "high"},
+			{Label: "Extra high", Value: "xhigh"},
+			{Label: "Maximum", Value: "max"},
+		}
+	case "claude":
+		// Claude Code's --effort levels. An unset preference runs Medium.
+		return []ReasoningEffortOption{
+			{Label: "Low", Value: "low"},
+			{Label: "Medium", Value: "medium"},
+			{Label: "High", Value: "high"},
+			{Label: "Extra high", Value: "xhigh"},
+			{Label: "Maximum", Value: "max"},
+		}
 	}
-	return []ReasoningEffortOption{
-		{Label: "Model default"},
-		{Label: "None", Value: "none"},
-		{Label: "Low", Value: "low"},
-		{Label: "Medium", Value: "medium"},
-		{Label: "High", Value: "high"},
-		{Label: "Extra high", Value: "xhigh"},
-		{Label: "Maximum", Value: "max"},
-	}
+	return nil
 }
 
-func ReasoningEffortLabel(value string) string {
-	for _, option := range ReasoningEffortOptions("codex") {
+// DefaultReasoningEffort is the effort a provider runs when Settings leaves it
+// unset: Medium for Claude; for OpenAI it depends on Auto (see ApplyDefaults).
+func DefaultReasoningEffort(provider string) string {
+	if normalizeAgent(provider) == "claude" {
+		return DefaultClaudeEffort
+	}
+	return ""
+}
+
+func ReasoningEffortLabel(provider string, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = DefaultReasoningEffort(provider)
+	}
+	for _, option := range ReasoningEffortOptions(provider) {
 		if option.Value == value {
 			return option.Label
 		}
@@ -36,23 +77,49 @@ func ReasoningEffortLabel(value string) string {
 	return "Model default"
 }
 
+func ValidReasoningEffort(provider string, value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	for _, option := range ReasoningEffortOptions(provider) {
+		if option.Value == value {
+			return true
+		}
+	}
+	return false
+}
+
 func ModelOptions(provider string) []ModelOption {
 	if normalizeAgent(provider) == "claude" {
 		return []ModelOption{
-			{Label: "Claude default"},
-			{Label: "Sonnet", Value: "sonnet"},
-			{Label: "Opus", Value: "opus"},
+			{Label: "Sonnet 5.5", Value: DefaultClaudeModel},
+			{Label: "Opus 5.5", Value: "claude-opus-5-5"},
 			{Label: "Custom model ID", Custom: true},
 		}
 	}
 	return []ModelOption{
 		{Label: "Auto", Auto: true},
 		{Label: "OpenAI default"},
-		{Label: "GPT-5.6 Sol", Value: "gpt-5.6-sol"},
-		{Label: "GPT-5.6 Terra", Value: "gpt-5.6-terra"},
-		{Label: "GPT-5.6 Luna", Value: "gpt-5.6-luna"},
+		{Label: "Sol 6.1", Value: AutoOpenAIModel},
 		{Label: "Custom model ID", Custom: true},
 	}
+}
+
+// NormalizeModel maps a saved model to the catalog: an empty Claude model is
+// Sonnet 5.5, and the old Claude aliases map to their 5.5 models.
+func NormalizeModel(provider string, model string) string {
+	model = strings.TrimSpace(model)
+	if normalizeAgent(provider) != "claude" {
+		return model
+	}
+	if model == "" {
+		return DefaultClaudeModel
+	}
+	if replacement, ok := legacyClaudeModels[strings.ToLower(model)]; ok {
+		return replacement
+	}
+	return model
 }
 
 func IsCuratedModel(provider string, model string) bool {
@@ -68,6 +135,7 @@ func IsCuratedModel(provider string, model string) bool {
 }
 
 func ModelLabel(provider string, model string) string {
+	model = NormalizeModel(provider, model)
 	for _, option := range ModelOptions(provider) {
 		if !option.Auto && !option.Custom && option.Value == model {
 			return option.Label
@@ -79,24 +147,28 @@ func ModelLabel(provider string, model string) string {
 	return ModelOptions(provider)[0].Label
 }
 
-// ApplyAutoModelPolicy resolves built-in Auto choices for Go-owned AI tasks.
-func ApplyAutoModelPolicy(descriptor Descriptor, task string) Descriptor {
-	if descriptor.ID != "codex" || descriptor.Model != "" || descriptor.ModelMode == "default" {
-		return descriptor
-	}
-	switch task {
-	case "jtbd-clarify", "candidates", "evaluation":
-		descriptor.Model = "gpt-5.6-luna"
-		descriptor.ModelIsAuto = true
+// ApplyDefaults fills in the built-in model and Thinking effort for a new run.
+// Values filled here are marked Auto so a provider that rejects them can be
+// retried once on its own default; values chosen in Settings never are.
+func ApplyDefaults(descriptor Descriptor) Descriptor {
+	switch descriptor.ID {
+	case "claude":
+		if descriptor.Model == "" {
+			descriptor.Model = DefaultClaudeModel
+			descriptor.ModelIsAuto = true
+		}
 		if descriptor.ReasoningEffort == "" {
-			descriptor.ReasoningEffort = "high"
+			descriptor.ReasoningEffort = DefaultClaudeEffort
 			descriptor.EffortIsAuto = true
 		}
-	case "framing", "quality", "synthesis", "improvement", "assembly":
-		descriptor.Model = "gpt-5.6-sol"
+	case "codex":
+		if descriptor.Model != "" || descriptor.ModelMode == "default" {
+			return descriptor
+		}
+		descriptor.Model = AutoOpenAIModel
 		descriptor.ModelIsAuto = true
 		if descriptor.ReasoningEffort == "" {
-			descriptor.ReasoningEffort = "medium"
+			descriptor.ReasoningEffort = AutoOpenAIEffort
 			descriptor.EffortIsAuto = true
 		}
 	}

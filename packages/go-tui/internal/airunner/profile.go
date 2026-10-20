@@ -79,14 +79,17 @@ func ReadConfig() Config {
 		preference := ProviderPreference{}
 		if ok && strings.TrimSpace(model) != "" {
 			preference.Model = strings.TrimSpace(model)
+			if replacement, legacy := legacyClaudeModels[strings.ToLower(preference.Model)]; id == "claude" && legacy {
+				preference.Model = replacement
+			}
 		}
 		if id == "codex" {
 			if mode, ok := entry["model_mode"].(string); ok && validModelMode(mode) {
 				preference.ModelMode = strings.TrimSpace(mode)
 			}
-			if effort, ok := entry["reasoning_effort"].(string); ok && validReasoningEffort(effort) {
-				preference.ReasoningEffort = strings.TrimSpace(effort)
-			}
+		}
+		if effort, ok := entry["reasoning_effort"].(string); ok && ValidReasoningEffort(id, effort) {
+			preference.ReasoningEffort = strings.TrimSpace(effort)
 		}
 		if preference.Model == "" && preference.ModelMode == "" && preference.ReasoningEffort == "" {
 			continue
@@ -133,24 +136,13 @@ func (config Config) applyPreferences(descriptor Descriptor) Descriptor {
 	preference := config.ProviderPreferences[descriptor.ID]
 	descriptor.Model = preference.Model
 	descriptor.ModelMode = preference.ModelMode
-	if descriptor.ID == "codex" {
-		descriptor.ReasoningEffort = preference.ReasoningEffort
-	}
+	descriptor.ReasoningEffort = preference.ReasoningEffort
 	return descriptor
 }
 
 func validModelMode(value string) bool {
 	switch strings.TrimSpace(value) {
 	case "auto", "default":
-		return true
-	default:
-		return false
-	}
-}
-
-func validReasoningEffort(value string) bool {
-	switch strings.TrimSpace(value) {
-	case "none", "low", "medium", "high", "xhigh", "max":
 		return true
 	default:
 		return false

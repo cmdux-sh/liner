@@ -84,7 +84,7 @@ func (m *Model) prepareSettingsAIRunner() {
 	m.settingsRow = 0
 	provider := settingsProviderAt(m.settingsCursor)
 	m.settingsModelCursor = settingsModelIndex(provider, m.settings.providerModel(provider), m.settings.providerModelMode(provider))
-	m.settingsEffortCursor = settingsEffortIndex(m.settings.providerEffort("codex"))
+	m.settingsEffortCursor = settingsEffortIndex(provider, m.settings.providerEffort(provider))
 }
 
 func (m Model) openSettingsAIRunner() Model {
@@ -240,7 +240,7 @@ func (m Model) moveSettingsValue(delta int) Model {
 		return m.moveSettingsProvider(delta)
 	}
 	if m.settingsRow == 2 {
-		options := airunner.ReasoningEffortOptions("codex")
+		options := airunner.ReasoningEffortOptions(settingsProviderAt(m.settingsCursor))
 		m.settingsEffortCursor = (m.settingsEffortCursor + delta + len(options)) % len(options)
 		m.err = ""
 		return m
@@ -275,6 +275,7 @@ func (m Model) moveSettingsProvider(delta int) Model {
 	m.settingsCursor = (m.settingsCursor + delta + count) % count
 	provider := settingsProviderAt(m.settingsCursor)
 	m.settingsModelCursor = settingsModelIndex(provider, m.settings.providerModel(provider), m.settings.providerModelMode(provider))
+	m.settingsEffortCursor = settingsEffortIndex(provider, m.settings.providerEffort(provider))
 	if m.settingsRow >= settingsRowCount(provider) {
 		m.settingsRow = settingsRowCount(provider) - 1
 	}
@@ -309,15 +310,16 @@ func (m Model) saveSettingsSelection() Model {
 			return m.beginSettingsCustomModel()
 		}
 	}
-	effort := ""
-	if provider == "codex" {
-		effortOptions := airunner.ReasoningEffortOptions("codex")
-		if m.settingsEffortCursor < 0 || m.settingsEffortCursor >= len(effortOptions) {
-			m.settingsEffortCursor = 0
-		}
-		effort = effortOptions[m.settingsEffortCursor].Value
+	return m.commitSettingsSelection(provider, model, modelMode, m.settingsSelectedEffort(provider))
+}
+
+// settingsSelectedEffort is the Thinking effort under the effort cursor.
+func (m Model) settingsSelectedEffort(provider string) string {
+	options := airunner.ReasoningEffortOptions(provider)
+	if m.settingsEffortCursor < 0 || m.settingsEffortCursor >= len(options) {
+		return ""
 	}
-	return m.commitSettingsSelection(provider, model, modelMode, effort)
+	return options[m.settingsEffortCursor].Value
 }
 
 func (m Model) beginSettingsCustomModel() Model {
@@ -341,22 +343,15 @@ func (m Model) commitSettingsSelection(provider string, model string, modelMode 
 	m.settings = readSettingsInfo()
 	m.settingsCursor = settingsProviderIndex(provider)
 	m.settingsModelCursor = settingsModelIndex(provider, model, m.settings.providerModelMode(provider))
-	m.settingsEffortCursor = settingsEffortIndex(m.settings.providerEffort("codex"))
+	m.settingsEffortCursor = settingsEffortIndex(provider, m.settings.providerEffort(provider))
 	m.settingsCustomEditing = false
 	m.settingsInput.Blur()
 	modelLabel := airunner.ModelLabel(provider, model)
 	if modelMode == "auto" {
 		modelLabel = "Auto"
 	}
-	m.note = "Saved " + settingsProviderName(provider) + " with " + modelLabel
-	if provider == "codex" {
-		effortLabel := airunner.ReasoningEffortLabel(effort)
-		if modelMode == "auto" && effort == "" {
-			effortLabel = "Auto by task"
-		}
-		m.note += " and " + effortLabel + " Thinking effort"
-	}
-	m.note += ". New runs use these preferences."
+	m.note = "Saved " + settingsProviderName(provider) + " with " + modelLabel +
+		" and " + settingsEffortSummary(provider, modelMode, effort) + " Thinking effort. New runs use these preferences."
 	m.err = ""
 	return m.returnToSettingsMenu()
 }
@@ -390,14 +385,7 @@ func (m Model) saveSettingsCustomModel() Model {
 		m.err = "Custom model ID cannot be blank."
 		return m
 	}
-	effort := ""
-	if provider == "codex" {
-		effortOptions := airunner.ReasoningEffortOptions("codex")
-		if m.settingsEffortCursor >= 0 && m.settingsEffortCursor < len(effortOptions) {
-			effort = effortOptions[m.settingsEffortCursor].Value
-		}
-	}
-	return m.commitSettingsSelection(provider, model, "", effort)
+	return m.commitSettingsSelection(provider, model, "", m.settingsSelectedEffort(provider))
 }
 
 func (m Model) viewSettings() string {
@@ -490,15 +478,24 @@ func settingsAIRunnerSummary(info settingsInfo) string {
 	}
 	parts := []string{settingsProviderName(provider)}
 	model := info.providerModel(provider)
-	if provider == "codex" && model == "" && info.providerModelMode(provider) != "default" {
-		parts = append(parts, "Auto", "Auto by task")
+	modelMode := info.providerModelMode(provider)
+	if provider == "codex" && model == "" && modelMode != "default" {
+		modelMode = "auto"
+		parts = append(parts, "Auto ("+airunner.ModelLabel(provider, airunner.AutoOpenAIModel)+")")
 	} else {
 		parts = append(parts, airunner.ModelLabel(provider, model))
-		if provider == "codex" {
-			parts = append(parts, airunner.ReasoningEffortLabel(info.providerEffort(provider)))
-		}
 	}
+	parts = append(parts, settingsEffortSummary(provider, modelMode, info.providerEffort(provider)))
 	return strings.Join(parts, " · ")
+}
+
+// settingsEffortSummary names the effort new runs use, including the built-in
+// Medium that OpenAI Auto and Claude fall back to.
+func settingsEffortSummary(provider string, modelMode string, effort string) string {
+	if provider == "codex" && modelMode == "auto" && strings.TrimSpace(effort) == "" {
+		return airunner.ReasoningEffortLabel(provider, airunner.AutoOpenAIEffort)
+	}
+	return airunner.ReasoningEffortLabel(provider, effort)
 }
 
 func settingsColumnsView(width int, provider string, focusedColumn int, providerCursor int, modelCursor int, effortCursor int, info settingsInfo) string {
@@ -507,31 +504,22 @@ func settingsColumnsView(width int, provider string, focusedColumn int, provider
 		settingsChoiceColumn("Provider", settingsProviderOptions(info), providerCursor, focusedColumn == 0, providerWidth),
 		settingsChoiceColumn("Model", settingsModelOptions(provider, info), modelCursor, focusedColumn == 1, modelWidth),
 	}
-	if provider == "codex" {
-		effortOptions := airunner.ReasoningEffortOptions("codex")
-		choices := make([]choiceOption, 0, len(effortOptions))
-		for index, option := range effortOptions {
-			label := option.Label
-			if index == 0 && settingsModelOptionAt(provider, modelCursor).Auto {
-				label = "Auto by task"
-			}
-			choices = append(choices, choiceOption{Label: label})
+	effortOptions := airunner.ReasoningEffortOptions(provider)
+	choices := make([]choiceOption, 0, len(effortOptions))
+	for index, option := range effortOptions {
+		label := option.Label
+		if index == 0 && option.Value == "" && settingsModelOptionAt(provider, modelCursor).Auto {
+			label = "Auto (" + airunner.ReasoningEffortLabel(provider, airunner.AutoOpenAIEffort) + ")"
 		}
-		columns = append(columns, settingsChoiceColumn("Thinking effort", choices, effortCursor, focusedColumn == 2, effortWidth))
+		choices = append(choices, choiceOption{Label: label})
 	}
+	columns = append(columns, settingsChoiceColumn("Thinking effort", choices, effortCursor, focusedColumn == 2, effortWidth))
 	separator := styles.MutedText.Render("  ")
-	view := lipgloss.JoinHorizontal(lipgloss.Top, columns[0], separator, columns[1])
-	if len(columns) == 3 {
-		view = lipgloss.JoinHorizontal(lipgloss.Top, view, separator, columns[2])
-	}
-	return view
+	return lipgloss.JoinHorizontal(lipgloss.Top, columns[0], separator, columns[1], separator, columns[2])
 }
 
 func settingsColumnWidths(width int, provider string) (int, int, int) {
 	providerWidth := min(16, max(12, width/5))
-	if provider != "codex" {
-		return providerWidth, min(34, max(20, width-providerWidth-2)), 0
-	}
 	effortWidth := min(22, max(17, width/4))
 	modelWidth := min(34, max(20, width-providerWidth-effortWidth-4))
 	return providerWidth, modelWidth, effortWidth
@@ -559,7 +547,7 @@ func settingsFocusedChoiceDetail(width int, provider string, focusedColumn int, 
 	case 0:
 		return settingsProviderDetailsView(width, providerCursor, info)
 	case 2:
-		return strings.TrimSpace(settingsEffortDetail(width, modelCursor, effortCursor, info))
+		return strings.TrimSpace(settingsEffortDetail(width, provider, modelCursor, effortCursor, info))
 	default:
 		return settingsModelDetail(width, provider, modelCursor, info)
 	}
@@ -749,11 +737,11 @@ func writeSettingsSelection(provider string, model string, modelMode string, eff
 			} else {
 				delete(entry, "model_mode")
 			}
-			if effort == "" {
-				delete(entry, "reasoning_effort")
-			} else {
-				entry["reasoning_effort"] = effort
-			}
+		}
+		if effort == "" {
+			delete(entry, "reasoning_effort")
+		} else {
+			entry["reasoning_effort"] = effort
 		}
 		if len(entry) == 0 {
 			delete(preferences, provider)
@@ -860,7 +848,7 @@ func settingsProviderSelectorView(cursor int) string {
 }
 
 func settingsModelIndex(provider string, model string, modelMode string) int {
-	model = strings.TrimSpace(model)
+	model = airunner.NormalizeModel(provider, model)
 	modelMode = strings.TrimSpace(modelMode)
 	options := airunner.ModelOptions(provider)
 	if provider == "codex" && model == "" {
@@ -889,57 +877,59 @@ func settingsModelIndex(provider string, model string, modelMode string) int {
 }
 
 func settingsRowCount(provider string) int {
-	if provider == "codex" {
-		return 3
-	}
-	return 2
+	return 3
 }
 
-func settingsEffortIndex(effort string) int {
-	for index, option := range airunner.ReasoningEffortOptions("codex") {
-		if option.Value == strings.TrimSpace(effort) {
+// settingsEffortIndex finds the saved effort; an unset one selects the
+// provider's default (Medium for Claude, Model default for OpenAI).
+func settingsEffortIndex(provider string, effort string) int {
+	effort = strings.TrimSpace(effort)
+	if effort == "" {
+		effort = airunner.DefaultReasoningEffort(provider)
+	}
+	for index, option := range airunner.ReasoningEffortOptions(provider) {
+		if option.Value == effort {
 			return index
 		}
 	}
 	return 0
 }
 
-func settingsEffortDetail(width int, modelCursor int, effortCursor int, info settingsInfo) string {
-	modelOptions := airunner.ModelOptions("codex")
-	effortOptions := airunner.ReasoningEffortOptions("codex")
+func settingsEffortDetail(width int, provider string, modelCursor int, effortCursor int, info settingsInfo) string {
+	modelOptions := airunner.ModelOptions(provider)
+	effortOptions := airunner.ReasoningEffortOptions(provider)
 	if effortCursor < 0 || effortCursor >= len(effortOptions) {
 		effortCursor = 0
 	}
 	if modelCursor < 0 || modelCursor >= len(modelOptions) {
-		modelCursor = settingsModelIndex("codex", info.providerModel("codex"), info.providerModelMode("codex"))
+		modelCursor = settingsModelIndex(provider, info.providerModel(provider), info.providerModelMode(provider))
 	}
 	selectedModel := modelOptions[modelCursor]
 	selectedEffort := effortOptions[effortCursor]
+	name := settingsProviderName(provider)
 	if selectedModel.Auto && selectedEffort.Value == "" {
-		detail := "Auto uses Luna + High for Clarify Job, candidate research, and evaluation; Sol + Medium for framing, quality, synthesis, improvement, and assembly."
+		detail := "Auto runs " + airunner.ModelLabel(provider, airunner.AutoOpenAIModel) + " at " + airunner.ReasoningEffortLabel(provider, airunner.AutoOpenAIEffort) + " Thinking effort for every task."
 		return "\n" + styles.Subtitle.Width(width).Render(detail) + "\n"
 	}
-	detail := "Let the selected OpenAI model use its default reasoning effort."
+	detail := "Let the selected " + name + " model use its default reasoning effort."
 	if selectedEffort.Value != "" {
-		detail = "Use " + selectedEffort.Label + " OpenAI reasoning effort for new runs."
+		detail = "Use " + selectedEffort.Label + " " + name + " Thinking effort for new runs."
+		if selectedEffort.Value == airunner.DefaultReasoningEffort(provider) {
+			detail += " This is the default."
+		}
 	}
-	if selectedModel.Custom || (info.providerModel("codex") != "" && !airunner.IsCuratedModel("codex", info.providerModel("codex"))) {
-		detail += " Compatibility is unverified for a custom model; OpenAI remains authoritative."
-	} else if selectedModel.Value != "" {
-		detail += " This effort is supported by the curated GPT-5.6 model."
+	if selectedModel.Custom || (info.providerModel(provider) != "" && !airunner.IsCuratedModel(provider, airunner.NormalizeModel(provider, info.providerModel(provider)))) {
+		detail += " Compatibility is unverified for a custom model; " + name + " remains authoritative."
 	}
 	return "\n" + styles.Subtitle.Width(width).Render(detail) + "\n"
 }
 
 func settingsNewRunCopy(provider string) string {
-	if provider == "codex" {
-		return "Model and Thinking effort changes apply to new runs. Resumed sessions keep the settings they started with."
-	}
-	return "Model changes apply to new runs. Resumed sessions keep the model they started with."
+	return "Model and Thinking effort changes apply to new runs. Resumed sessions keep the settings they started with."
 }
 
 func settingsModelOptions(provider string, info settingsInfo) []choiceOption {
-	model := info.providerModel(provider)
+	model := airunner.NormalizeModel(provider, info.providerModel(provider))
 	options := airunner.ModelOptions(provider)
 	out := make([]choiceOption, 0, len(options))
 	for _, option := range options {
@@ -949,7 +939,9 @@ func settingsModelOptions(provider string, info settingsInfo) []choiceOption {
 		}
 		detail := "Use " + label + " for new " + settingsProviderName(provider) + " runs."
 		if option.Auto {
-			detail = "Let Liner choose the OpenAI model and Thinking effort for each new task: Luna + High for research-heavy work, Sol + Medium for higher-judgment work."
+			detail = "Let Liner choose the OpenAI model and Thinking effort for new tasks: " + airunner.ModelLabel(provider, airunner.AutoOpenAIModel) + " at " + airunner.ReasoningEffortLabel(provider, airunner.AutoOpenAIEffort) + " for every task."
+		} else if option.Value == airunner.DefaultClaudeModel && provider == "claude" {
+			detail = "Use " + label + " for new Claude runs. This is the default."
 		} else if option.Value == "" && !option.Custom {
 			detail = "Let the provider CLI choose its default model for new runs."
 		} else if option.Custom {

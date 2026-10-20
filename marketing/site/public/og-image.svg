@@ -5,13 +5,13 @@
   <circle cx="134" cy="112" r="9" fill="#ff4500"/>
   <text x="164" y="122" fill="#f4f3ed" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="500">Liner</text>
   <text x="120" y="274" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="300" letter-spacing="0">
-    Deep research
+    Build reusable
   </text>
   <text x="120" y="362" fill="#8a8a93" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="300" letter-spacing="0">
-    for one <tspan fill="#ff4500">specific job.</tspan>
+    AI <tspan fill="#ff4500">context.</tspan>
   </text>
   <text x="124" y="456" fill="#d4d4d8" font-family="JetBrains Mono, Menlo, monospace" font-size="22" letter-spacing="1.6">
-    steer the angle  ·  keep the sources  ·  reuse the corpus
+    choose sources · save research · write AI instructions
   </text>
   <path d="M916 216H1032V334H916V216Z" fill="#ff4500"/>
   <path d="M944 254H1004V296H944V254Z" stroke="#0a0a0a" stroke-width="5"/>

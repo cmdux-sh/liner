@@ -42,9 +42,13 @@ func GenerateClarifyingQuestions(cwd string, jtbd string, timeout time.Duration)
 		failures = append(failures, err)
 		if clarifyExplicitEffortRejection(agent, err) {
 			if agent.EffortIsAuto && attempt == 1 {
-				agent.Model = ""
+				// Retry on the provider's own default for what Liner chose;
+				// a model saved in Settings stays.
+				if agent.ModelIsAuto {
+					agent.Model = ""
+					agent.ModelIsAuto = false
+				}
 				agent.ReasoningEffort = ""
-				agent.ModelIsAuto = false
 				agent.EffortIsAuto = false
 				continue
 			}
@@ -104,7 +108,7 @@ func resolveAgent() (Agent, error) {
 	if err != nil {
 		return Agent{}, err
 	}
-	return airunner.ApplyAutoModelPolicy(agent, "jtbd-clarify"), nil
+	return airunner.ApplyDefaults(agent), nil
 }
 
 type clarifyAgentResponse struct {
@@ -129,8 +133,13 @@ func runClarifyAgent(ctx context.Context, agent Agent, cwd string, prompt string
 	if agent.Model != "" {
 		args = append(args, "--model", agent.Model)
 	}
-	if agent.ID == "codex" && agent.ReasoningEffort != "" {
-		args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%q", agent.ReasoningEffort))
+	if agent.ReasoningEffort != "" {
+		switch agent.ID {
+		case "codex":
+			args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%q", agent.ReasoningEffort))
+		case "claude":
+			args = append(args, "--effort", agent.ReasoningEffort)
+		}
 	}
 	if agent.ID == "codex" {
 		args = append(args, "-")
@@ -285,7 +294,9 @@ func clarifyExplicitEffortRejection(agent Agent, failure error) bool {
 	detail := strings.ToLower(clarifyFailureDetail(failure))
 	mentionsEffort := strings.Contains(detail, "reasoning effort") ||
 		strings.Contains(detail, "reasoning_effort") ||
-		strings.Contains(detail, "model_reasoning_effort")
+		strings.Contains(detail, "model_reasoning_effort") ||
+		strings.Contains(detail, "--effort") ||
+		strings.Contains(detail, "effort level")
 	if !mentionsEffort {
 		return false
 	}

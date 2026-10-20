@@ -35,6 +35,18 @@ type StagedSource struct {
 	Destination string      `yaml:"destination"`
 	Status      string      `yaml:"status"`
 	Source      tape.Source `yaml:"source"`
+	// DraftNote is the agents' note from a draft when Source is the saved
+	// copy that the draft must not change. It is review context only and is
+	// never written to manifests or sent to Core.
+	DraftNote string `yaml:"-" json:"-"`
+	// DraftSection and DraftKind are the draft's section and kind for the
+	// same saved copy. Review context only, like DraftNote.
+	DraftSection string `yaml:"-" json:"-"`
+	DraftKind    string `yaml:"-" json:"-"`
+	// FetchStatus is the evaluation's structured record of how much of the
+	// Source the agents could read: readable, partial, metadata_only, or
+	// unavailable. Review context only.
+	FetchStatus string `yaml:"-" json:"-"`
 }
 
 var (

@@ -7345,9 +7345,9 @@ func TestProjectReopenRoutesPartialCompileBackToCompile(t *testing.T) {
 		t.Fatalf("expected compile row in pipeline: %#v", rows)
 	}
 
-	blocked, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'l', Text: "l"}))
-	if !strings.Contains(blocked.err, "Review compile issues") {
-		t.Fatalf("l should explain why Operating Layer is blocked, got %q", blocked.err)
+	failures, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: 'l', Text: "l"}))
+	if failures.screen != screenCompile || failures.compilePane != compilePaneSources {
+		t.Fatalf("l should show the failed Sources instead of refusing, got screen %v pane %d err %q", failures.screen, failures.compilePane, failures.err)
 	}
 
 	got, _ := m.primaryProjectAction()
@@ -8753,14 +8753,14 @@ func TestSettingsAutoOpenAIProfilePersistsSeparatelyFromProviderDefault(t *testi
 
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, expected := range []string{"Auto", "Auto by task"} {
+	for _, expected := range []string{"Auto", "Auto (Medium)", "Sol 6.1"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("Auto Settings missing %q:\n%s", expected, m.viewSettings())
 		}
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
 	view = strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, expected := range []string{"Luna + High", "Sol + Medium"} {
+	for _, expected := range []string{"Sol 6.1 at Medium for every task"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("Auto Settings detail missing %q:\n%s", expected, m.viewSettings())
 		}
@@ -8804,7 +8804,6 @@ func TestSettingsEnterSavesStagedCombinationAndReturnsToMenu(t *testing.T) {
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Claude
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sonnet
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
@@ -8818,18 +8817,18 @@ func TestSettingsEnterSavesStagedCombinationAndReturnsToMenu(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"agent: claude", "model: opus", "custom_field: keep-me"} {
+	for _, expected := range []string{"agent: claude", "model: claude-opus-5-5", "reasoning_effort: medium", "custom_field: keep-me"} {
 		if !strings.Contains(string(data), expected) {
 			t.Fatalf("saved Settings missing %q:\n%s", expected, data)
 		}
 	}
 	restarted := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
-	if restarted.settings.preferredAgent() != "claude" || restarted.settings.providerModel("claude") != "opus" {
+	if restarted.settings.preferredAgent() != "claude" || restarted.settings.providerModel("claude") != "claude-opus-5-5" {
 		t.Fatalf("restarted Settings = provider %q model %q", restarted.settings.preferredAgent(), restarted.settings.providerModel("claude"))
 	}
 }
 
-func TestSettingsEscapeDiscardsStagedCombinationAndClaudeSkipsEffort(t *testing.T) {
+func TestSettingsEscapeDiscardsStagedCombinationAndClaudeOffersEffort(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(home, ".liner", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
@@ -8849,11 +8848,13 @@ func TestSettingsEscapeDiscardsStagedCombinationAndClaudeSkipsEffort(t *testing.
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
-	if m.settingsRow != 1 {
-		t.Fatalf("Claude should stop at Model column, got %d", m.settingsRow)
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
+	if m.settingsRow != 2 {
+		t.Fatalf("Claude should reach the Thinking effort column, got %d", m.settingsRow)
 	}
-	if strings.Contains(stripANSICodesForTest(m.viewSettings()), "Thinking effort") {
-		t.Fatalf("Claude Settings should omit Thinking effort:\n%s", m.viewSettings())
+	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
+	if !strings.Contains(view, "Thinking effort") || !strings.Contains(view, "Use Medium Claude Thinking effort for new runs. This is the default.") {
+		t.Fatalf("Claude Settings should offer Thinking effort with Medium as the default:\n%s", m.viewSettings())
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
@@ -9218,7 +9219,7 @@ func TestOnboardingJSSetupViewExplainsDownloadAndSkip(t *testing.T) {
 		"Playwright's headless Chromium",
 		"Install",
 		"Skip",
-		"Download Playwright Chromium (about 150 MB on first run)",
+		"Download Playwright's headless Chromium (about 100 MB to download, about 220 MB on disk)",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("JS setup onboarding view missing %q:\n%s", expected, view)
@@ -9254,7 +9255,7 @@ func TestOnboardingJSSetupViewExplainsDownloadAndSkip(t *testing.T) {
 			t.Fatalf("JS setup skip selection missing styled option %q:\n%s", expected, rawSkipView)
 		}
 	}
-	for _, unexpected := range []string{"Download Playwright Chromium", "Install:", "Skip:"} {
+	for _, unexpected := range []string{"Download Playwright's headless Chromium", "Install:", "Skip:"} {
 		if strings.Contains(skipView, unexpected) {
 			t.Fatalf("JS setup skip selection should not show %q:\n%s", unexpected, skipView)
 		}
@@ -9298,7 +9299,7 @@ func TestOnboardingJSSetupRunningShowsWaitStateWithoutProgressBar(t *testing.T) 
 	}
 	for _, unexpected := range []string{
 		"Skip for now",
-		"Download Playwright Chromium (about 150 MB on first run).",
+		"Download Playwright's headless Chromium (about 100 MB to download, about 220 MB on disk).",
 	} {
 		if strings.Contains(view, unexpected) {
 			t.Fatalf("running JS setup view should not show option detail %q:\n%s", unexpected, view)
@@ -9345,12 +9346,14 @@ func TestCompileJSSetupWarningShowsInstallAction(t *testing.T) {
 	}
 
 	rawView := m.viewCompile()
-	view := stripANSICodesForTest(rawView)
+	view := strings.Join(strings.Fields(stripANSICodesForTest(rawView)), " ")
 	for _, expected := range []string{
 		"JS rendering",
 		"One source needs a browser to reveal the article text.",
 		"Liner can install Playwright's headless Chromium",
-		"Press i to install JS rendering.",
+		"about 100 MB to download, about 220 MB on disk",
+		"Repair never installs it.",
+		"Press i to install JS rendering, or continue without these sources.",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing JS setup cue %q:\n%s", expected, view)
@@ -9372,8 +9375,11 @@ func TestCompileJSSetupWarningShowsInstallAction(t *testing.T) {
 		t.Fatalf("compile help should offer JS install even with a usable partial result: %#v", m.helpForScreen().ShortHelp())
 	}
 	sourcePane := m.viewCompileSourcesNext()
-	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
-		t.Fatalf("source review help should offer repair action: %#v", sourcePane.helpForScreen().ShortHelp())
+	if hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
+		t.Fatalf("source review help should not call the browser install a repair: %#v", sourcePane.helpForScreen().ShortHelp())
+	}
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "install JS") {
+		t.Fatalf("source review help should keep the separate install offer: %#v", sourcePane.helpForScreen().ShortHelp())
 	}
 	if got := compileWarningRecommendation(m.compileResult.Warnings[0]); !strings.Contains(got, "Liner will retry this compile automatically") {
 		t.Fatalf("expected JS setup recommendation, got %q", got)
@@ -9495,10 +9501,10 @@ func TestCompileViewKeepsFooterVisibleWithTallWarnings(t *testing.T) {
 		t.Fatalf("compile view should fit terminal height: got %d, want <= %d\n%s", got, height, view)
 	}
 	for _, expected := range []string{
-		"One source needs a browser to reveal the article text.",
+		"5 sources need a browser to reveal the article text.",
 		"i install JS",
 		"enter view sources",
-		"r repair sources",
+		"r retry compile",
 	} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("compile view missing %q:\n%s", expected, view)
@@ -10139,7 +10145,7 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // OpenAI default
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // GPT-5.6 Sol
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sol 6.1
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if m.err != "" {
 		t.Fatalf("save OpenAI model: %s", m.err)
@@ -10148,7 +10154,6 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Claude
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sonnet
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if m.err != "" {
@@ -10156,17 +10161,17 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	}
 
 	restarted := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
-	if got := restarted.settings.providerModel("codex"); got != "gpt-5.6-sol" {
-		t.Fatalf("OpenAI model = %q, want gpt-5.6-sol", got)
+	if got := restarted.settings.providerModel("codex"); got != "gpt-6.1-sol" {
+		t.Fatalf("OpenAI model = %q, want gpt-6.1-sol", got)
 	}
-	if got := restarted.settings.providerModel("claude"); got != "opus" {
-		t.Fatalf("Claude model = %q, want opus", got)
+	if got := restarted.settings.providerModel("claude"); got != "claude-opus-5-5" {
+		t.Fatalf("Claude model = %q, want claude-opus-5-5", got)
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".liner", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codex:", "model: gpt-5.6-sol", "claude:", "model: opus"} {
+	for _, expected := range []string{"codex:", "model: gpt-6.1-sol", "claude:", "model: claude-opus-5-5"} {
 		if !strings.Contains(string(data), expected) {
 			t.Fatalf("config missing %q:\n%s", expected, data)
 		}
@@ -10183,7 +10188,7 @@ func TestSettingsOpenAIThinkingEffortPersistsFromRealKeyFlow(t *testing.T) {
 
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, label := range []string{"Thinking effort", "Auto by task", "None", "Low", "Medium", "High", "Extra high", "Maximum"} {
+	for _, label := range []string{"Thinking effort", "Auto (Medium)", "None", "Low", "Medium", "High", "Extra high", "Maximum"} {
 		if !strings.Contains(view, label) {
 			t.Fatalf("OpenAI Settings missing %q:\n%s", label, view)
 		}
@@ -10203,8 +10208,8 @@ func TestSettingsOpenAIThinkingEffortPersistsFromRealKeyFlow(t *testing.T) {
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	claudeView := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	if strings.Contains(claudeView, "Thinking effort") {
-		t.Fatalf("Claude Settings should not show Thinking effort:\n%s", claudeView)
+	if !strings.Contains(claudeView, "Thinking effort") || strings.Contains(claudeView, "None") {
+		t.Fatalf("Claude Settings should show Claude Code's effort levels:\n%s", claudeView)
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
 	if m.settingsEffortCursor != 6 {
@@ -10230,7 +10235,7 @@ func TestSettingsCustomOpenAIModelResetsEffortAndWarnsCompatibility(t *testing.T
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, []byte("provider_preferences:\n  codex:\n    model: gpt-5.6-sol\n    reasoning_effort: max\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("provider_preferences:\n  codex:\n    model: gpt-6.1-sol\n    reasoning_effort: max\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
@@ -12324,7 +12329,7 @@ func TestAssemblyReviewKeepsActionsInFooterOnly(t *testing.T) {
 	m.applySourceItems(m.sourceItems)
 
 	view := m.viewAssemblyReview()
-	for _, expected := range []string{"Review Draft Sources", "Kind", "Section", "Note", "canonical", "foundations", "Canonical source", "Selected", "Field", "Value", "Status", "checked"} {
+	for _, expected := range []string{"Review Draft Sources", "Kind", "Section", "Note", "canonical", "foundations", "Canonical source", "Selected", "Use:", "Read:", "Note:", "checked"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("assembly review missing %q:\n%s", expected, view)
 		}
@@ -12516,13 +12521,16 @@ func TestCompileWarningSelectionAndHelpUsePerSourceActions(t *testing.T) {
 			t.Fatalf("compile warning selection view missing %q:\n%s", expected, view)
 		}
 	}
-	for _, keyName := range []string{"p", "o", "r"} {
+	for _, keyName := range []string{"p", "o", "enter"} {
 		if !hasHelp(got.helpForScreen().ShortHelp(), keyName) {
 			t.Fatalf("compile warning help should expose %s", keyName)
 		}
 	}
-	if !hasHelpDesc(got.helpForScreen().ShortHelp(), "repair sources") {
-		t.Fatalf("compile warning help should expose repair action: %#v", got.helpForScreen().ShortHelp())
+	if !hasHelpDesc(got.helpForScreen().ShortHelp(), "retry compile") {
+		t.Fatalf("compile warning help should name the retry it runs: %#v", got.helpForScreen().ShortHelp())
+	}
+	if !hasHelp(got.helpForScreen().FullHelp()[0], "r") {
+		t.Fatalf("r stays in the full help while Enter runs the same retry: %#v", got.helpForScreen().FullHelp())
 	}
 }
 
@@ -13052,12 +13060,12 @@ emit({
 		t.Fatalf("expected enter to switch to sources pane, got %d", sourcePane.compilePane)
 	}
 	sourceView := sourcePane.viewCompile()
-	for _, expected := range []string{"Sources", "1 custom source needs retry", "1 usable source", "custom source", "research source", "https://example.com/kept", "one11111111", "no transcript/readable body", "Repair sources first with r"} {
+	for _, expected := range []string{"Sources", "1 custom source needs retry", "1 usable source", "custom source", "research source", "https://example.com/kept", "one11111111", "no transcript/readable body", "Press r to retry unavailable custom sources", "Nothing is downloaded."} {
 		if !strings.Contains(sourceView, expected) {
 			t.Fatalf("compile sources pane should show %q:\n%s", expected, sourceView)
 		}
 	}
-	if !strings.Contains(sourceView, "refreshes source evaluation if any recover") {
+	if !strings.Contains(sourceView, "refresh source evaluation if any recover") {
 		t.Fatalf("compile sources pane should explain source evaluation refresh after repair:\n%s", sourceView)
 	}
 	if strings.Contains(sourceView, "View:") {
@@ -13066,10 +13074,10 @@ emit({
 	if hasHelp(sourcePane.helpForScreen().ShortHelp(), "tab") {
 		t.Fatal("compile help should not expose tab view switcher")
 	}
-	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "repair sources") {
+	if !hasHelpDesc(sourcePane.helpForScreen().ShortHelp(), "retry custom sources") {
 		t.Fatalf("compile help should expose source repair, got %#v", sourcePane.helpForScreen().ShortHelp())
 	}
-	if got := sourcePane.nextAction(); got != "Repair sources." {
+	if got := sourcePane.nextAction(); got != "Retry custom sources." {
 		t.Fatalf("first source review should point to repair, got %q", got)
 	}
 
@@ -13369,11 +13377,11 @@ func TestCompileHelpSeparatesExcludedLocalSourcesFromSourceIssues(t *testing.T) 
 		}
 	}
 	sourcePane := m.viewCompileSourcesNext()
-	if got := sourcePane.nextAction(); got != "Repair sources." {
+	if got := sourcePane.nextAction(); got != "Retry custom sources." {
 		t.Fatalf("first source review should point to repair, got %q", got)
 	}
 	help := sourcePane.helpForScreen().ShortHelp()
-	if !hasHelpDesc(help, "repair sources") {
+	if !hasHelpDesc(help, "retry custom sources") {
 		t.Fatalf("compile help should expose source repair, got %#v", help)
 	}
 }

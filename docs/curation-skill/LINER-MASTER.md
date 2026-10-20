@@ -312,7 +312,7 @@ Web sources use `httpx` and `trafilatura` for server-rendered extraction. If a p
 liner setup-js
 ```
 
-The npm/TUI onboarding offers this setup on first run, and the compile result screen offers it again when a source needs JS rendering. The Chromium download is roughly 150MB.
+The npm/TUI onboarding offers this setup on first run, and the compile result screen offers it again when a source needs JS rendering. Repair never installs it; installing is always a separate choice. Setup downloads only Playwright's headless Chromium: about 100 MB, about 220 MB on disk.
 
 If `trafilatura` itself crashes on a page, the web handlers now keep the source through a tag-stripped HTML fallback where possible and surface a soft warning instead of losing the source to an internal Python exception.
 

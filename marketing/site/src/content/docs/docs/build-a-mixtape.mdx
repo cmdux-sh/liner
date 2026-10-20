@@ -1,29 +1,29 @@
 ---
-title: Build Reusable AI Context
+title: Build a Project
 description: Collect sources, compile Markdown research, write instruction files, and use the saved folder with an AI assistant.
 ---
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 import FileTree from "../../../components/FileTree.astro";
 
-Start with a Liner Project for one focused task. Define its Job to Be Done in Job Story form, add any material you already have, Clarify Job, build and review the corpus, compile the Mixtape, then write the instruction files a future AI session should follow.
+Create a local folder for one focused task. Add sources, review the research, then write instructions an AI assistant can follow. Liner calls the folder a Project and the research packet inside it a Mixtape.
 
-## Interactive Flow
+## Start in the terminal UI
 
 <CommandSnippet command="npx linersh" />
 
-The terminal UI carries the complete creation flow. It creates the Project shell, collects material you already have, clarifies the job, builds the corpus, pauses for Source and Synthesis approval, compiles the Mixtape, and writes AI instructions. Use the CLI when you want a scriptable operation or a `.mixtape` archive.
+The terminal UI guides creation from the first brief through source selection, synthesis approval, compile, and AI instruction writing. AI-assisted research needs your installed, authenticated Codex CLI or Claude Code runner. It uses that account's limits or charges and processes the material it reads under your provider's terms. Compile and instruction-file creation use local saved artifacts without making new model calls. Use the CLI for scriptable operations and `.mixtape` archives.
 
-The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another location:
+The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another location.
 
 <CommandSnippet command="LINER_DIR=~/liner/projects npx linersh" />
 
-## Creation Checkpoints
+## Creation checkpoints
 
-1. **Create Project** asks for the name, Job to Be Done, Curator, and whether you already have Sources.
+1. **Create Project** asks for a name, the task, your curator name, and whether you already have sources. The task uses Job Story form, such as “When I am designing native mobile interactions, I want grounded touch guidance, so I can avoid brittle gesture patterns.”
 2. **Source Inbox** accepts URLs, local files, pasted article text, and skill Sources. Its review screen lets you include or exclude each item, then shows a plain-language summary before saving.
 3. **Clarify Job** records the situation, desired outcome, and boundaries before research begins.
-4. **Build Corpus** discovers and evaluates evidence, writes working artifacts, and proposes a draft Source set.
+4. **Build Corpus** assembles the body of research for the task. It discovers and evaluates evidence, writes working artifacts, and proposes draft Sources.
 5. **Review Draft Sources** is the Curator checkpoint for the canonical Source set. Accepting it saves the checked Sources atomically and preserves any already-present Sources.
 6. **Review Synthesis** is a separate checkpoint. Approve the current `synthesis.md` unchanged, or edit it and review the exact replacement before anything is written.
 7. After Synthesis approval, Liner verifies the Project Snapshot and starts **Compile** automatically. Compile writes `mixtape/MIXTAPE.md` and the extracted source files.
@@ -31,13 +31,15 @@ The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another loca
 
 Source approval and Synthesis approval are intentionally separate. Choosing the evidence does not silently approve the interpretation placed at the top of `MIXTAPE.md`.
 
-## CLI Flow
+## Use the CLI
 
-<CommandSnippet command={`mkdir my-projects
-cd my-projects
+CLI paths resolve from your shell's working directory. This example creates a Project in the default terminal UI library. If you configured another library, use its path.
+
+<CommandSnippet command={`mkdir -p ~/liner/projects
+cd ~/liner/projects
 liner init mobile-design-foundations`} />
 
-Add Sources through Liner Core so each one receives durable identity and duplicate checks:
+Add sources through the CLI so Liner can assign a stable ID and check for duplicates.
 
 <CommandSnippet command={`liner sources add mobile-design-foundations \
   --type web \
@@ -45,17 +47,17 @@ Add Sources through Liner Core so each one receives durable identity and duplica
   --note "Use the current review rules as primary evidence." \
   --priority required`} />
 
-Then use the terminal UI to build and review the corpus. The Curator's accepted Source set and separately approved Synthesis are published into the Mixtape during that workflow.
+Continue in the terminal UI to build the research and review its proposed Sources and Synthesis. Your accepted Sources and separately approved Synthesis become part of the Mixtape.
 
-For a scriptable compile after you have reviewed the recipe and Synthesis, run:
+After reviewing the recipe and synthesis, run a scriptable compile.
 
 <CommandSnippet command="liner compile mobile-design-foundations" />
 
-The compile step writes the research packet:
+The compile step writes the research packet.
 
 <FileTree
   root="mobile-design-foundations/"
-  label="Compile Output"
+  label="Compile output"
   items={[
     { name: "mixtape/", kind: "dir" },
     { name: "MIXTAPE.md", kind: "file", depth: 1, accent: true },
@@ -64,18 +66,18 @@ The compile step writes the research packet:
   ]}
 />
 
-## Use The Result
+## Use the result
 
-After compile, give the AI `mixtape/MIXTAPE.md` and `mixtape/sources/`.
+After compile, give the AI `mixtape/MIXTAPE.md` and access to `mixtape/sources/`. The compiled file contains a synthesis and links to separate source files.
 
-In the terminal UI, Compile begins automatically after Synthesis approval. Continue to **Create Operating Layer** when the compiled result is usable. That action writes the instruction files: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
+In the terminal UI, Compile begins automatically after Synthesis approval. Continue to **Create Operating Layer** when the compiled result is usable. That action writes `LINER.md`, root `SKILL.md`, and `liner.yaml`.
 
-After the instruction files are written, give the AI the whole folder when it can read files. For lighter use, paste `mixtape/MIXTAPE.md` into the conversation and keep the source files nearby for detail.
+After the instruction files are written, give the AI the whole folder when it can read files. For lighter use, paste `mixtape/MIXTAPE.md` into the conversation. It contains the synthesis and a source index; provide the referenced source files separately when the assistant needs their content.
 
 ## Recompile
 
-When evidence changes, use `liner sources add`, `update`, or `replace` so identity and lineage stay intact. Then rebuild the affected corpus and compile:
+When evidence changes, use `liner sources add`, `update`, or `replace` so identity and lineage stay intact. Then rebuild the affected corpus and compile.
 
 <CommandSnippet command="liner compile mobile-design-foundations" />
 
-In the terminal UI, completed folders open the existing compile result by default. Press `r` from the compile screen to rerun the compile, then recreate the instruction files if the saved research changed.
+In the terminal UI, completed folders open the existing compile result by default. Press `r` from the compile screen to repair or retry compile. To refresh instructions after evidence changes, inspect `liner project guidance <folder> --format markdown` and follow the reviewed maintenance steps or use the Maintenance Adapter. The terminal UI does not regenerate an existing Operating Layer.

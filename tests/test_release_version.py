@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import runpy
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "release-version.py"
+PUBLIC_VERSION_FIELDS = runpy.run_path(str(SCRIPT))["PUBLIC_VERSION_FIELDS"]
 OWNED_PATHS = (
     Path("VERSION"),
     Path("pyproject.toml"),
@@ -150,10 +156,16 @@ def test_release_version_write_updates_every_owned_representation(tmp_path: Path
         root / "marketing/site/src/content/docs/docs/install.mdx"
     ).read_text(encoding="utf-8")
     assert "Version `2.3.4` supports" in install_text
-    assert install_text.count("linersh@2.3.4") == 2
-    assert "liner 2.3.4 (tui) · 2.3.4 (core)" in (
+    assert "linersh@2.3.4" not in install_text
+    troubleshooting_text = (
         root / "marketing/site/src/content/docs/docs/troubleshooting.mdx"
     ).read_text(encoding="utf-8")
+    assert "For version 2.3.4, the output is the following." in troubleshooting_text
+    assert "```text\nliner 2.3.4 (tui) · 2.3.4 (core)\n```" in troubleshooting_text
+    assert 'command="liner 2.3.4 (tui)' not in troubleshooting_text
+    for field in PUBLIC_VERSION_FIELDS:
+        assert field.expected_count == 1
+        assert re.findall(field.read_pattern, (root / field.path).read_text()) == ["2.3.4"]
 
 
 def test_release_version_check_is_read_only_and_fails_on_drift(tmp_path: Path) -> None:
@@ -196,13 +208,43 @@ def test_release_version_prerelease_round_trip_is_idempotent(tmp_path: Path) -> 
     assert first.returncode == 0, first.stderr
     install_path = root / "marketing/site/src/content/docs/docs/install.mdx"
     first_install = install_path.read_bytes()
-    assert install_path.read_text(encoding="utf-8").count(f"linersh@{version}") == 2
+    assert f"Version `{version}` supports" in install_path.read_text(encoding="utf-8")
+    assert f"linersh@{version}" not in install_path.read_text(encoding="utf-8")
     assert _run(root, "--check").returncode == 0
 
     second = _run(root, "--write")
 
     assert second.returncode == 0, second.stderr
     assert install_path.read_bytes() == first_install
+
+
+@pytest.mark.parametrize("field", PUBLIC_VERSION_FIELDS, ids=lambda field: field.label)
+@pytest.mark.parametrize("mutation, count", [("missing", 0), ("duplicate", 2)])
+def test_public_version_bindings_require_one_owned_field(
+    tmp_path: Path, field: Any, mutation: str, count: int
+) -> None:
+    root = _fixture(tmp_path)
+    assert _run(root, "--write").returncode == 0
+    page = root / field.path
+    text = page.read_text(encoding="utf-8")
+    match = re.search(field.read_pattern, text)
+    assert match is not None
+    if mutation == "missing":
+        text = text[:match.start()] + text[match.end():]
+    else:
+        text += "\n" + match.group(0) + "\n"
+    page.write_text(text, encoding="utf-8")
+    before = page.read_bytes()
+
+    result = _run(root, "--check")
+
+    assert result.returncode != 0
+    assert f"{field.label}: expected 2.3.4, found {count} owned fields" in result.stderr
+    assert page.read_bytes() == before
+    write_result = _run(root, "--write")
+    assert write_result.returncode != 0
+    assert f"expected 1 owned version fields, found {count}" in write_result.stderr
+    assert page.read_bytes() == before
 
 
 def test_release_version_check_reports_public_surface_drift(tmp_path: Path) -> None:

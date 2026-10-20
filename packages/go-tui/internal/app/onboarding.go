@@ -23,7 +23,7 @@ const (
 )
 
 var onboardingJSOptions = []choiceOption{
-	{Label: "Install", Detail: "Download Playwright Chromium (about 150 MB on first run)."},
+	{Label: "Install", Detail: "Download Playwright's headless Chromium (" + jsSetupSize + ")."},
 	{Label: "Skip", Detail: "Skip for now. Liner will offer this again if a source needs browser rendering."},
 }
 

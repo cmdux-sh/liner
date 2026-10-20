@@ -4,107 +4,17 @@ import { resolve } from "node:path";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import CommandSnippet from "../components/CommandSnippet.astro";
 import SiteHeader from "../components/SiteHeader.astro";
+import releases from "../data/releases.json";
 
-type Entry = {
-  version: string;
-  items: string[];
-};
-
-type ParsedItem = {
-  title?: string;
-  body: string;
-};
-
-type VersionLabel = {
-  number: string;
-  note?: string;
-};
-
-const changelog = readFileSync(resolve(process.cwd(), "../../docs/project/CHANGELOG.md"), "utf8");
 const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "utf8").trim();
-const entries: Entry[] = [];
-let current: Entry | null = null;
-let activeItem = "";
-
-function pushItem() {
-  if (!current || !activeItem.trim()) return;
-  current.items.push(activeItem.trim());
-  activeItem = "";
-}
-
-for (const line of changelog.split("\n")) {
-  const heading = line.match(/^##\s+(.+)/);
-  if (heading) {
-    pushItem();
-    if (current) entries.push(current);
-    current = { version: heading[1].trim(), items: [] };
-    continue;
-  }
-
-  if (!current) continue;
-
-  const bullet = line.match(/^-\s+(.+)/);
-  if (bullet) {
-    pushItem();
-    activeItem = bullet[1].trim();
-    continue;
-  }
-
-  if (activeItem && line.trim()) {
-    activeItem += " " + line.trim();
-  }
-}
-
-pushItem();
-if (current) entries.push(current);
-
-const releaseIntros: Record<string, string> = {
-  "1.1.1":
-    "Interrupted corpus work now resumes from its last durable checkpoint. Approved Sources survive Assembly, focused improvements persist across restarts, and completed audits visibly record their resolution.",
-  "1.1.0":
-    "The builder now pauses for clear Source and Synthesis approval before Compile. Project maintenance keeps the same preview, approval, and receipt trail for Source changes, Project moves, and recoverable deletion.",
-  "1.0.2":
-    "Compile became easier to trust when sources are missing or blocked. The terminal app now summarizes the result first, keeps source review close by, and guides recovery for custom web and YouTube sources.",
-  "1.0.0":
-    "The first complete project-builder release. The Go terminal UI is now the default path, the npm package includes the CLI and TUI, and completed folders carry instructions future AI sessions can use.",
-  "0.5.7":
-    "A focused PDF recovery fix for web sources that only expose the file through a browser download.",
-  "0.5.6":
-    "Source fetching became stricter about PDFs, JavaScript shells, cookie banners, stale cache entries, and partial compile reporting.",
-  "0.5.5":
-    "A broad reliability pass for terminal scrolling, JavaScript-rendered pages, partial compiles, and clean reinstall testing.",
-  "0.5.4":
-    "Fresh `npx linersh` installs became easier to verify, and Windows x64 support moved closer to the same install path as macOS and Linux.",
-  "0.5.3":
-    "Version reporting became clearer: the command now shows the installed TUI version and the command-line core version together.",
-  "0.5.2":
-    "The terminal hub became more direct: one status view, clearer navigation, and fewer misleading run summaries.",
-  "0.5.1":
-    "The first polish pass after the npm TUI release improved startup reliability, terminal color, navigation, and folder opening.",
-  "0.5.0":
-    "The interactive terminal UI became available through npm for clean machines.",
-};
-
-const shippedEntries = entries.filter((entry) => {
-  const version = entry.version.toLowerCase();
-  return version !== "unreleased" && !version.includes("unreleased");
-});
-
-function versionLabel(value: string): VersionLabel {
-  const match = value.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/);
-  if (!match) return { number: value };
-  return { number: match[1].trim(), note: match[2].trim() };
-}
-
-function parseItem(value: string): ParsedItem {
-  const match = value.match(/^\*\*([^*]+)\*\*\s*(.*)$/);
-  if (!match) return { body: value };
-
-  return {
-    title: match[1].trim().replace(/[.:]\s*$/, ""),
-    body: match[2].trim().replace(/^[,;:]\s*/, ""),
-  };
-}
+const currentRelease = releases.find((entry) => entry.version === releaseVersion);
+const releaseIsShipped = currentRelease?.published === true;
+const renderedEntries = releases.map((entry) => ({
+  ...entry,
+  label: { number: entry.version, note: entry.note },
+  isCurrent: entry.published && entry.version === releaseVersion,
+  isCandidate: !entry.published,
+}));
 
 function inlineMarkdown(value: string) {
   return value
@@ -114,48 +24,21 @@ function inlineMarkdown(value: string) {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
-
-const releaseIsShipped = shippedEntries.some(
-  (entry) => versionLabel(entry.version).number === releaseVersion,
-);
-const candidateEntry = entries.find((entry) => entry.version.toLowerCase() === "unreleased");
-const publicEntries =
-  !releaseIsShipped && candidateEntry
-    ? [
-        { version: `${releaseVersion} — candidate`, items: candidateEntry.items },
-        ...shippedEntries,
-      ]
-    : shippedEntries;
-
-const renderedEntries = publicEntries.map((entry) => {
-  const label = versionLabel(entry.version);
-
-  return {
-    version: entry.version,
-    label,
-    intro: releaseIntros[label.number] ?? "",
-    changes: entry.items.map(parseItem),
-    isCurrent: releaseIsShipped && label.number === releaseVersion,
-    isCandidate: !releaseIsShipped && label.number === releaseVersion,
-  };
-});
 ---
 
 <BaseLayout
   title="Liner Changelog"
-  description="Track shipped and candidate changes to the local CLI, terminal UI, and safe maintenance workflow for reusable AI context projects."
+  description="Changes to Liner's local CLI, terminal UI, source handling, and Project maintenance. Candidate work is labeled separately from shipped releases."
 >
-  <main class="changelog-page min-h-screen">
+  <main id="content" tabindex="-1" class="changelog-page min-h-screen">
     <SiteHeader current="changelog" />
 
     <section class="changelog-hero">
       <div class="changelog-hero-inner">
         <p class="eyebrow eyebrow--accent">Changelog</p>
-        <h1>What changed in the local AI project builder.</h1>
+        <h1>Changes to the local research toolkit.</h1>
         <p>
-          Liner is a local CLI and terminal UI for turning focused research sources into files
-          an AI assistant can use and maintain later. This page tracks changes to the install
-          path, source handling, terminal workflow, and reviewed Project maintenance contract.
+          Follow changes to installation, source fetching, research review, and Project maintenance. Candidate entries stay labeled until the release ships.
         </p>
 
         <div class="release-strip" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} release summary`}>
@@ -168,63 +51,60 @@ const renderedEntries = publicEntries.map((entry) => {
             <code>npx linersh</code>
           </div>
           <div>
-            <span>Writes</span>
-            <strong>MIXTAPE.md + LINER.md</strong>
+            <span>Output</span>
+            <strong>Research + AI instructions</strong>
           </div>
         </div>
       </div>
     </section>
 
+    {releaseIsShipped && releaseVersion === "1.1.1" && (
     <section class="current-release-section" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} ${releaseVersion} release spotlight`}>
       <div class="release-focus">
         <div class="release-focus-copy">
           <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Current release" : "Release candidate"} /// {releaseVersion}</p>
-          <h2>Corpus work now resumes from its last durable checkpoint.</h2>
+          <h2>Pick up interrupted research from its saved checkpoint.</h2>
           <p>
-            Version {releaseVersion} protects work the curator already accepted. If a corpus phase
-            or artifact validation stops, reopening the Project restores the correct next action
-            without restarting discovery or treating partial work as finished. Focused improvement
-            decisions also survive restart and leave the audit visibly resolved.
+            Version {releaseVersion} preserves accepted work when a research step stops or a generated file fails validation. Reopen the Project to return to the right review or build step. Decisions from Improve Corpus survive restarts, and applied changes remain visible in the audit history.
           </p>
           <p>
-            Existing maintenance stays reviewed: the optional Maintenance Adapter previews the
-            proposed Project change through the installed CLI and records a redacted Change Receipt
-            after apply.
+            The optional Maintenance Adapter continues to route Project changes through the installed CLI. You can review the planned effects, approve changes when required, and inspect the saved Change Receipt.
           </p>
           <ul class="release-highlights">
             <li>
               <span>01</span>
-              <p>User-provided Sources keep their accepted identity when Assembly adds richer evaluation metadata.</p>
+              <p>Sources you already approved keep their IDs when Assembly adds evaluation details.</p>
             </li>
             <li>
               <span>02</span>
-              <p>Interrupted corpus work returns to the last durable review or build action instead of starting over.</p>
+              <p>Interrupted research returns to the last saved review or build step.</p>
             </li>
             <li>
               <span>03</span>
-              <p>Improve Corpus decisions persist across restarts, and applied recommendations remain visible as resolved audit history.</p>
+              <p>Improve Corpus decisions survive restarts, with applied recommendations recorded in audit history.</p>
             </li>
           </ul>
         </div>
 
         <aside class="release-install" aria-label="Install command">
-          <p class="eyebrow">Install Liner</p>
+          <p class="eyebrow">Open Liner</p>
           <CommandSnippet command="npx linersh" label="Copy" />
           <p>
-            Runs locally. No account, hosted compilation, or telemetry is required by the tool.
+            Runs locally. AI-assisted research uses your configured Codex CLI or Claude Code runner and its account limits or charges. Compile and instruction-file creation make no model calls. The installed tool has no telemetry.
           </p>
         </aside>
       </div>
     </section>
 
+    )}
+
     <section class="changelog-list-section">
       <div class="changelog-list-shell">
         <div class="changelog-section-intro">
           <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Shipped changes" : "Candidate and shipped changes"}</p>
-          <h2>Each entry explains what changed in the installed tool.</h2>
+          <h2>Release by release.</h2>
           <p>
-            Candidate work is labeled until publishing. Historical entries remain the record
-            of shipped app behavior.
+            Candidate entries describe work awaiting publication. Historical entries describe the behavior shipped in each version.
           </p>
         </div>
 

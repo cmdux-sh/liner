@@ -55,12 +55,12 @@ notes live in [packages/tui/README.md](packages/tui/README.md).
 To enable `render: js` for JavaScript-rendered pages (Apple HIG, Notion docs, etc.):
 
 ```sh
-liner setup-js              # installs Playwright + headless Chromium (~150MB)
+liner setup-js              # installs Playwright's headless Chromium (about 100 MB download, 220 MB on disk)
 ```
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).
 
-**Platform support (1.1.1):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
+**Platform support (1.1.2):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
 
 Requires Node 18+.
 
@@ -231,7 +231,7 @@ URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 da
 
 ## Status
 
-Active solo project. The current source targets **v1.1.1** for the Go TUI npm
+Active solo project. The current source targets **v1.1.2** for the Go TUI npm
 release. The CLI and Go TUI are functional. The TUI creates and manages local
 Liner Projects, builds the corpus through the configured local AI runner,
 treats partial compiles as usable when `MIXTAPE.md` is written, opens existing

@@ -213,6 +213,26 @@ func (m Model) View() tea.View {
 	return view
 }
 
+// bodyLineBudget is how many body lines fit above the footer at the current
+// terminal size, using the same frame View renders. Zero means unknown.
+func (m Model) bodyLineBudget() int {
+	if m.height <= 0 {
+		return 0
+	}
+	footer := styles.Help.Render(m.footerHelp())
+	if m.note != "" {
+		footer += "\n" + renderFooterMessage(m.note, m.width, styles.SuccessText)
+	}
+	if m.err != "" {
+		footer += "\n" + renderFooterMessage(m.err, m.width, styles.ErrorText)
+	}
+	reserved := lipgloss.Height(m.viewBanner()) + 1 + lipgloss.Height(footer)
+	if activity := m.viewActivity(); strings.TrimSpace(activity) != "" {
+		reserved += 1 + lipgloss.Height(activity)
+	}
+	return max(0, m.height-reserved)
+}
+
 func renderFooterMessage(value string, width int, style lipgloss.Style) string {
 	contentWidth := max(1, styles.ClampWidth(width-4))
 	return style.Render(strings.Join(wrapWords(value, contentWidth), "\n"))

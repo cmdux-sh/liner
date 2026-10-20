@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import * as YAML from "yaml";
 import type { AgentDescriptor, AgentId } from "./agents/types.js";
 import type { ModelMode, PhaseModelMap, ProviderPreference, ReasoningEffort } from "./agents/models.js";
+import { CLAUDE_REASONING_EFFORTS, normalizeProviderModel } from "./agents/models.js";
 export type { ProviderPreference, ReasoningEffort } from "./agents/models.js";
 
 export type UserConfig = {
@@ -77,9 +78,10 @@ function parseProviderPreferences(
     const modelMode = (entry as Record<string, unknown>)["model_mode"];
     const effort = (entry as Record<string, unknown>)["reasoning_effort"];
     const preference: ProviderPreference = {
-      model: typeof model === "string" && model.trim() ? model.trim() : null,
+      model: typeof model === "string" && model.trim() ? normalizeProviderModel(agent, model) : null,
     };
-    if (agent === "codex" && typeof effort === "string" && REASONING_EFFORTS.has(effort.trim() as ReasoningEffort)) {
+    const efforts = agent === "claude" ? CLAUDE_REASONING_EFFORTS : REASONING_EFFORTS;
+    if (typeof effort === "string" && efforts.has(effort.trim() as ReasoningEffort)) {
       preference.reasoningEffort = effort.trim() as ReasoningEffort;
     }
     if (agent === "codex" && (modelMode === "auto" || modelMode === "default")) {

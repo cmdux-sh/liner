@@ -8,7 +8,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -818,23 +820,78 @@ func resetSkippedImprovementDecision(project string) {
 	}
 }
 
+type improvementAuditState int
+
+const (
+	improvementAuditNoStatus improvementAuditState = iota
+	improvementAuditRecommended
+	improvementAuditApplied
+)
+
+// operatingFitImprovementAudit returns the audit that carries the latest
+// improvement status. Quality checks (04) and the operating-fit audit (05)
+// can both carry one; after an applied pass, 05 says improvement_applied
+// while an older 04 still says improvement_recommended. The most recently
+// written status wins, and a tie goes to the operating-fit audit.
 func operatingFitImprovementAudit(project string) (operatingFitAudit, bool) {
+	type candidate struct {
+		rel      string
+		body     string
+		modified time.Time
+		state    improvementAuditState
+	}
+	candidates := []candidate{}
+	latest := -1
 	for _, rel := range []string{operatingFitAuditRelPath, qualityChecksRelPath} {
-		body, err := os.ReadFile(projectAbsPath(project, rel))
+		path := projectAbsPath(project, rel)
+		body, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
-		text := string(body)
-		if !improvementRecommendationMarker(text) {
+		state := improvementAuditStateOf(string(body))
+		if state == improvementAuditNoStatus {
 			continue
 		}
-		return operatingFitAudit{
-			RelPath: filepath.ToSlash(rel),
-			Body:    text,
-			Summary: improvementAuditSummary(text),
-		}, true
+		var modified time.Time
+		if info, err := os.Stat(path); err == nil {
+			modified = info.ModTime()
+		}
+		candidates = append(candidates, candidate{rel: rel, body: string(body), modified: modified, state: state})
+		if latest < 0 || modified.After(candidates[latest].modified) {
+			latest = len(candidates) - 1
+		}
 	}
-	return operatingFitAudit{}, false
+	if latest < 0 || candidates[latest].state != improvementAuditRecommended {
+		return operatingFitAudit{}, false
+	}
+	chosen := candidates[latest]
+	summary := improvementAuditSummary(chosen.body)
+	if summary == "" {
+		for _, other := range candidates {
+			if other.state == improvementAuditRecommended {
+				if summary = improvementAuditSummary(other.body); summary != "" {
+					break
+				}
+			}
+		}
+	}
+	return operatingFitAudit{
+		RelPath: filepath.ToSlash(chosen.rel),
+		Body:    chosen.body,
+		Summary: summary,
+	}, true
+}
+
+func improvementAuditStateOf(body string) improvementAuditState {
+	lower := strings.ToLower(body)
+	if strings.Contains(lower, "status: improvement_applied") ||
+		strings.Contains(lower, "status: improvement applied") {
+		return improvementAuditApplied
+	}
+	if improvementRecommendationMarker(body) {
+		return improvementAuditRecommended
+	}
+	return improvementAuditNoStatus
 }
 
 func improvementRecommendationMarker(body string) bool {
@@ -849,19 +906,46 @@ func improvementRecommendationMarker(body string) bool {
 		strings.Contains(lower, "recommended improvement pass")
 }
 
+// improvementAuditSummary states the gaps in plain words. It reads the
+// operating-fit audit's gap fields first, then the weak or missing roles in
+// the quality checks' Source-role table. It never returns a heading.
 func improvementAuditSummary(body string) string {
-	for _, prefix := range []string{"gap:", "why_it_matters:", "why it matters:", "recommendation:", "recommended pass:"} {
+	for _, prefix := range []string{"gap:", "why_it_matters:", "why it matters:"} {
 		if value := firstMarkdownValue(body, prefix); value != "" {
 			return value
 		}
 	}
-	for _, line := range strings.Split(body, "\n") {
-		clean := strings.TrimSpace(strings.TrimLeft(line, "-* "))
-		if strings.Contains(strings.ToLower(clean), "source-role") || strings.Contains(strings.ToLower(clean), "source role") {
-			return clean
+	if gaps := sourceRoleGaps(body); len(gaps) > 0 {
+		return strings.Join(gaps, "; ") + "."
+	}
+	for _, prefix := range []string{"recommendation:", "recommended pass:"} {
+		if value := firstMarkdownValue(body, prefix); value != "" {
+			return value
 		}
 	}
 	return ""
+}
+
+var sourceRoleLinePattern = regexp.MustCompile(`(?i)^\[?(.+?)\]?\s+[—–-]+\s+minimum:\s*(\d+);\s*current:\s*(\d+);\s*status:\s*(weak|gap)\b`)
+
+// sourceRoleGaps reads Test 7 rows such as
+// "- worked workflow cases — minimum: 2; current: 0; status: gap; …".
+func sourceRoleGaps(body string) []string {
+	gaps := []string{}
+	for _, line := range strings.Split(body, "\n") {
+		clean := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-* "))
+		match := sourceRoleLinePattern.FindStringSubmatch(clean)
+		if match == nil {
+			continue
+		}
+		role := strings.TrimSpace(strings.Trim(match[1], "[]"))
+		current := match[3]
+		if current == "0" {
+			current = "none"
+		}
+		gaps = append(gaps, fmt.Sprintf("%s: %s of %s needed", role, current, match[2]))
+	}
+	return gaps
 }
 
 func firstMarkdownValue(body string, prefix string) string {

@@ -89,8 +89,8 @@ func TestReadConfigKeepsRunnerWhenOneProviderModelIsMalformed(t *testing.T) {
 	if config.Runner == nil || config.Runner.Executable != "/saved/codex" {
 		t.Fatalf("runner invalidated by provider preference: %#v", config)
 	}
-	if got := config.ProviderPreferences["claude"].Model; got != "opus" {
-		t.Fatalf("Claude model = %q, want opus", got)
+	if got := config.ProviderPreferences["claude"].Model; got != "claude-opus-5-5" {
+		t.Fatalf("a saved Opus alias should move to Opus 5.5, got %q", got)
 	}
 	if got := config.ProviderPreferences["codex"].Model; got != "" {
 		t.Fatalf("malformed Codex model = %q, want default", got)
@@ -142,35 +142,81 @@ func TestResolveAppliesActiveProviderModel(t *testing.T) {
 	}
 }
 
-func TestAutoModelPolicyUsesApprovedOpenAITiersAndHonorsManualPreferences(t *testing.T) {
-	auto := Descriptor{ID: "codex", ModelMode: "auto"}
-	for _, test := range []struct {
-		task   string
-		model  string
-		effort string
-	}{
-		{task: "jtbd-clarify", model: "gpt-5.6-luna", effort: "high"},
-		{task: "candidates", model: "gpt-5.6-luna", effort: "high"},
-		{task: "evaluation", model: "gpt-5.6-luna", effort: "high"},
-		{task: "framing", model: "gpt-5.6-sol", effort: "medium"},
-		{task: "quality", model: "gpt-5.6-sol", effort: "medium"},
-		{task: "synthesis", model: "gpt-5.6-sol", effort: "medium"},
-		{task: "improvement", model: "gpt-5.6-sol", effort: "medium"},
-		{task: "assembly", model: "gpt-5.6-sol", effort: "medium"},
-	} {
-		got := ApplyAutoModelPolicy(auto, test.task)
-		if got.Model != test.model || got.ReasoningEffort != test.effort {
-			t.Fatalf("Auto %s = model:%q effort:%q, want model:%q effort:%q", test.task, got.Model, got.ReasoningEffort, test.model, test.effort)
-		}
+func TestDefaultsRunSol61AndSonnet55AtMediumAndHonorManualPreferences(t *testing.T) {
+	auto := ApplyDefaults(Descriptor{ID: "codex", ModelMode: "auto"})
+	if auto.Model != "gpt-6.1-sol" || auto.ReasoningEffort != "medium" || !auto.ModelIsAuto || !auto.EffortIsAuto {
+		t.Fatalf("OpenAI Auto = %#v, want Sol 6.1 at Medium marked Auto", auto)
 	}
-
-	manual := ApplyAutoModelPolicy(Descriptor{ID: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "xhigh"}, "candidates")
-	if manual.Model != "gpt-5.6-terra" || manual.ReasoningEffort != "xhigh" {
+	unset := ApplyDefaults(Descriptor{ID: "codex"})
+	if unset.Model != "gpt-6.1-sol" || unset.ReasoningEffort != "medium" {
+		t.Fatalf("OpenAI with no preference = %#v, want Sol 6.1 at Medium", unset)
+	}
+	autoHigh := ApplyDefaults(Descriptor{ID: "codex", ModelMode: "auto", ReasoningEffort: "high"})
+	if autoHigh.Model != "gpt-6.1-sol" || autoHigh.ReasoningEffort != "high" || autoHigh.EffortIsAuto {
+		t.Fatalf("an effort chosen in Settings should survive Auto: %#v", autoHigh)
+	}
+	manual := ApplyDefaults(Descriptor{ID: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "xhigh"})
+	if manual.Model != "gpt-5.6-terra" || manual.ReasoningEffort != "xhigh" || manual.ModelIsAuto {
 		t.Fatalf("manual preference changed by Auto: %#v", manual)
 	}
-	providerDefault := ApplyAutoModelPolicy(Descriptor{ID: "codex", ModelMode: "default"}, "candidates")
+	providerDefault := ApplyDefaults(Descriptor{ID: "codex", ModelMode: "default"})
 	if providerDefault.Model != "" || providerDefault.ReasoningEffort != "" {
 		t.Fatalf("provider default changed by Auto: %#v", providerDefault)
+	}
+
+	claude := ApplyDefaults(Descriptor{ID: "claude"})
+	if claude.Model != "claude-sonnet-5-5" || claude.ReasoningEffort != "medium" || !claude.ModelIsAuto || !claude.EffortIsAuto {
+		t.Fatalf("Claude with no preference = %#v, want Sonnet 5.5 at Medium marked as defaults", claude)
+	}
+	opus := ApplyDefaults(Descriptor{ID: "claude", Model: "claude-opus-5-5", ReasoningEffort: "high"})
+	if opus.Model != "claude-opus-5-5" || opus.ReasoningEffort != "high" || opus.ModelIsAuto || opus.EffortIsAuto {
+		t.Fatalf("Claude choices from Settings should stay as chosen: %#v", opus)
+	}
+}
+
+func TestCatalogOffersOnlyTheNewModels(t *testing.T) {
+	labels := func(provider string) []string {
+		out := []string{}
+		for _, option := range ModelOptions(provider) {
+			out = append(out, option.Label)
+		}
+		return out
+	}
+	if got := strings.Join(labels("codex"), ", "); got != "Auto, OpenAI default, Sol 6.1, Custom model ID" {
+		t.Fatalf("OpenAI models = %s", got)
+	}
+	if got := strings.Join(labels("claude"), ", "); got != "Sonnet 5.5, Opus 5.5, Custom model ID" {
+		t.Fatalf("Claude models = %s", got)
+	}
+	if got := ModelLabel("codex", "gpt-5.6-sol"); got != "Custom: gpt-5.6-sol" {
+		t.Fatalf("a saved GPT-5.6 model should keep working as a custom ID, got %q", got)
+	}
+	if got := ModelLabel("claude", ""); got != "Sonnet 5.5" {
+		t.Fatalf("an unset Claude model should read as Sonnet 5.5, got %q", got)
+	}
+	if got := ReasoningEffortLabel("claude", ""); got != "Medium" {
+		t.Fatalf("an unset Claude effort should read as Medium, got %q", got)
+	}
+	if ValidReasoningEffort("claude", "none") || !ValidReasoningEffort("claude", "max") {
+		t.Fatal("Claude efforts should match Claude Code's --effort levels")
+	}
+}
+
+func TestReadConfigKeepsClaudeEffortAndMigratesTheSonnetAlias(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, ".liner", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "agent: claude\nprovider_preferences:\n  claude:\n    model: sonnet\n    reasoning_effort: high\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	preference := ReadConfig().ProviderPreferences["claude"]
+	if preference.Model != "claude-sonnet-5-5" || preference.ReasoningEffort != "high" {
+		t.Fatalf("Claude preference = %#v, want Sonnet 5.5 at High", preference)
 	}
 }
 

@@ -54,8 +54,8 @@ def test_public_surface_validator_reports_missing_adapter_story(tmp_path: Path) 
     homepage = root / "marketing/site/src/pages/index.astro"
     homepage.write_text(
         homepage.read_text(encoding="utf-8").replace(
-            "Let Codex or Claude maintain the Project safely.",
-            "Use the Project again later.",
+            "liner adapters install codex --yes",
+            "adapter installation unavailable",
         ),
         encoding="utf-8",
     )
