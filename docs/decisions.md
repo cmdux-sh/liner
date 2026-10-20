@@ -32,3 +32,7 @@ Arturo asked to add Sol 6.1 and replace the older Claude models with Sonnet 5.5 
 ## 2026-10-20 - Follow the publish checklist for 1.1.2
 
 The release checklist builds all six npm packages from the public `cmdux-sh/liner` repository's Platform Bundles workflow, so the public mirror has to come before npm. Depot runs only Linux, and this private repository's GitHub-hosted runners are blocked by a billing problem, so macOS Intel and Windows can't be built here. Arturo chose to follow `packages/tui/PUBLISH-CHECKLIST.md`: bump to 1.1.2, mirror the release commit to the public repository, build and publish the six packages, then deploy the site. Each publication step still needs Arturo's approval. The site stays paused until it is the last step.
+
+## 2026-10-20 - Mirror 1.1.2 publicly without internal docs
+
+Arturo approved mirroring the 1.1.2 release to the public `cmdux-sh/liner` repository. The mirror merges private `master` into public `main` through a public pull request, keeps the public-only example project (`docs/examples/designing-for-ai-uncertainty/`), and reconciles the two Depot CI changes. Internal working docs stay private: `AGENTS.md` (it names the private repository), `docs/agents/`, and the website copy deck, language notes, performance audit, review, and truth audit (`docs/liner-website-*.md`). npm publication and the site deploy still need their own approval.
