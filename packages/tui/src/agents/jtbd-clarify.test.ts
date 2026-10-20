@@ -37,7 +37,7 @@ describe("buildClarifyingQuestionsPrompt", () => {
     ).rejects.toThrow("Clarifying questions require");
   });
 
-  it("uses the Luna High Auto model policy for Clarify Job", async () => {
+  it("uses the Sol 6.1 Medium Auto model policy for Clarify Job", async () => {
     readConfigMock.mockReturnValue({
       providerPreferences: { codex: { model: null, modelMode: "auto" } },
     });
@@ -62,8 +62,8 @@ describe("buildClarifyingQuestionsPrompt", () => {
     })).resolves.toHaveLength(2);
 
     const args = readFileSync(join(cwd, "args"), "utf8");
-    expect(args).toContain("--model\ngpt-5.6-luna");
-    expect(args).toContain('model_reasoning_effort="high"');
+    expect(args).toContain("--model\ngpt-6.1-sol");
+    expect(args).toContain('model_reasoning_effort="medium"');
   });
 
   it("surfaces an explicit model rejection without retrying or substituting", async () => {

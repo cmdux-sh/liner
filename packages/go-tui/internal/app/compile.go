@@ -48,6 +48,7 @@ func (m Model) startCompile() (Model, tea.Cmd) {
 	m.compilePane = compilePaneIssues
 	m.compileSourceIndex = 0
 	m.compileSourcesReviewed = false
+	m.compileFailuresReviewedKey = ""
 	m.compileRepairAttempted = false
 	m.compileRepairRetryCompileAfterRecovery = false
 	m.compileRepairRebuildCorpusAfterRecovery = false
@@ -79,6 +80,16 @@ func (m Model) startCompileReviewFromArtifacts() (Model, tea.Cmd) {
 		}
 		m.compileRows[sourceIndex].Status = "failed"
 		m.compileRows[sourceIndex].Detail = compileArtifactWarningForIndex(health.Warnings, sourceIndex, m.compileRows[sourceIndex].Source)
+	}
+	if health.HasMixtape {
+		// These rows come from an existing MIXTAPE.md: every Source not
+		// marked failed was compiled, not waiting in a queue.
+		for index := range m.compileRows {
+			if m.compileRows[index].Status == "queued" {
+				m.compileRows[index].Status = "done"
+				m.compileRows[index].Detail = "compiled earlier"
+			}
+		}
 	}
 	m.compileTotal = health.Summary.Total
 	m.compileDoneN = health.Summary.Succeeded + health.Summary.Failed
@@ -653,8 +664,35 @@ func (m Model) compileHasSourceReviewItems() bool {
 	return false
 }
 
+// compileHasRepairableSources reports whether a repair step that costs
+// nothing can still help: retrying saved custom sources or retrying the
+// compile for failures that do not need a browser. Sources that need a browser
+// are offered separately through i, so repair never starts a download.
 func (m Model) compileHasRepairableSources() bool {
-	return m.compileNeedsJSSetup() || m.actionableCompileWarningCount() > 0 || m.compileHasDroppedCustomSourceIssues()
+	if m.compileHasDroppedCustomSourceIssues() {
+		return true
+	}
+	for _, item := range m.actionableCompileWarnings() {
+		if !compileWarningNeedsJSSetup(item.Warning) {
+			return true
+		}
+	}
+	return false
+}
+
+// compileRepairKeyHelp names what r (and Enter, before a repair) does.
+func (m Model) compileRepairKeyHelp() string {
+	if m.compileHasDroppedCustomSourceIssues() {
+		return "retry custom sources"
+	}
+	return "retry compile"
+}
+
+// compileSourcesDecided reports whether the person has reviewed the failed
+// Sources and every free repair has run, so continuing with the usable
+// Sources is their call.
+func (m Model) compileSourcesDecided() bool {
+	return m.compileRepairAttempted || (m.compileSourcesReviewed && !m.compileHasRepairableSources())
 }
 
 func (m Model) compileNextActionLabel() string {
@@ -676,9 +714,12 @@ func (m Model) compileNextActionLabel() string {
 	case m.compilePane == compilePaneIssues && m.compileHasSourceReviewItems():
 		return "View sources."
 	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
-		return "Repair sources."
-	case m.compilePane == compilePaneSources && m.compileRepairAttempted && m.compileHasUsableResult() && m.actionableCompileWarningCount() > 0:
-		return fmt.Sprintf("Create the Operating Layer with %d usable Sources.", m.compileResult.Summary.Succeeded)
+		if m.compileHasDroppedCustomSourceIssues() {
+			return "Retry custom sources."
+		}
+		return "Retry compile for the failed Sources."
+	case m.compilePane == compilePaneSources && m.compileSourcesDecided() && m.compileHasUsableResult() && m.actionableCompileWarningCount() > 0:
+		return "Create the Operating Layer with " + intLabel(m.compileResult.Summary.Succeeded, "usable Source") + "."
 	case !m.compileHasUsableResult():
 		if action := m.compileAttentionNextAction(); action != "" {
 			return action
@@ -692,8 +733,9 @@ func (m Model) compileNextActionLabel() string {
 func (m Model) viewCompileSourcesNext() Model {
 	m.compilePane = compilePaneSources
 	m.compileSourcesReviewed = true
+	m.compileFailuresReviewedKey = m.compileFailuresReviewKey()
 	m.compileSourceIndex = clampCompileSourceIndex(m.compileSourceIndex, len(m.compileSourceListItems()))
-	if m.compileHasRepairableSources() && m.compileRepairAttempted && m.compileResult != nil {
+	if m.compileRepairAttempted && m.compileResult != nil && (m.compileHasRepairableSources() || m.compileNeedsJSSetup()) {
 		remaining := max(m.compileResult.Summary.Failed, m.actionableCompileWarningCount())
 		verb := "need"
 		if remaining == 1 {
@@ -707,7 +749,7 @@ func (m Model) viewCompileSourcesNext() Model {
 			verb,
 		)
 	} else if m.compileHasRepairableSources() {
-		m.note = "Review sources, then repair them."
+		m.note = "Review sources, then press r to " + m.compileRepairKeyHelp() + "."
 	} else {
 		m.note = "Review sources."
 	}
@@ -715,16 +757,13 @@ func (m Model) viewCompileSourcesNext() Model {
 	return m
 }
 
+// repairCompileSources runs only the recovery steps that cost nothing. It
+// never installs the browser; Sources that need one keep the separate i offer
+// with its download size.
 func (m Model) repairCompileSources() (Model, tea.Cmd) {
 	m.compileSourcesReviewed = true
 	m.compileRepairAttempted = true
 	m.err = ""
-	if m.compileNeedsJSSetup() {
-		next, cmd := m.startJSSetupForCompile()
-		next.compileSourcesReviewed = true
-		next.compileRepairAttempted = true
-		return next, cmd
-	}
 	if m.compileHasDroppedCustomSourceIssues() {
 		next, cmd := m.retryExcludedLocalSources()
 		next.compileSourcesReviewed = true
@@ -733,6 +772,54 @@ func (m Model) repairCompileSources() (Model, tea.Cmd) {
 		return next, cmd
 	}
 	return m.retryCompileOrSourceEvaluation()
+}
+
+// compileCanContinueWithoutFailed reports whether l on the Compile Console
+// can create the Operating Layer with the usable Sources, leaving the failed
+// ones out.
+func (m Model) compileCanContinueWithoutFailed() bool {
+	return !m.compiling && !m.jsSetupRunning && !m.sourceRecoveryRunning && !m.sourceRecoveryReview &&
+		m.compileHasUsableResult() && m.compileSourcesReviewed && m.actionableCompileWarningCount() > 0
+}
+
+// continueWithoutFailedSources is the person's decision to create the
+// Operating Layer from the usable Sources after reviewing the failed ones.
+// compileFailuresReviewKey names the Project state a review of failed Sources
+// applies to; a Source change or a new compile makes it a different state.
+func (m Model) compileFailuresReviewKey() string {
+	if m.currentPath == "" {
+		return ""
+	}
+	revision := ""
+	if snapshot := m.currentProjectSnapshot(); snapshot != nil {
+		revision = snapshot.Revision
+	}
+	mixtape := ""
+	if info, err := os.Stat(projectAbsPath(m.currentPath, "MIXTAPE.md")); err == nil {
+		mixtape = fmt.Sprintf("%d:%d", info.ModTime().UnixNano(), info.Size())
+	}
+	return m.currentPath + "|" + revision + "|" + mixtape
+}
+
+func (m Model) continueWithoutFailedSources() (Model, tea.Cmd) {
+	switch {
+	case m.compiling || m.jsSetupRunning || m.sourceRecoveryRunning || m.sourceRecoveryReview:
+		return m.continueFromCompile()
+	case !m.compileHasUsableResult():
+		m.err = "No usable MIXTAPE.md yet. Retry compile or add Sources before creating the Operating Layer."
+		return m, nil
+	case !m.compileSourcesReviewed:
+		return m.viewCompileSourcesNext(), nil
+	case m.projectNextKind() == projectNextReviewSynthesis:
+		return m.startPreparedSynthesisReview()
+	case len(m.compileAttentionItems()) > 0:
+		m.err = m.compileAttentionNextAction()
+		return m, nil
+	}
+	if operatingFitImprovementRecommended(m.currentPath) {
+		return m.startImprovementReview(), nil
+	}
+	return m.startLinerDraftReview()
 }
 
 func (m Model) retryCompileOrSourceEvaluation() (Model, tea.Cmd) {
@@ -968,9 +1055,8 @@ func (m Model) continueFromCompile() (Model, tea.Cmd) {
 		return m.viewCompileSourcesNext(), nil
 	case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
 		return m.repairCompileSources()
-	case m.compileNeedsJSSetup():
-		m.err = "Repair sources before creating the Operating Layer."
-		return m, nil
+	case m.compileNeedsJSSetup() && !m.compileSourcesDecided():
+		return m.viewCompileSourcesNext(), nil
 	case m.compileAttentionNextAction() != "":
 		m.err = m.compileAttentionNextAction()
 		return m, nil
@@ -1108,11 +1194,23 @@ func (m Model) viewCompileAllSources(width int) string {
 		})
 	}
 	lines := []string{styles.ReportSection.Render("Sources")}
-	lines = append(lines, styles.Subtitle.Render(compileSourceListSummary(items)))
+	summary := compileSourceListSummary(items)
+	if count := m.compileJSSourceCount(); count > 0 && !m.jsSetupRunning {
+		verb := "need"
+		if count == 1 {
+			verb = "needs"
+		}
+		summary += fmt.Sprintf(" · %d %s a browser (i installs it)", count, verb)
+	}
+	lines = append(lines, styles.Subtitle.Width(width).Render(summary))
 	if m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources() {
-		lines = append(lines, styles.Subtitle.Render("Repair sources first with r. This retries unavailable custom sources, then refreshes source evaluation if any recover."))
-	} else if m.compilePane == compilePaneSources && m.compileRepairAttempted {
-		lines = append(lines, styles.Subtitle.Render("Browser rendering was already attempted where applicable. These remaining failures need an accessible copy, a replacement, or a later retry; reinstalling Playwright will not help."))
+		repair := "Press r to retry the compile for failed Sources. Nothing is downloaded."
+		if m.compileHasDroppedCustomSourceIssues() {
+			repair = "Press r to retry unavailable custom sources, then refresh source evaluation if any recover. Nothing is downloaded."
+		}
+		lines = append(lines, styles.Subtitle.Width(width).Render(repair))
+	} else if m.compilePane == compilePaneSources && m.compileRepairAttempted && !m.compileNeedsJSSetup() {
+		lines = append(lines, styles.Subtitle.Width(width).Render("Browser rendering was already attempted where applicable. These remaining failures need an accessible copy, a replacement, or a later retry; reinstalling Playwright will not help."))
 	}
 	if start > 0 {
 		lines = append(lines, styles.Subtitle.Render(fmt.Sprintf("↑ %d earlier source(s)", start)))
@@ -1222,6 +1320,8 @@ func compileSourceRecommendation(item compileSourceListItem) string {
 	}
 	detail := strings.ToLower(item.Detail)
 	switch {
+	case strings.Contains(detail, "needs browser rendering"):
+		return "Press i to install JS rendering (about 100 MB download, 220 MB on disk)."
 	case strings.Contains(detail, "browser rendering was attempted") || strings.Contains(detail, "security challenge"):
 		return "Save an authenticated copy as a local file, or replace this Source."
 	case strings.Contains(detail, "refused the connection") || strings.Contains(detail, "connection refused"):
@@ -1622,10 +1722,15 @@ func (m Model) viewCompileJSSetup(width int) string {
 			styles.Subtitle.Render("If setup succeeds, Liner retries this compile automatically."),
 		}, "\n")
 	}
+	count := m.compileJSSourceCount()
+	who := intLabel(count, "source") + " need"
+	if count <= 1 {
+		who = "One source needs"
+	}
 	return strings.Join([]string{
 		styles.ReportSection.Render("JS rendering"),
-		styles.Subtitle.Render("One source needs a browser to reveal the article text. Liner can install Playwright's headless Chromium, retry this compile automatically, and use the rendered page instead of the blocked stub."),
-		styles.NextActionTitle.Render("> Press i to install JS rendering."),
+		styles.Subtitle.Width(width).Render(who + " a browser to reveal the article text. Liner can install Playwright's headless Chromium (" + jsSetupSize + "), retry this compile automatically, and use the rendered page instead of the blocked stub. Repair never installs it."),
+		styles.NextActionTitle.Render("> Press i to install JS rendering, or continue without these sources."),
 	}, "\n")
 }
 
@@ -1694,7 +1799,7 @@ func compileWarningRecommendation(warning core.CompileWarningPayload) string {
 	case compileWarningRecoveredWithJS(warning):
 		return "Liner recovered this source with browser rendering and included the rendered text in MIXTAPE.md. You can continue; open it only if you want to inspect the captured evidence."
 	case compileWarningNeedsJSSetup(warning):
-		return "Press i to install JS rendering. Liner will retry this compile automatically; if the source still fails, replace or drop it."
+		return "Press i to install JS rendering (" + jsSetupSize + "). Liner will retry this compile automatically; if the source still fails, replace or drop it. Or continue without it."
 	case strings.Contains(message, "security challenge") && strings.Contains(message, "js rendering"):
 		return "Browser rendering was already attempted. Save an authenticated copy as a local file, or replace this Source."
 	case strings.Contains(message, "connection refused") || strings.Contains(message, "refused the connection"):

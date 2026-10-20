@@ -77,21 +77,22 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	// OpenAI model: GPT-5.6 Sol; Thinking effort: Maximum.
+	// OpenAI model: Sol 6.1; Thinking effort: Maximum.
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // OpenAI default
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // GPT-5.6 Sol
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sol 6.1
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Thinking effort
 	for range 6 {
 		m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	// Claude model: Opus, selected through the same Settings interaction.
+	// Claude model: Opus 5.5 at High, selected through the same Settings interaction.
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Claude
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sonnet
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus 5.5
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Thinking effort: Medium
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // High
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	// Return the active provider to OpenAI and enable Auto for fresh AI tasks.
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
@@ -109,18 +110,18 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 		t.Fatalf("restarted OpenAI preferences = agent:%q model:%q mode:%q effort:%q", restarted.settings.preferredAgent(), restarted.settings.providerModel("codex"), restarted.settings.providerModelMode("codex"), restarted.settings.providerEffort("codex"))
 	}
 	openAIView := restarted.viewSettings()
-	for _, expected := range []string{"OpenAI", "Auto", "Thinking effort", "Auto by task"} {
+	for _, expected := range []string{"OpenAI", "Auto", "Thinking effort", "Auto (Medium)", "Sol 6.1"} {
 		if !strings.Contains(openAIView, expected) {
 			t.Fatalf("restarted OpenAI Settings missing %q", expected)
 		}
 	}
 	restarted = restarted.moveSettingsProvider(1)
-	if restarted.settings.providerModel("claude") != "opus" {
-		t.Fatalf("restarted Claude model = %q, want opus", restarted.settings.providerModel("claude"))
+	if restarted.settings.providerModel("claude") != "claude-opus-5-5" || restarted.settings.providerEffort("claude") != "high" {
+		t.Fatalf("restarted Claude = model %q effort %q, want Opus 5.5 at High", restarted.settings.providerModel("claude"), restarted.settings.providerEffort("claude"))
 	}
 	claudeView := restarted.viewSettings()
-	if !strings.Contains(claudeView, "Opus") || strings.Contains(claudeView, "Thinking effort") {
-		t.Fatalf("restarted Claude Settings did not preserve its independent model or hid OpenAI-only effort")
+	if !strings.Contains(claudeView, "Opus 5.5") || !strings.Contains(claudeView, "Thinking effort") || strings.Contains(claudeView, "None") {
+		t.Fatalf("restarted Claude Settings did not preserve its model or show Claude's effort levels")
 	}
 
 	clarifyProject := createSmokeProject(t, projects, "openai-clarify")
@@ -135,8 +136,8 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 	}
 	assertSmokeCapture(t, filepath.Join(captures, "codex-clarify.txt"), []string{
 		"CODEX_HOME=" + codexHome,
-		"--model gpt-5.6-luna",
-		`model_reasoning_effort="high"`,
+		"--model gpt-6.1-sol",
+		`model_reasoning_effort="medium"`,
 	})
 
 	runnerScript := strings.TrimSpace(os.Getenv("LINER_HEADLESS_RUNNER"))
@@ -158,8 +159,8 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 	runSmokeMethodologyPhase(t, runnerScript, skillPath, openAIProject, "candidates", "codex")
 	assertSmokeCapture(t, filepath.Join(captures, "codex-methodology.txt"), []string{
 		"CODEX_HOME=" + codexHome,
-		"--model gpt-5.6-luna",
-		`model_reasoning_effort="high"`,
+		"--model gpt-6.1-sol",
+		`model_reasoning_effort="medium"`,
 	})
 
 	openAIJudgmentProject := createSmokeProject(t, projects, "openai-judgment")
@@ -167,7 +168,7 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 	runSmokeMethodologyPhase(t, runnerScript, skillPath, openAIJudgmentProject, "framing", "codex")
 	assertSmokeCapture(t, filepath.Join(captures, "codex-judgment.txt"), []string{
 		"CODEX_HOME=" + codexHome,
-		"--model gpt-5.6-sol",
+		"--model gpt-6.1-sol",
 		`model_reasoning_effort="medium"`,
 	})
 
@@ -177,7 +178,8 @@ func TestRunnerPreferencesCleanRoomSmoke(t *testing.T) {
 	assertSmokeCapture(t, filepath.Join(captures, "claude-methodology.txt"), []string{
 		"CLAUDE_CONFIG_DIR=" + claudeHome,
 		"MAX_THINKING_TOKENS=0",
-		"--model opus",
+		"--model claude-opus-5-5",
+		"--effort high",
 	})
 
 	for _, path := range []string{

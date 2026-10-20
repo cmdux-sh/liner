@@ -117,6 +117,18 @@ describe("buildArgs", () => {
     ]);
   });
 
+  it("passes Claude Thinking effort on fresh runs only", () => {
+    const fresh = buildArgs("claude", "/tmp/project", "/repo/docs/curation-skill", false, "claude-sonnet-5-5", undefined, "framing", "medium");
+    expect(fresh.slice(-4)).toEqual(["--model", "claude-sonnet-5-5", "--effort", "medium"]);
+    const resumed = buildArgs("claude", "/tmp/project", "/repo/docs/curation-skill", true, "claude-sonnet-5-5", undefined, "framing", "medium");
+    expect(resumed).not.toContain("--effort");
+    expect(resumed).not.toContain("--model");
+  });
+
+  it("recognizes Claude Code rejecting an effort level", () => {
+    expect(looksLikeEffortRejection("error: option '--effort <level>' argument 'turbo' is invalid", "turbo")).toBe(true);
+  });
+
   it("confines Claude improvement writes to the isolated workspace", () => {
     const args = buildArgs(
       "claude",
@@ -862,6 +874,81 @@ describe("explicit effort rejection", () => {
         (event) => event.kind === "raw" && event.text.includes("Auto model policy") && event.text.includes("provider default"),
       ),
     ).toBe(true);
+  });
+
+  it("drops Claude's built-in model and effort together when the effort is rejected", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-claude-effort-rejection-"));
+    const script = join(project, "fake-claude");
+    writeFileSync(
+      script,
+      [
+        "#!/bin/sh",
+        'printf "%s\\n" "$*" >> "$PWD/attempts"',
+        'case " $* " in *" --effort "*) echo "error: unknown option \'--effort\'" >&2; exit 1;; esac',
+        'case " $* " in *" --model "*) echo "Error: model not found: claude-sonnet-5-5" >&2; exit 1;; esac',
+        'printf \'{"type":"result","subtype":"success","result":"ok"}\\n\'',
+        "",
+      ].join("\n"),
+    );
+    chmodSync(script, 0o755);
+    const events: AgentEvent[] = [];
+
+    const result = await runAgentTask({
+      agent: { id: "claude", name: "Claude", bin: script },
+      project,
+      skillPath: project,
+      prompt: "Return a result.",
+      model: "claude-sonnet-5-5",
+      reasoningEffort: "medium",
+      modelFallbackSource: "builtin",
+      allowEffortFallback: true,
+      taskLabel: "framing",
+      onEvent: (event) => events.push(event),
+    }).done;
+
+    expect(result.code).toBe(0);
+    const attempts = readFileSync(join(project, "attempts"), "utf8").trim().split("\n");
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).not.toContain("--model");
+    expect(attempts[1]).not.toContain("--effort");
+    expect(
+      events.some((event) => event.kind === "raw" && event.text.includes("Liner's default Thinking effort")),
+    ).toBe(true);
+  });
+
+  it("keeps a model chosen in Settings when only Liner's default effort is rejected", async () => {
+    const project = mkdtempSync(join(tmpdir(), "liner-claude-saved-model-"));
+    const script = join(project, "fake-claude");
+    writeFileSync(
+      script,
+      [
+        "#!/bin/sh",
+        'printf "%s\\n" "$*" >> "$PWD/attempts"',
+        'case " $* " in *" --effort "*) echo "error: unknown option \'--effort\'" >&2; exit 1;; esac',
+        'printf \'{"type":"result","subtype":"success","result":"ok"}\\n\'',
+        "",
+      ].join("\n"),
+    );
+    chmodSync(script, 0o755);
+
+    const result = await runAgentTask({
+      agent: { id: "claude", name: "Claude", bin: script },
+      project,
+      skillPath: project,
+      prompt: "Return a result.",
+      model: "claude-opus-5-5",
+      reasoningEffort: "medium",
+      modelFallbackSource: undefined,
+      allowEffortFallback: true,
+      taskLabel: "framing",
+      onEvent: () => {},
+    }).done;
+
+    expect(result.code).toBe(0);
+    const attempts = readFileSync(join(project, "attempts"), "utf8").trim().split("\n");
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toContain("--model claude-opus-5-5");
+    expect(attempts[1]).not.toContain("--effort");
   });
 
   it("fails once without substituting another effort or model", async () => {

@@ -5,12 +5,14 @@ interface Props {
   title?: string;
   description?: string;
   image?: string;
+  noindex?: boolean;
 }
 
 const {
-  title = "Liner: Build reusable AI context from focused research",
-  description = "Use a local CLI and terminal UI to turn sources into Markdown research, AI instructions, and status files future AI sessions can use.",
+  title = "Liner: Local research for reusable AI context",
+  description = "Turn focused sources into a local research folder with Markdown evidence and AI instructions. Start with Liner's CLI and terminal UI.",
   image = "/og-image.png",
+  noindex = false,
 } = Astro.props;
 
 const site = Astro.site ?? new URL("https://www.liner.sh");
@@ -26,6 +28,7 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -40,7 +43,7 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={imageUrl} />
-    <meta property="og:image:alt" content="Liner: reusable AI context from focused research sources." />
+    <meta property="og:image:alt" content="Liner. Focused research and instructions your AI can reuse." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
@@ -63,7 +66,8 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog
 
     <title>{title}</title>
   </head>
-  <body class="overflow-x-hidden">
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
     <slot />
 
     {/* Intersection Observer for masked-reveal headlines */}
@@ -94,7 +98,9 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog
               hostname === "localhost" ||
               hostname === "127.0.0.1" ||
               hostname === "::1" ||
-              hostname.endsWith(".local");
+              hostname.endsWith(".local") ||
+              hostname.endsWith(".localhost") ||
+              /^(?:100\.|10\.|192\.168\.)/.test(hostname);
             const isLighthouse = /\bChrome-Lighthouse\b/i.test(navigator.userAgent);
 
             if (isLocal || isLighthouse || window.__LINER_DISABLE_ANALYTICS__) return;
@@ -139,18 +145,17 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || "https://us.i.posthog
             }
 
             function bindIntentEvents() {
+              document.addEventListener("command-copied", function (event) {
+                const button = event.target;
+                if (!(button instanceof HTMLElement)) return;
+                capture("install_command_copied", {
+                  command: button.dataset.command === "npx linersh" ? "npx linersh" : "docs command",
+                  location: button.closest("section, main, footer")?.tagName.toLowerCase() || "page",
+                });
+              });
               document.addEventListener("click", function (event) {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
-
-                const copyButton = target.closest(".copy-install-cmd");
-                if (copyButton) {
-                  capture("install_command_copied", {
-                    command: "npx linersh",
-                    location: copyButton.closest("section, main, footer")?.tagName.toLowerCase() || "page",
-                  });
-                  return;
-                }
 
                 const link = target.closest("a[href]");
                 if (!link) return;

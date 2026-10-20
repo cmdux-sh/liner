@@ -699,10 +699,11 @@ function runAttempt(
         looksLikeEffortRejection(outputTail, args.reasoningEffort)
       ) {
         if (!attempt.modelFallback && args.allowEffortFallback === true) {
+          const policy = args.modelFallbackSource === "auto" ? "the Auto model policy" : "Liner's default Thinking effort";
           args.onEvent({
             kind: "raw",
             text:
-              `[liner] ${args.agent.name} rejected the Auto model policy for ${args.taskLabel} — ` +
+              `[liner] ${args.agent.name} rejected ${policy} for ${args.taskLabel} — ` +
               "retrying once on the provider default model and Thinking effort.",
           });
           log.write(
@@ -716,7 +717,9 @@ function runAttempt(
             runAttempt(
               {
                 ...args,
-                model: args.modelFallbackSource === "auto" ? undefined : args.model,
+                // Drop what Liner chose (Auto or built-in); keep a model from
+                // Settings or a phase override.
+                model: args.modelFallbackSource === undefined ? args.model : undefined,
                 reasoningEffort: undefined,
               },
               { modelFallback: true },
@@ -744,7 +747,7 @@ function runAttempt(
       ) {
         const fallbackMessage = args.modelFallbackSource === "auto"
           ? `[liner] ${args.agent.name} rejected the Auto model policy model "${args.model}" for ${args.taskLabel} — ` +
-            "retrying once on the provider default. To change this choice, open Settings and select another OpenAI Model."
+            "retrying once on the provider default. To change this choice, open Settings and select another Model."
           : `[liner] ${args.agent.name} rejected the built-in model "${args.model}" for ${args.taskLabel} — ` +
             `retrying once on the provider default. To change this phase override, set ` +
             `models.${args.agent.id}.${args.taskLabel} in ~/.liner/config.yaml.`;
@@ -893,6 +896,7 @@ export function buildArgs(
     // the model it was started with, and `--model` alongside `--continue`
     // wouldn't change the already-established conversation's model.
     if (model && !resume) base.push("--model", model);
+    if (reasoningEffort && !resume) base.push("--effort", reasoningEffort);
     if (resume) base.push("--continue");
     return base;
   }
@@ -1031,7 +1035,9 @@ export function looksLikeEffortRejection(output: string, _effort: string): boole
   const mentionsEffort =
     value.includes("reasoning effort") ||
     value.includes("reasoning_effort") ||
-    value.includes("model_reasoning_effort");
+    value.includes("model_reasoning_effort") ||
+    value.includes("--effort") ||
+    value.includes("effort level");
   if (!mentionsEffort) return false;
   return [
     "invalid",

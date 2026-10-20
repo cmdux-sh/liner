@@ -60,7 +60,7 @@ It builds the local package, launches the real npm shim and Go TUI inside a
 temporary root, and then drives the real Settings model, Clarify Job launcher,
 and TypeScript methodology bridge with fake Codex CLI and Claude Code
 executables. It verifies independent OpenAI and Claude model preferences,
-OpenAI Thinking effort, restart persistence, native runtime arguments and
+OpenAI and Claude Thinking effort, restart persistence, native runtime arguments and
 configuration-home environment, run logs, generated artifacts, and filesystem
 containment. The build and smoke-test compile enforce `GOPROXY=off`; the run
 requires no credentials and makes no provider or network calls.
@@ -86,16 +86,21 @@ use the internal runtime identifiers:
 ```yaml
 provider_preferences:
   codex:
-    model: gpt-5.6-sol
+    model: gpt-6.1-sol
     reasoning_effort: max
   claude:
-    model: opus
+    model: claude-opus-5-5
+    reasoning_effort: high
 ```
 
-Missing fields mean provider defaults. Model precedence is explicit per-phase
-override, provider preference, existing built-in phase default, then runtime
-default. OpenAI reasoning effort has no per-phase layer: an explicit provider
-preference wins, otherwise Codex CLI decides.
+Missing fields mean built-in defaults: OpenAI Auto runs Sol 6.1 at Medium, and
+Claude runs Sonnet 5.5 (`claude-sonnet-5-5`) at Medium. Model precedence is
+explicit per-phase override, provider preference, built-in default, then
+runtime default. Thinking effort has no per-phase layer: an explicit provider
+preference wins, otherwise the built-in Medium applies (OpenAI default leaves
+it to Codex CLI). Claude effort is passed as `--effort`. Saved Claude aliases
+from earlier versions (`sonnet`, `opus`) read as Sonnet 5.5 and Opus 5.5; a
+saved GPT-5.6 model keeps working as a custom model ID.
 
 Curated model choices have known capability metadata. A custom model ID is
 preserved as entered after whitespace trimming. A custom OpenAI model resets

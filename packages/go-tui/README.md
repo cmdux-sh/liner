@@ -74,7 +74,7 @@ the [Automated TUI Visual Acceptance And Repair runbook](../../docs/tui/AUTOMATE
 - Preview remembers its origin screen.
 - First Launch introduces the local projects folder and AI runner install check.
 - Settings shows OpenAI/Claude provider choices, their independent model
-  preferences, and OpenAI Thinking effort. Codex CLI and Claude Code remain the
+  preferences, and Thinking effort for both. Codex CLI and Claude Code remain the
   technical runtime names.
 - Current reusable patterns include Command Hub, Preference Chooser, Split
   Browser, Section Workspace, File Picker, Progress Console, and Maintenance

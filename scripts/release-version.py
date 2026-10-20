@@ -63,6 +63,8 @@ PUBLIC_VERSION_FIELDS = (
         r"(Product version shown in the page: `)[^`]+(`)",
         r"Product version shown in the page: `([^`]+)`",
     ),
+    # The public install page has one version-owned platform-support paragraph.
+    # Its launch commands intentionally use @latest, without pinned reset trials.
     PublicVersionField(
         "marketing/site/src/content/docs/docs/install.mdx support version",
         "marketing/site/src/content/docs/docs/install.mdx",
@@ -70,23 +72,22 @@ PUBLIC_VERSION_FIELDS = (
         r"Version `([^`]+)` supports",
     ),
     PublicVersionField(
-        "marketing/site/src/content/docs/docs/install.mdx pinned command",
-        "marketing/site/src/content/docs/docs/install.mdx",
-        rf"(linersh@){SEMVER_TOKEN}((?![0-9A-Za-z.+-]))",
-        rf"linersh@({SEMVER_TOKEN})(?![0-9A-Za-z.+-])",
-        expected_count=2,
+        "marketing/site/src/content/docs/docs/troubleshooting.mdx output version",
+        "marketing/site/src/content/docs/docs/troubleshooting.mdx",
+        rf"(For version ){SEMVER_TOKEN}(, the output is the following\.)",
+        rf"For version ({SEMVER_TOKEN}), the output is the following\.",
     ),
     PublicVersionField(
         "marketing/site/src/content/docs/docs/troubleshooting.mdx tui",
         "marketing/site/src/content/docs/docs/troubleshooting.mdx",
-        r'(command="liner )[^ ]+( \(tui\))',
-        r'command="liner ([^ ]+) \(tui\)',
+        r"(?m)(^```text\nliner )[^ \n]+( \(tui\))",
+        r"(?m)^```text\nliner ([^ \n]+) \(tui\)",
     ),
     PublicVersionField(
         "marketing/site/src/content/docs/docs/troubleshooting.mdx core",
         "marketing/site/src/content/docs/docs/troubleshooting.mdx",
-        r"( · )[^ ]+( \(core\))",
-        r" · ([^ ]+) \(core\)",
+        r"(?m)(^```text\nliner [^ \n]+ \(tui\) · )[^ \n]+( \(core\)\n```$)",
+        r"(?m)^```text\nliner [^ \n]+ \(tui\) · ([^ \n]+) \(core\)\n```$",
     ),
 )
 

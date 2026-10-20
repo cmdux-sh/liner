@@ -100,8 +100,8 @@ class WebJsHandler:
                 self._playwright = None
                 raise HandlerHardFailure(
                     "Playwright Chromium isn't installed yet. The Python `[js]` extra "
-                    "is in place, but the actual browser binary is a separate ~150MB "
-                    "download. Run:\n"
+                    "is in place, but the headless browser is a separate download "
+                    "(about 100 MB, about 220 MB on disk). Run:\n"
                     "  liner setup-js",
                     "playwright://chromium",
                 ) from e

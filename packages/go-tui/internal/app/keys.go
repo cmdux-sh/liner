@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -467,8 +468,24 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.projectCompileNeedsAttention() {
-				m.err = "Review compile issues and retry compile before creating the Operating Layer."
-				return m, nil
+				if key := m.compileFailuresReviewKey(); key != "" && m.compileFailuresReviewedKey == key {
+					// Already reviewed: take the same guarded path as l in the
+					// Compile Console, so an unusable result still stops here.
+					review, loadCmd := m.startCompileReviewFromArtifacts()
+					review = review.viewCompileSourcesNext()
+					next, nextCmd := review.continueWithoutFailedSources()
+					return next, tea.Batch(loadCmd, nextCmd)
+				}
+				// Show the failed Sources first; l there continues without them.
+				review, cmd := m.startCompileReviewFromArtifacts()
+				review = review.viewCompileSourcesNext()
+				summary := review.compileResult.Summary
+				if review.compileHasUsableResult() {
+					review.note = fmt.Sprintf("%d of %d Sources are usable. Review the failed ones, then press l to create the Operating Layer without them, or r to retry.", summary.Succeeded, summary.Total)
+				} else {
+					review.note = "No Sources are usable yet. Retry, replace, or add Sources before creating the Operating Layer."
+				}
+				return review, cmd
 			}
 			if m.canCreateOperatingLayer() {
 				return m.startLinerDraftReview()
@@ -518,6 +535,8 @@ func (m Model) handleKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) {
 			return m.retryExcludedLocalSources()
 		case "r":
 			return m.repairCompileSources()
+		case "l":
+			return m.continueWithoutFailedSources()
 		case "p":
 			return m.previewCompiledMixtape()
 		case "v":
@@ -628,6 +647,17 @@ func (m Model) withNavigationHelp(help screenHelp) screenHelp {
 		}
 	}
 	return help
+}
+
+func removeHelpBinding(items []key.Binding, binding key.Binding) []key.Binding {
+	out := make([]key.Binding, 0, len(items))
+	for _, item := range items {
+		if item.Help().Key == binding.Help().Key && item.Help().Desc == binding.Help().Desc {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func insertHelpBinding(items []key.Binding, binding key.Binding, before key.Binding) []key.Binding {
@@ -1658,7 +1688,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 		case m.compilePane == compilePaneIssues && m.compileHasUsableResult() && m.compileHasSourceReviewItems():
 			next.SetHelp("enter", "view sources")
 		case m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources():
-			next.SetHelp("enter", "repair")
+			next.SetHelp("enter", m.compileRepairKeyHelp())
 		default:
 			next.SetHelp("enter", "create layer")
 		}
@@ -1673,11 +1703,7 @@ func (m Model) baseHelpForScreen() screenHelp {
 			warningScroll.SetHelp("↑/↓", "source")
 		}
 		retry := bindings.Retry
-		if m.compileHasRepairableSources() {
-			retry.SetHelp("r", "repair sources")
-		} else {
-			retry.SetHelp("r", "retry compile")
-		}
+		retry.SetHelp("r", m.compileRepairKeyHelp())
 		previewKey := bindings.Preview
 		short := []key.Binding{retry, bindings.Preview, bindings.Copy, addSources, bindings.Back, helpKey}
 		full := [][]key.Binding{{retry, bindings.Preview, bindings.Copy}, {addSources, bindings.Back, bindings.Quit, helpKey}}
@@ -1724,6 +1750,19 @@ func (m Model) baseHelpForScreen() screenHelp {
 			if len(full) > 0 {
 				full[0] = insertHelpBinding(full[0], installJS, openSource)
 			}
+		}
+		enterRepairs := m.compilePane == compilePaneSources && !m.compileRepairAttempted && m.compileHasRepairableSources()
+		enterContinues := next.Help().Desc == "create layer"
+		if m.compileCanContinueWithoutFailed() && !enterContinues {
+			skipFailed := key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "layer without failed"))
+			short = insertHelpBinding(short, skipFailed, retry)
+			if len(full) > 0 {
+				full[0] = insertHelpBinding(full[0], skipFailed, retry)
+			}
+		}
+		if enterRepairs && hasHelpBinding(short, next) {
+			// Enter already runs the same retry; list it once in the short help.
+			short = removeHelpBinding(short, retry)
 		}
 		short = insertHelpBinding(short, addSources, bindings.Back)
 		if len(full) > 0 {

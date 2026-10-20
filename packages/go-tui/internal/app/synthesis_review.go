@@ -33,20 +33,128 @@ const (
 	operatingLayerReviewSkill
 )
 
-func newSynthesisReviewArea(width int) textarea.Model {
+// semanticReviewMaxContentRows is the editor's content limit in visual rows.
+// Without it, bubbles falls back to refusing a new line once the text has
+// MaxHeight lines, so a 50-line synthesis could not grow. MaxHeight now only
+// sets how many rows are visible.
+const semanticReviewMaxContentRows = 100000
+
+// semanticReviewDefaultEditorRows is the visible editor height before the
+// terminal size is known.
+const semanticReviewDefaultEditorRows = 8
+
+func newSemanticReviewArea(width int, placeholder string) textarea.Model {
 	area := newCreateArea(width)
-	area.Placeholder = "Write the reviewed synthesis revision…"
-	area.MaxHeight = 8
+	area.Placeholder = placeholder
+	area.DynamicHeight = false
+	area.MaxContentHeight = semanticReviewMaxContentRows
+	area.MaxHeight = semanticReviewDefaultEditorRows
+	area.SetHeight(semanticReviewDefaultEditorRows)
 	area.Blur()
 	return area
 }
 
+func newSynthesisReviewArea(width int) textarea.Model {
+	return newSemanticReviewArea(width, "Write the reviewed synthesis revision…")
+}
+
 func newOperatingLayerReviewSkillArea(width int) textarea.Model {
-	area := newCreateArea(width)
-	area.Placeholder = "Write the reviewed Project Skill revision…"
-	area.MaxHeight = 8
-	area.Blur()
-	return area
+	return newSemanticReviewArea(width, "Write the reviewed Project Skill revision…")
+}
+
+// fitSemanticReviewEditor sizes the visible editor to the rows left on screen
+// so the cursor line is always visible; the textarea scrolls to follow it.
+func (m *Model) fitSemanticReviewEditor() {
+	rows := semanticReviewDefaultEditorRows
+	if budget := m.bodyLineBudget(); budget > 0 {
+		head := lipgloss.Height(m.semanticReviewEditingHead(styles.ClampWidth(m.width - 4)))
+		rows = max(3, budget-head)
+	}
+	area := m.activeSemanticReviewArea()
+	area.MaxHeight = rows
+	area.SetHeight(rows)
+}
+
+// fitSemanticReviewLayout gives the current-text viewport only the rows the
+// review can spare, so the decision and the approve action stay on screen.
+func (m *Model) fitSemanticReviewLayout() {
+	if m.screen != screenSynthesisReview || m.synthesisReviewEditing || m.synthesisReviewPlan != nil {
+		return
+	}
+	rows := semanticReviewCurrentRows(m.height)
+	m.synthesisReviewCurrent.SetHeight(rows)
+	if budget := m.bodyLineBudget(); budget > 0 {
+		if overflow := lipgloss.Height(m.viewSynthesisReview()) - budget; overflow > 0 {
+			m.synthesisReviewCurrent.SetHeight(max(3, rows-overflow))
+		}
+	}
+	m.synthesisReviewCurrent.SetYOffset(m.synthesisReviewCurrent.YOffset())
+}
+
+// semanticReviewPlanRows is the Core preview viewport's height.
+func semanticReviewPlanRows(height int) int {
+	return max(3, height-14)
+}
+
+// semanticReviewCurrentRows is the current-text viewport's height before it
+// gives rows back to the rest of the review.
+func semanticReviewCurrentRows(height int) int {
+	return max(3, min(10, height-20))
+}
+
+// semanticReviewRevisionSummary says how the edited text differs from the
+// current text, by lines.
+func (m Model) semanticReviewRevisionSummary() string {
+	current := strings.Split(m.currentSemanticReviewText(), "\n")
+	revised := strings.Split(m.activeSemanticReviewArea().Value(), "\n")
+	remaining := make(map[string]int, len(current))
+	for _, line := range current {
+		remaining[line]++
+	}
+	added := 0
+	for _, line := range revised {
+		if remaining[line] > 0 {
+			remaining[line]--
+			continue
+		}
+		added++
+	}
+	removed := 0
+	for _, count := range remaining {
+		removed += count
+	}
+	changed := func(count int, verb string) string {
+		if count == 0 {
+			return "none " + verb
+		}
+		return intLabel(count, "line") + " " + verb
+	}
+	return fmt.Sprintf("%s, was %d: %s, %s.", intLabel(len(revised), "line"), len(current), changed(added, "added"), changed(removed, "removed"))
+}
+
+// semanticReviewEditingHead is everything above the editor while editing.
+// The current text and decision options step aside so the editor gets the
+// rows; they return when editing finishes.
+func (m Model) semanticReviewEditingHead(width int) string {
+	subtitle := "Edit the proposed " + m.activeSemanticReviewArtifactName() + ". Nothing is written until you finish with Ctrl+D and confirm the exact Core Change Set."
+	sections := []string{
+		styles.Title.Render("Review " + m.semanticReviewName()),
+		styles.Subtitle.Render(strings.Join(wrapWords(subtitle, width), "\n")),
+	}
+	if m.synthesisReviewKind == semanticReviewOperatingLayer && m.operatingLayerReviewSkillPath != "" {
+		sections = append(sections, "", m.operatingLayerReviewArtifactSelector(width))
+	}
+	area := m.synthesisReviewArea
+	if m.synthesisReviewKind == semanticReviewOperatingLayer && m.operatingLayerReviewArtifact == operatingLayerReviewSkill && m.operatingLayerReviewSkillPath != "" {
+		area = m.operatingLayerReviewSkillArea
+	}
+	label := "Proposed " + m.activeSemanticReviewArtifactName() + " revision"
+	if m.synthesisReviewKind == semanticReviewOperatingLayer && m.operatingLayerReviewArtifact == operatingLayerReviewSkill {
+		label += " · " + m.operatingLayerReviewSkillPath
+	}
+	position := fmt.Sprintf("editing · line %d of %d", area.Line()+1, area.LineCount())
+	sections = append(sections, "", styles.ReportSection.Render(label)+"  "+styles.SoftText.Render(position))
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
 func newSynthesisReviewViewport(width int, height int) viewport.Model {
@@ -210,6 +318,7 @@ func (m *Model) switchOperatingLayerReviewArtifact() bool {
 	if m.synthesisReviewEditing {
 		m.activeSemanticReviewArea().Focus()
 		m.note = "Editing the proposed " + m.activeSemanticReviewArtifactName() + " revision. Tab switches artifacts; Ctrl+D finishes editing."
+		m.fitSemanticReviewEditor()
 	} else {
 		m.note = "Reviewing " + m.activeSemanticReviewArtifactName() + ". Tab switches Operating Layer artifacts."
 	}
@@ -377,6 +486,10 @@ func (m Model) semanticReviewHasLocalChanges() bool {
 	return m.synthesisReviewArea.Value() != m.synthesisReviewCurrentText
 }
 
+func (m Model) activeSemanticReviewAreaView() string {
+	return m.activeSemanticReviewArea().View()
+}
+
 func (m *Model) beginSemanticReviewEditing(noChangesYet bool) {
 	m.synthesisReviewEditing = true
 	m.activeSemanticReviewArea().Focus()
@@ -386,6 +499,7 @@ func (m *Model) beginSemanticReviewEditing(noChangesYet bool) {
 		prefix = "No changes yet. "
 	}
 	m.note = prefix + "Edit the proposed " + m.activeSemanticReviewArtifactName() + " revision. Ctrl+D finishes editing without writing canonical artifacts."
+	m.fitSemanticReviewEditor()
 }
 
 func shouldEditSemanticReviewText(keyMsg tea.KeyPressMsg) bool {
@@ -430,6 +544,13 @@ func (m Model) viewSynthesisReview() string {
 			styles.SoftText.Render(strings.Join(wrapWords(synthesisReviewPlanPosition(m.synthesisReviewPlanView), width), "\n")),
 		)
 	}
+	if m.synthesisReviewEditing && m.synthesisReviewChoice == synthesisReviewPatch {
+		sections := []string{m.semanticReviewEditingHead(width), m.activeSemanticReviewAreaView()}
+		if m.synthesisReviewLoading {
+			sections = append(sections, "", styles.Section.Render("Liner Core request in progress…"))
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	}
 	subtitle := "The synthesis is the source-grounded point of view Liner places at the top of MIXTAPE.md. Confirm that it represents the accepted Sources before Compile."
 	currentLabel := "Synthesis awaiting approval"
 	stillCurrentLabel := "Approve unchanged"
@@ -449,6 +570,16 @@ func (m Model) viewSynthesisReview() string {
 	if m.synthesisReviewKind == semanticReviewOperatingLayer && m.operatingLayerReviewSkillPath != "" {
 		sections = append(sections, "", styles.ReportSection.Render("Artifact"), m.operatingLayerReviewArtifactSelector(width))
 	}
+	// Only the selected option explains itself, and once a revision exists
+	// neither does: those rows go to the revision and its approve action.
+	if m.synthesisReviewChoice == synthesisReviewPatch {
+		stillCurrentDetail = ""
+		if m.semanticReviewHasLocalChanges() {
+			patchDetail = ""
+		}
+	} else {
+		patchDetail = ""
+	}
 	sections = append(sections,
 		"",
 		styles.ReportSection.Render(currentLabel),
@@ -459,17 +590,21 @@ func (m Model) viewSynthesisReview() string {
 		synthesisDispositionOption(width, stillCurrentLabel, stillCurrentDetail, m.synthesisReviewChoice == synthesisReviewStillCurrent),
 		synthesisDispositionOption(width, patchLabel, patchDetail, m.synthesisReviewChoice == synthesisReviewPatch),
 	)
-	if m.synthesisReviewChoice == synthesisReviewPatch && (m.synthesisReviewEditing || m.semanticReviewHasLocalChanges()) {
+	if m.synthesisReviewChoice == synthesisReviewPatch && m.semanticReviewHasLocalChanges() {
+		// The edited text stays out of this layout so the decision and the
+		// approve action fit; the Core preview shows the full replacement.
 		label := "Proposed " + m.activeSemanticReviewArtifactName() + " revision"
 		if m.synthesisReviewKind == semanticReviewOperatingLayer && m.operatingLayerReviewArtifact == operatingLayerReviewSkill {
 			label += " · " + m.operatingLayerReviewSkillPath
 		}
-		if m.synthesisReviewEditing {
-			label += " · editing"
-		}
-		sections = append(sections, "", styles.ReportSection.Render(label), m.activeSemanticReviewArea().View())
+		sections = append(sections,
+			"",
+			styles.ReportSection.Render(label),
+			styles.SoftText.Render(strings.Join(wrapWords(m.semanticReviewRevisionSummary()+" e edits it again; d discards it.", width), "\n")),
+			styles.AccentText.Render(strings.Join(wrapWords("> Press Enter to preview the exact Core Change Set, then Enter again to approve it.", width), "\n")),
+		)
 	} else if m.synthesisReviewChoice == synthesisReviewPatch {
-		instruction := "No local edit yet. Press Enter or e to edit the " + m.activeSemanticReviewArtifactName() + ". Ctrl+D finishes editing; Enter then previews the exact Core Change Set."
+		instruction := "No local edit yet. Press Enter or e to edit; Ctrl+D finishes, Enter previews the Change Set."
 		sections = append(sections, "", styles.ReportSection.Render("Next step"), styles.SoftText.Render(strings.Join(wrapWords(instruction, width), "\n")))
 	}
 	if m.synthesisReviewLoading {
@@ -525,7 +660,12 @@ func (m *Model) syncSynthesisReviewPlanView() {
 		content = appendSemanticReviewProposal(content, plan.Operations[0], "skill_content", skillLabel, width)
 	}
 	m.synthesisReviewPlanView.SetContent(content)
+	// Size from the terminal, not the last plan's height: a short first plan
+	// must not leave a longer replacement text in a few rows.
 	maxHeight := max(1, m.synthesisReviewPlanView.Height())
+	if m.height > 0 {
+		maxHeight = semanticReviewPlanRows(m.height)
+	}
 	m.synthesisReviewPlanView.SetHeight(min(maxHeight, max(1, m.synthesisReviewPlanView.TotalLineCount())))
 	m.synthesisReviewPlanView.GotoTop()
 }
@@ -673,6 +813,9 @@ func synthesisDispositionOption(width int, label string, detail string, selected
 	if selected {
 		marker = "● "
 		labelStyle = styles.AccentText
+	}
+	if detail == "" {
+		return labelStyle.Render(marker + label)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, labelStyle.Render(marker+label), styles.SoftText.Render(strings.Join(wrapWords(detail, width), "\n")))
 }

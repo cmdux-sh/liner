@@ -32,12 +32,144 @@ func (m Model) startAssemblyReview() (Model, tea.Cmd) {
 		m.err = err.Error()
 		return m, nil
 	}
+	draftDetails := assemblyDraftDetails(sources)
 	sources = preserveExistingAssemblySources(sources, m.currentTape.Sources)
 	m.sourceItems = source.Stage(sources, true)
+	fetchStatuses := readEvaluationFetchStatuses(m.currentPath)
+	for index := range m.sourceItems {
+		m.sourceItems[index].DraftNote = draftDetails[index].Note
+		m.sourceItems[index].DraftSection = draftDetails[index].Section
+		m.sourceItems[index].DraftKind = draftDetails[index].Kind
+		m.sourceItems[index].FetchStatus = evaluationFetchStatusFor(fetchStatuses, m.sourceItems[index].Source)
+	}
 	m.applySourceItems(m.sourceItems)
 	m.screen = screenAssemblyReview
 	m.note = "Loaded proposed sources for review."
 	return m, nil
+}
+
+// assemblyDraftDetail is what the agents wrote about a draft entry.
+type assemblyDraftDetail struct {
+	Note    string
+	Section string
+	Kind    string
+}
+
+// assemblyDraftDetails keeps each draft entry's note, section and kind by
+// position. A Source the Project already holds is replaced by its saved copy
+// so the draft cannot change it, but what the agents wrote about it still
+// belongs on the review screen.
+func assemblyDraftDetails(draft []tape.Source) []assemblyDraftDetail {
+	details := make([]assemblyDraftDetail, len(draft))
+	for index, item := range draft {
+		details[index] = assemblyDraftDetail{
+			Note:    strings.TrimSpace(firstSourceText(item.Note, "")),
+			Section: strings.TrimSpace(firstSourceText(item.Section, "")),
+			Kind:    strings.TrimSpace(firstSourceText(item.Kind, "")),
+		}
+	}
+	return details
+}
+
+// readEvaluationFetchStatuses maps each evaluated URL to the evaluation's
+// structured fetch_status field.
+func readEvaluationFetchStatuses(project string) map[string]string {
+	data, err := os.ReadFile(projectAbsPath(project, "working/03-evaluation.yaml"))
+	if err != nil {
+		return nil
+	}
+	var artifact methodologyEvaluationArtifact
+	if err := yaml.Unmarshal(data, &artifact); err != nil {
+		return nil
+	}
+	statuses := map[string]string{}
+	for _, candidate := range artifact.Candidates {
+		status := strings.ToLower(strings.TrimSpace(candidate.FetchStatus))
+		if status == "" {
+			continue
+		}
+		for _, key := range issueKeysForURL(candidate.URL) {
+			statuses[key] = status
+		}
+	}
+	return statuses
+}
+
+func evaluationFetchStatusFor(statuses map[string]string, item tape.Source) string {
+	for _, key := range issueKeysForURL(item.URL) {
+		if status, ok := statuses[key]; ok {
+			return status
+		}
+	}
+	return ""
+}
+
+// fetchStatusMarker is the short table marker for the evaluation's
+// fetch_status; fetchStatusText is its plain-language form.
+func fetchStatusMarker(status string) string {
+	switch status {
+	case "readable":
+		return "full"
+	case "partial":
+		return "partial"
+	case "metadata_only":
+		return "metadata"
+	case "unavailable":
+		return "none"
+	case "":
+		return "–"
+	default:
+		return status
+	}
+}
+
+func fetchStatusText(status string) string {
+	switch status {
+	case "readable":
+		return "Full text"
+	case "partial":
+		return "Partial text"
+	case "metadata_only":
+		return "Metadata only"
+	case "unavailable":
+		return "Not readable"
+	case "":
+		return "Not recorded"
+	default:
+		return status
+	}
+}
+
+// assemblyReviewNote is the note the review shows: the agents' draft note
+// when there is one, otherwise the saved note.
+func assemblyReviewNote(item source.StagedSource) string {
+	if note := strings.TrimSpace(item.DraftNote); note != "" {
+		return note
+	}
+	return strings.TrimSpace(firstSourceText(item.Source.Note, ""))
+}
+
+// assemblyReviewSection and assemblyReviewKind show the saved value when
+// there is one, otherwise the draft's.
+func assemblyReviewSection(item source.StagedSource) string {
+	return fallbackText(firstSourceText(item.Source.Section, ""), item.DraftSection)
+}
+
+func assemblyReviewKind(item source.StagedSource) string {
+	return fallbackText(firstSourceText(item.Source.Kind, ""), item.DraftKind)
+}
+
+// assemblyReviewDraftOnly names the section and kind the review shows from the
+// draft because the saved Source has none. Accepting keeps the saved Source.
+func assemblyReviewDraftOnly(item source.StagedSource) []string {
+	fields := []string{}
+	if strings.TrimSpace(firstSourceText(item.Source.Kind, "")) == "" && item.DraftKind != "" {
+		fields = append(fields, "kind")
+	}
+	if strings.TrimSpace(firstSourceText(item.Source.Section, "")) == "" && item.DraftSection != "" {
+		fields = append(fields, "section")
+	}
+	return fields
 }
 
 func preserveExistingAssemblySources(reviewed []tape.Source, existing []tape.Source) []tape.Source {
@@ -134,6 +266,10 @@ func (m Model) handleAssemblyReviewKey(keyMsg tea.KeyPressMsg) (Model, tea.Cmd) 
 			return m.startInitialSourceBatch()
 		}
 		return m, nil
+	case "pgup":
+		return m.scrollAssemblyDetail(-3), nil
+	case "pgdown":
+		return m.scrollAssemblyDetail(3), nil
 	case "o":
 		m.note = "Opened assembly draft."
 		return m, openPath(projectAbsPath(m.currentPath, assemblyDraftRelPath))
@@ -216,11 +352,86 @@ func (m Model) discardAssemblyDraft() (Model, tea.Cmd) {
 
 func (m Model) viewAssemblyReview() string {
 	width := styles.ClampWidth(m.width - 4)
+	layout := m.assemblyReviewLayout(width)
+	return m.viewAssemblyReviewWithLayout(width, layout)
+}
+
+// assemblyLayout is how much of the review fits: the table's visible rows and,
+// when the selected detail is longer than the rows left, the window onto it.
+type assemblyLayout struct {
+	tableHeight int
+	detailRows  int // 0 shows the whole detail
+	detailTotal int
+	detailStart int
+}
+
+// assemblyReviewLayout keeps the selected Source's notes and the accept panel
+// on screen: the table gives up rows first, then a long detail scrolls
+// (pgup/pgdn) instead of letting the frame cut it off.
+func (m Model) assemblyReviewLayout(width int) assemblyLayout {
+	layout := assemblyLayout{tableHeight: sourceReviewTableHeight(len(m.sourceItems))}
+	budget := m.bodyLineBudget()
+	if budget <= 0 {
+		return layout
+	}
+	overflow := lipgloss.Height(m.viewAssemblyReviewWithLayout(width, layout)) - budget
+	if overflow <= 0 {
+		return layout
+	}
+	shrink := min(overflow, max(0, layout.tableHeight-3))
+	layout.tableHeight -= shrink
+	overflow -= shrink
+	if overflow <= 0 {
+		return layout
+	}
+	total := lipgloss.Height(m.assemblySelectedDetail(width))
+	// One row goes to the scroll position line.
+	rows := max(2, total-overflow-1)
+	if rows >= total {
+		return layout
+	}
+	layout.detailRows = rows
+	layout.detailTotal = total
+	layout.detailStart = min(max(0, m.assemblyDetailOffset), total-rows)
+	return layout
+}
+
+// scrollAssemblyDetail moves the selected detail's window by delta rows.
+func (m Model) scrollAssemblyDetail(delta int) Model {
+	layout := m.assemblyReviewLayout(styles.ClampWidth(m.width - 4))
+	if layout.detailRows == 0 {
+		m.assemblyDetailOffset = 0
+		return m
+	}
+	m.assemblyDetailOffset = min(max(0, layout.detailStart+delta), layout.detailTotal-layout.detailRows)
+	return m
+}
+
+func (m Model) assemblySelectedDetailView(width int, layout assemblyLayout) string {
+	detail := m.assemblySelectedDetail(width)
+	if layout.detailRows == 0 {
+		return detail
+	}
+	lines := strings.Split(detail, "\n")
+	end := min(len(lines), layout.detailStart+layout.detailRows)
+	position := "more below"
+	switch {
+	case layout.detailStart > 0 && end < len(lines):
+		position = "more above and below"
+	case layout.detailStart > 0:
+		position = "end; more above"
+	}
+	status := fmt.Sprintf("Detail lines %d–%d of %d · %s · pgup/pgdn scroll", layout.detailStart+1, end, len(lines), position)
+	return lipgloss.JoinVertical(lipgloss.Left, strings.Join(lines[layout.detailStart:end], "\n"), styles.SoftText.Render(truncateMiddle(status, width)))
+}
+
+func (m Model) viewAssemblyReviewWithLayout(width int, layout assemblyLayout) string {
+	tableHeight := layout.tableHeight
 	reviewTable := newVisibleDataTable(
 		assemblyColumns(width),
 		assemblyRows(m.sourceItems, width, m.sourceTable.Cursor()),
 		width,
-		sourceReviewTableHeight(len(m.sourceItems)),
+		tableHeight,
 		true,
 		m.sourceTable.Cursor(),
 	)
@@ -242,12 +453,20 @@ func (m Model) viewAssemblyReview() string {
 	if transitioning {
 		sections = append(sections, "", assemblyApprovalTransitionView(width))
 	} else if m.sourceMaintenancePlan != nil && !m.sourceBatchRunning {
-		sections = append(sections, "", assemblyApprovalView(width, *m.sourceMaintenancePlan, len(source.ActiveSources(m.sourceItems))))
+		// Keep the selected Source's notes on screen while the person decides
+		// whether to accept the planned Sources.
+		sections = append(sections,
+			"",
+			styles.ReportSection.Render("Selected"),
+			m.assemblySelectedDetailView(width, layout),
+			"",
+			assemblyApprovalView(width, *m.sourceMaintenancePlan, len(source.ActiveSources(m.sourceItems))),
+		)
 	} else {
 		sections = append(sections,
 			"",
 			styles.ReportSection.Render("Selected"),
-			m.assemblySelectedDetail(width),
+			m.assemblySelectedDetailView(width, layout),
 		)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -309,18 +528,47 @@ func (m Model) assemblySelectedDetail(width int) string {
 	if !item.Active {
 		state = "unchecked"
 	}
-	return sourceMetadataTable(width, item, state, "")
+	use := []string{state}
+	for _, value := range []string{
+		assemblyReviewKind(item),
+		fallbackText(assemblyReviewSection(item), "unsectioned"),
+		fallbackText(item.Source.Priority, "required"),
+	} {
+		if strings.TrimSpace(value) != "" {
+			use = append(use, value)
+		}
+	}
+	rows := []labelValueRow{
+		{Label: "Source", Value: truncateMiddle(item.Label, max(24, width-12))},
+		{Label: "Use", Value: strings.Join(use, " · ")},
+		{Label: "Read", Value: fetchStatusText(item.FetchStatus)},
+		{Label: "Note", Value: fallbackText(assemblyReviewNote(item), "No note")},
+	}
+	saved := strings.TrimSpace(firstSourceText(item.Source.Note, ""))
+	if saved != "" && saved != assemblyReviewNote(item) {
+		rows = append(rows, labelValueRow{Label: "Saved note", Value: saved})
+	}
+	if draftOnly := assemblyReviewDraftOnly(item); len(draftOnly) > 0 {
+		verb := "comes"
+		if len(draftOnly) > 1 {
+			verb = "come"
+		}
+		rows = append(rows, labelValueRow{Label: "Saved", Value: "No " + strings.Join(draftOnly, " or ") + "; the " + strings.Join(draftOnly, " and ") + " shown " + verb + " from the draft. Accepting keeps the saved Source as it is."})
+	}
+	return renderLabelValueBlock(width, rows, 0, 0)
 }
 
 func assemblyColumns(width int) []table.Column {
 	useWidth := 5
 	kindWidth := 10
 	sectionWidth := 14
-	noteWidth := 28
-	sourceWidth := width - useWidth - kindWidth - sectionWidth - noteWidth - 8
+	readWidth := 8
+	noteWidth := 24
+	gaps := 10
+	sourceWidth := width - useWidth - kindWidth - sectionWidth - readWidth - noteWidth - gaps
 	if sourceWidth < 20 {
 		noteWidth = max(14, noteWidth-(20-sourceWidth))
-		sourceWidth = width - useWidth - kindWidth - sectionWidth - noteWidth - 8
+		sourceWidth = width - useWidth - kindWidth - sectionWidth - readWidth - noteWidth - gaps
 	}
 	sourceWidth = max(18, sourceWidth)
 	return []table.Column{
@@ -328,6 +576,7 @@ func assemblyColumns(width int) []table.Column {
 		{Title: "Kind", Width: kindWidth},
 		{Title: "Section", Width: sectionWidth},
 		{Title: "Source", Width: sourceWidth},
+		{Title: "Read", Width: readWidth},
 		{Title: "Note", Width: noteWidth},
 	}
 }
@@ -335,19 +584,20 @@ func assemblyColumns(width int) []table.Column {
 func assemblyRows(items []source.StagedSource, width int, selected int) []table.Row {
 	columns := assemblyColumns(width)
 	sourceWidth := columns[3].Width
-	noteWidth := columns[4].Width
+	noteWidth := columns[5].Width
 	rows := make([]table.Row, 0, len(items))
 	for index, item := range items {
 		rows = append(rows, table.Row{
 			sourceUseMarkForRow(item.Active, index == selected),
-			truncateMiddle(firstSourceText(item.Source.Kind, item.Type), columns[1].Width),
-			truncateMiddle(firstSourceText(item.Source.Section, "unsectioned"), columns[2].Width),
+			truncateMiddle(fallbackText(assemblyReviewKind(item), item.Type), columns[1].Width),
+			truncateMiddle(fallbackText(assemblyReviewSection(item), "unsectioned"), columns[2].Width),
 			truncateMiddle(item.Label, sourceWidth),
-			truncateMiddle(firstSourceText(item.Source.Note, "no note"), noteWidth),
+			fetchStatusMarker(item.FetchStatus),
+			truncateMiddle(fallbackText(assemblyReviewNote(item), "no note"), noteWidth),
 		})
 	}
 	if len(rows) == 0 {
-		rows = append(rows, table.Row{"", "", "", "No draft sources found", ""})
+		rows = append(rows, table.Row{"", "", "", "No draft sources found", "", ""})
 	}
 	return rows
 }

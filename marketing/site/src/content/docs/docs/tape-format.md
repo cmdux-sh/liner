@@ -1,9 +1,10 @@
 ---
 title: Tape Format
-description: The required and optional fields in a Liner tape.yaml file.
+description: Reference for tape.yaml metadata, source types, local-file requirements, and source fields.
 ---
 
-`tape.yaml` is the source recipe for the Mixtape corpus inside a project.
+
+`mixtape/tape.yaml` is the recipe for a Project's research packet. It lists the sources and the metadata used during compile.
 
 This page is a format reference. Use the terminal UI or `liner sources` and
 `liner project` commands for supported post-creation maintenance so immutable
@@ -11,7 +12,7 @@ IDs, lineage, lifecycle invalidation, approvals, and Change Receipts remain
 intact. An optional Maintenance Adapter delegates to those commands; it does not
 edit the recipe directly.
 
-## Required Fields
+## Required fields
 
 ```yaml
 title: Mobile Design Foundations
@@ -29,7 +30,7 @@ sources:
     kind: reference
 ```
 
-Required top-level fields:
+The following top-level fields are required.
 
 - `title`
 - `description`
@@ -39,7 +40,7 @@ Required top-level fields:
 
 `sources` can be empty while you are drafting a tape. The terminal UI requires at least one source before compiling.
 
-## Optional Top-Level Fields
+## Optional top-level fields
 
 - `mode`, either `quick` or `methodology`
 - `tags`
@@ -52,13 +53,13 @@ Required top-level fields:
 - `methodology_version`
 - `parent`
 
-The `jtbd` field uses Job Story form:
+The `jtbd` field records the task using Job Story form.
 
 ```text
 When [circumstance], I want [motivation], so I can [outcome].
 ```
 
-## Source Types
+## Source types
 
 The tape format supports four source types.
 
@@ -73,11 +74,11 @@ The tape format supports four source types.
   kind: reference
 ```
 
-Optional `render` values:
+The optional `render` field controls web fetching.
 
-- absent: try server HTML first, then use headless Chromium if needed
-- `js`: use Chromium immediately
-- `server`: use server-rendered HTML only
+- With no `render` field, try server HTML first and use headless Chromium if needed.
+- Set `render: js` to use Chromium immediately.
+- Set `render: server` to use server-rendered HTML only.
 
 ### YouTube
 
@@ -90,7 +91,7 @@ Optional `render` values:
 
 The fetcher tries transcript fetching first and falls back through `yt-dlp` where possible.
 
-### Local File
+### Local file
 
 ```yaml
 - type: local_file
@@ -100,7 +101,7 @@ The fetcher tries transcript fetching first and falls back through `yt-dlp` wher
   section: research
 ```
 
-Local files must live under the project's `local-sources/` folder or the legacy `personal/` folder. Supported formats are Markdown, text, HTML, and PDF, up to 10 MB per file.
+In current Projects, put files under `mixtape/local-sources/`. The recipe uses a path relative to `mixtape/`, such as `path: local-sources/touch-target-paper.pdf`. Legacy root-level Projects resolve that recipe path from their root and also support `personal/`. Supported formats are Markdown, text, HTML, and PDF, up to 10 MiB per file.
 
 ### Skill
 
@@ -113,13 +114,13 @@ Local files must live under the project's `local-sources/` folder or the legacy 
 
 Skill sources can use an installed skill name, a local skill folder or `SKILL.md` path, a project snapshot under `local-sources/skills/`, or a GitHub skill URL. Skill files are read as reference material and are not installed or executed.
 
-## Source Fields
+## Source fields
 
-Common optional fields:
+These optional fields apply across source types.
 
-- `note`: curator guidance about why the source belongs
-- `section`: source grouping used by compile filters
-- `priority`: `required` or `optional`; defaults to `required`
-- `kind`: `reference`, `principle`, `prescription`, or `example`
+- `note` explains why the source belongs.
+- `section` groups sources for compile filters.
+- `priority` accepts `required` or `optional` and defaults to `required`.
+- `kind` accepts `reference`, `principle`, `prescription`, or `example`.
 
 `local_file` sources require `path` and `citation`. Web and YouTube sources require `url`. Skill sources require either `path` or a GitHub `url`.

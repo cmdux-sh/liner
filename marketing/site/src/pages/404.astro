@@ -1,0 +1,22 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+---
+<BaseLayout title="Page not found | Liner" noindex>
+  <SiteHeader />
+  <main id="content" tabindex="-1" class="missing-page">
+    <h1 class="h1">Page not found</h1>
+    <p>This page couldn't be found. Check the address or search the docs.</p>
+    <nav aria-label="Page recovery">
+      <a href="/">Liner home</a>
+      <a href="/docs/">Read the docs</a>
+    </nav>
+  </main>
+</BaseLayout>
+<style>
+  .missing-page { max-inline-size: 68ch; margin-inline: auto; padding: var(--space-panel); padding-block-start: var(--space-section); }
+  p { margin-block: 1.5rem; line-height: 1.7; }
+  nav { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+  a { display: inline-flex; align-items: center; min-block-size: var(--control-size); color: var(--color-accent); text-decoration: underline; text-underline-offset: 0.25em; }
+  a:active { color: var(--color-text-primary); }
+</style>

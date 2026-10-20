@@ -29,21 +29,18 @@ HOME_SECTION_KEYS = (
 
 REQUIRED: dict[Path, tuple[str, ...]] = {
     ROOT_README: ("liner sources add mobile-design-foundations",),
+    # Section keys below cover narrative structure. Copy edits must preserve these
+    # artifact and maintenance contracts without pinning editorial headings.
     HOMEPAGE: (
         "Build reusable",
-        "One request becomes a reusable Liner Project.",
         "MIXTAPE.md",
         "LINER.md",
         "SKILL.md",
         'id="use-cases"',
-        "Three jobs where source choice changes the output.",
-        "Worth a Project",
         "A chat is enough",
-        "Let Codex or Claude maintain the Project safely.",
         "liner adapters install codex --yes",
         "Project Change Set",
         "Change Receipt",
-        "Start building",
         "npx linersh",
     ),
     DOCS_INDEX: ("/docs/maintenance/", "Optional Maintenance Adapter"),

@@ -63,7 +63,7 @@ export function JsSetup(): React.ReactElement {
           <Box marginTop={1} flexDirection="column">
             <Text color={MUTED}>
               {
-                "Installing JS rendering downloads Playwright's headless Chromium browser, about 150MB on first run. After that, compiles can recover from \"requires JavaScript\" pages instead of keeping tiny stubs."
+                "Installing JS rendering downloads Playwright's headless Chromium browser, about 100 MB to download and about 220 MB on disk, on first run. After that, compiles can recover from \"requires JavaScript\" pages instead of keeping tiny stubs."
               }
             </Text>
             <Text color={MUTED}>

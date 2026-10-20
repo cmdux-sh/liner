@@ -135,7 +135,7 @@ describe("config", () => {
     });
     expect(cfg.readConfig().providerPreferences).toEqual({
       codex: { model: "gpt-5.6-sol" },
-      claude: { model: "sonnet" },
+      claude: { model: "claude-sonnet-5-5" },
     });
     expect(readFileSync(cfg.configPath(), "utf8")).toContain("provider_preferences:");
   });
@@ -253,12 +253,32 @@ describe("config", () => {
 
     expect(cfg.readConfig().providerPreferences).toEqual({
       codex: { model: "gpt-5.6-terra" },
-      claude: { model: "opus" },
+      claude: { model: "claude-opus-5-5" },
     });
     const saved = readFileSync(cfg.configPath(), "utf8");
     for (const expected of ["model: gpt-5.6-terra", "effort: high", "model: opus", "future_field: keep-me"]) {
       expect(saved).toContain(expected);
     }
+  });
+
+  it("keeps a Claude Thinking effort and drops OpenAI-only values for Claude", async () => {
+    const cfg = await loadConfigModule();
+    cfg.writeConfig({ agent: "claude" });
+    writeFileSync(
+      cfg.configPath(),
+      "provider_preferences:\n  claude:\n    model: sonnet\n    reasoning_effort: high\n  codex:\n    reasoning_effort: none\n",
+      "utf8",
+    );
+    expect(cfg.readConfig().providerPreferences).toEqual({
+      claude: { model: "claude-sonnet-5-5", reasoningEffort: "high" },
+      codex: { model: null, reasoningEffort: "none" },
+    });
+    writeFileSync(
+      cfg.configPath(),
+      "provider_preferences:\n  claude:\n    reasoning_effort: none\n",
+      "utf8",
+    );
+    expect(cfg.readConfig().providerPreferences).toBeNull();
   });
 
   it("drops only malformed provider model entries", async () => {
@@ -271,7 +291,7 @@ describe("config", () => {
     );
     const out = cfg.readConfig();
     expect(out.runner?.executable).toBe("/saved/codex");
-    expect(out.providerPreferences).toEqual({ claude: { model: "opus" } });
+    expect(out.providerPreferences).toEqual({ claude: { model: "claude-opus-5-5" } });
   });
 
   it("round-trips the JS setup onboarding flag", async () => {

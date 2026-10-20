@@ -750,23 +750,33 @@ def setup_js(
     """One-shot setup for JavaScript-rendered web sources.
 
     Installs the `playwright` Python package into the linersh environment (if
-    it isn't already there) and downloads the headless Chromium binary
-    Playwright drives (~150MB total). Idempotent — safe to re-run.
+    it isn't already there) and downloads only the headless Chromium shell that
+    `render: js` launches. Idempotent — safe to re-run.
     """
     configure_frozen_playwright_cache()
 
-    # 1. Decide whether we need to install the playwright Python package.
+    # 1. Decide whether we need to install or upgrade the playwright Python
+    #    package. Versions before 1.49 cannot fetch the headless shell alone.
     try:
         import playwright  # noqa: F401
 
         need_install = False
     except ImportError:
         need_install = True
+    installed = None if need_install else _installed_playwright_version()
+    need_upgrade = installed is not None and installed < _ONLY_SHELL_MIN_VERSION
 
     actions: list[str] = []
     if need_install:
-        actions.append("Install the `playwright` Python package (~50MB)")
-    actions.append("Download the Chromium binary (~150MB on first run; subsequent runs are no-ops)")
+        actions.append(f"Install the `playwright` Python package ({PLAYWRIGHT_PACKAGE_SIZE})")
+    elif need_upgrade:
+        actions.append(
+            f"Upgrade the `playwright` Python package to 1.49 or later ({PLAYWRIGHT_PACKAGE_SIZE})"
+        )
+    actions.append(
+        f"Download Playwright's headless Chromium ({HEADLESS_CHROMIUM_SIZE} on first run; "
+        "subsequent runs are no-ops)"
+    )
 
     err_console.print("[bold]liner setup-js[/] will:")
     for i, action in enumerate(actions, start=1):
@@ -778,16 +788,19 @@ def setup_js(
             err_console.print("[yellow]Cancelled.[/]")
             raise typer.Exit(code=1)
 
-    if need_install:
+    if need_install or need_upgrade:
         if _is_frozen_binary():
+            built_with = "with a Playwright older than 1.49"
+            if need_install:
+                built_with = "without the Playwright Python package"
             err_console.print(
-                "[red]This bundled Liner binary was built without the Playwright Python "
-                "package.[/]\n"
-                "Publish the platform package with Playwright included, then re-run:\n"
+                f"[red]This bundled Liner binary was built {built_with}.[/]\n"
+                "Publish the platform package with Playwright 1.49 or later included, "
+                "then re-run:\n"
                 "  liner setup-js"
             )
             raise typer.Exit(code=1)
-        _install_playwright_package()
+        _install_playwright_package(upgrade=need_upgrade)
 
     # 2. Download Chromium. Normal Python installs use sys.executable -m so
     #    we hit the same venv — after pipx inject the freshly-installed
@@ -797,13 +810,15 @@ def setup_js(
     err_console.print("[bold]Downloading Chromium…[/]")
     returncode = _run_playwright_install_chromium()
     if returncode != 0:
-        err_console.print(f"[red]playwright install chromium exited with code {returncode}.[/]")
+        err_console.print(
+            f"[red]playwright {' '.join(_playwright_install_args())} exited with code {returncode}.[/]"
+        )
         raise typer.Exit(code=returncode)
     err_console.print("[green]Chromium is ready.[/] `render: js` sources will now work.")
 
     # 3. Friendly nudge if we just installed in a non-pipx environment so the
     #    user knows the package is in *their* python and not contained.
-    if need_install and not _is_pipx_venv():
+    if (need_install or need_upgrade) and not _is_pipx_venv():
         err_console.print(
             "[dim]Note: playwright was installed into your active Python "
             "environment. If you uninstall liner later, run `pip uninstall playwright` "
@@ -811,13 +826,54 @@ def setup_js(
         )
 
 
+# Measured with Playwright 1.64 on macOS arm64. `render: js` launches Chromium
+# headless, which Playwright serves from its separate headless shell, so setup
+# skips the full Chromium build (about 290 MB to download, 575 MB on disk).
+HEADLESS_CHROMIUM_SIZE = "about 100 MB to download, about 220 MB on disk"
+PLAYWRIGHT_PACKAGE_SIZE = "about 45 MB to download, about 135 MB on disk"
+
+# Playwright added `install --only-shell` in 1.49.
+_ONLY_SHELL_MIN_VERSION = (1, 49)
+PLAYWRIGHT_REQUIREMENT = "playwright>=1.49"
+
+
+def _installed_playwright_version() -> tuple[int, ...] | None:
+    try:
+        from playwright._repo_version import version
+    except ImportError:
+        try:
+            from importlib.metadata import version as dist_version
+
+            version = dist_version("playwright")
+        except Exception:
+            return None
+    parts: list[int] = []
+    for part in str(version).split(".")[:2]:
+        digits = "".join(ch for ch in part if ch.isdigit())
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts) or None
+
+
+def _playwright_install_args() -> list[str]:
+    """Arguments for `playwright install` that fetch only what Liner launches.
+
+    `setup-js` upgrades Playwright to 1.49 or later first, so the full Chromium
+    build is never downloaded.
+    """
+
+    return ["install", "--only-shell", "chromium"]
+
+
 def _run_playwright_install_chromium() -> int:
     import subprocess
     import sys
 
+    install_args = _playwright_install_args()
     if not _is_frozen_binary():
         proc = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
+            [sys.executable, "-m", "playwright", *install_args],
             check=False,
         )
         return proc.returncode
@@ -834,7 +890,7 @@ def _run_playwright_install_chromium() -> int:
 
     original_argv = sys.argv[:]
     try:
-        sys.argv = ["playwright", "install", "chromium"]
+        sys.argv = ["playwright", *install_args]
         try:
             playwright_main()
         except SystemExit as exc:
@@ -848,12 +904,13 @@ def _run_playwright_install_chromium() -> int:
         sys.argv = original_argv
 
 
-def _install_playwright_package() -> None:
-    """Install the `playwright` package into the environment liner runs from.
+def _install_playwright_package(*, upgrade: bool = False) -> None:
+    """Install (or upgrade) `playwright` in the environment liner runs from.
 
     Prefers `pipx inject` (the right tool for pipx-managed installs, and what
     every recent pipx tutorial recommends). Falls back to `python -m pip` for
-    non-pipx installs.
+    non-pipx installs. Either way it asks for Playwright 1.49 or later, which
+    can download the headless shell alone.
     """
     import shutil
     import subprocess
@@ -861,15 +918,18 @@ def _install_playwright_package() -> None:
 
     if _is_pipx_venv():
         pipx = shutil.which("pipx")
+        inject = ["inject", "linersh", PLAYWRIGHT_REQUIREMENT]
+        if upgrade:
+            inject.append("--force")
         if pipx is None:
             err_console.print(
                 "[red]Detected a pipx-managed linersh install, but `pipx` is not on PATH.[/]\n"
                 "Install pipx (e.g. `brew install pipx`) and re-run, or install playwright manually:\n"
-                "  pipx inject linersh playwright"
+                f"  pipx {' '.join(inject)}"
             )
             raise typer.Exit(code=1)
-        err_console.print("[bold]Installing playwright via `pipx inject linersh playwright`…[/]")
-        proc = subprocess.run([pipx, "inject", "linersh", "playwright"], check=False)
+        err_console.print(f"[bold]Installing playwright via `pipx {' '.join(inject)}`…[/]")
+        proc = subprocess.run([pipx, *inject], check=False)
         if proc.returncode != 0:
             err_console.print(
                 f"[red]pipx inject failed with code {proc.returncode}.[/] "
@@ -879,16 +939,16 @@ def _install_playwright_package() -> None:
         return
 
     # Non-pipx install — fall back to pip in the current python env.
-    err_console.print("[bold]Installing playwright via `pip install playwright`…[/]")
-    proc = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "playwright"],
-        check=False,
-    )
+    pip_args = ["install", PLAYWRIGHT_REQUIREMENT]
+    if upgrade:
+        pip_args.insert(1, "--upgrade")
+    err_console.print(f"[bold]Installing playwright via `pip {' '.join(pip_args)}`…[/]")
+    proc = subprocess.run([sys.executable, "-m", "pip", *pip_args], check=False)
     if proc.returncode != 0:
         err_console.print(
             f"[red]pip install playwright failed with code {proc.returncode}.[/]\n"
             "Install it manually:\n"
-            f"  {sys.executable} -m pip install playwright"
+            f"  {sys.executable} -m pip {' '.join(pip_args)}"
         )
         raise typer.Exit(code=proc.returncode)
 

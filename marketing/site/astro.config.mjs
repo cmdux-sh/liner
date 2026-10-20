@@ -2,14 +2,18 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
+import { satteri } from "@astrojs/markdown-satteri";
+import keyboardTables from "./src/plugins/keyboard-tables.mjs";
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://www.liner.sh",
   server: { port: 4399, host: "127.0.0.1" },
+  markdown: { processor: satteri({ hastPlugins: [keyboardTables] }) },
   integrations: [
     starlight({
       title: "Liner Docs",
+      disable404Route: true,
       favicon: "/favicon.svg",
       logo: {
         src: "./public/liner-logo.svg",
@@ -28,7 +32,7 @@ export default defineConfig({
       },
       sidebar: [
         {
-          label: "Start Here",
+          label: "Start here",
           items: [
             { label: "Overview", slug: "docs" },
             { label: "Install", slug: "docs/install" },
@@ -40,14 +44,14 @@ export default defineConfig({
           label: "Concepts",
           items: [
             { label: "Projects and Mixtapes", slug: "docs/mixtapes" },
-            { label: "Tape Format", slug: "docs/tape-format" },
+            { label: "Tape format", slug: "docs/tape-format" },
             { label: "Sharing", slug: "docs/sharing" },
           ],
         },
         {
           label: "Reference",
           items: [
-            { label: "CLI Commands", slug: "docs/cli" },
+            { label: "CLI commands", slug: "docs/cli" },
             { label: "Terminal UI", slug: "docs/tui" },
             { label: "Troubleshooting", slug: "docs/troubleshooting" },
             { label: "Changelog", link: "/changelog/" },

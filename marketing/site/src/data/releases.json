@@ -1,0 +1,275 @@
+[
+  {
+    "version": "1.1.1",
+    "changes": [
+      {
+        "title": "Resume interrupted research",
+        "body": "Reopen a Project after an interrupted agent run or a validation failure to return to the last saved review or build step. Partial work stays marked as incomplete."
+      },
+      {
+        "title": "Preserve approved sources",
+        "body": "Sources you already accepted keep their IDs when Assembly adds evaluation details. Pending Assembly is shown as the next action when needed."
+      },
+      {
+        "title": "Save improvement decisions",
+        "body": "Improve Corpus decisions survive restarts. Applied recommendations stay resolved, and the audit keeps the original gap as history."
+      },
+      {
+        "title": "Clarify confirmations",
+        "body": "Source and synthesis transitions show ordinary confirmation messages. Recoverable Project deletion keeps focus on the exact confirmation step."
+      }
+    ],
+    "intro": "Interrupted research resumes from its saved checkpoint. Approved sources keep their IDs through Assembly, and Improve Corpus decisions survive restarts with a visible audit record.",
+    "published": true
+  },
+  {
+    "version": "1.1.0",
+    "changes": [
+      {
+        "title": "Review maintenance through Liner Core",
+        "body": "Project and Source changes use the same CLI-owned snapshots, plans, risk checks, and receipts. Higher-risk operations wait for approval of the exact preview."
+      },
+      {
+        "title": "Approve sources and synthesis separately",
+        "body": "Source review shows what will be added and what stays unchanged. A separate synthesis approval records the decision and starts compile."
+      },
+      {
+        "title": "Recover deleted Projects",
+        "body": "Delete Project asks for the exact name and previews a move to Liner Trash. The folder leaves the active library while its files and Project ID remain recoverable."
+      },
+      {
+        "title": "Maintain with Codex or Claude Code",
+        "body": "Optional Maintenance Adapters route changes through the installed CLI. Inspect, install, update, and remove commands preserve content outside Liner-managed files and blocks."
+      },
+      {
+        "title": "Load clearer Project instructions",
+        "body": "Generated root SKILL.md files give compatible AI assistants a concise entry point, load order, and completion criteria. Detailed operating rules remain in LINER.md."
+      },
+      {
+        "title": "Recover blocked sources",
+        "body": "Browser fallback can recover some security-checkpoint responses. Recovered material refreshes the affected evaluation steps, and ordinary curator notes no longer appear as compile warnings."
+      },
+      {
+        "title": "Simplify browser setup",
+        "body": "JavaScript rendering setup offers one install action and shows a loader while Playwright Chromium is downloading."
+      }
+    ],
+    "intro": "Source selection and synthesis now receive separate approval before compile. Maintenance previews Project and Source changes, requests approval when required, and saves a receipt, including for recoverable Project deletion.",
+    "published": true
+  },
+  {
+    "version": "1.0.2",
+    "changes": [
+      {
+        "title": "Read compile results first",
+        "body": "Compile opens with a compact summary. Source review brings errors, retryable custom sources, and recovered content to the top."
+      },
+      {
+        "title": "Repair custom sources",
+        "body": "Retry unavailable custom web or YouTube sources, install browser rendering when needed, and review recovered material before continuing."
+      },
+      {
+        "title": "Keep repair work in context",
+        "body": "Adding replacement material returns to compile. Recovered local sources remain available for the next research build."
+      },
+      {
+        "title": "Continue with usable partial results",
+        "body": "After reviewing warnings, a usable MIXTAPE.md can proceed to AI instruction creation. Completed Projects open LINER.md as their next action."
+      }
+    ],
+    "intro": "Compile summarizes the result before showing source details. It guides recovery for blocked web and YouTube sources and lets reviewed, usable partial results continue to AI instruction writing.",
+    "published": true
+  },
+  {
+    "version": "1.0.0",
+    "changes": [
+      {
+        "title": "Open the Go terminal UI",
+        "body": "Running liner or npx linersh opens the terminal UI for creating, opening, and managing local Projects."
+      },
+      {
+        "title": "Install through npm",
+        "body": "The linersh package includes the terminal UI and matching platform CLI binaries. Normal use needs no separate Python setup."
+      },
+      {
+        "title": "Create AI instructions",
+        "body": "After the research is ready, Create Operating Layer writes LINER.md, root SKILL.md, and liner.yaml from the saved artifacts. The files describe how to use the evidence and respect its boundaries."
+      },
+      {
+        "title": "Carry research into the method",
+        "body": "Generated instructions use the saved synthesis, quality checks, source roles, and capability patterns to guide work with the Project."
+      }
+    ],
+    "intro": "The first complete Project-builder release uses the Go terminal UI by default. The npm package includes the CLI and terminal UI, and completed folders carry AI instructions.",
+    "published": true
+  },
+  {
+    "version": "0.5.7",
+    "changes": [
+      {
+        "title": "Extract browser-downloaded PDFs",
+        "body": "When browser fallback receives a PDF download, Liner captures the file and runs PDF text extraction."
+      }
+    ],
+    "intro": "Browser fallback can capture PDF downloads and extract their text.",
+    "published": true
+  },
+  {
+    "version": "0.5.6",
+    "changes": [
+      {
+        "title": "Recognize remote PDFs",
+        "body": "Web responses identified as PDFs use PDF extraction, so raw PDF bytes no longer become source text."
+      },
+      {
+        "title": "Refetch unusable cache entries",
+        "body": "Cached content that resembles a bad PDF extraction, an empty fallback, or cookie-only output is discarded and fetched again."
+      },
+      {
+        "title": "Detect empty pages",
+        "body": "Empty JavaScript shells trigger browser fallback. Cookie-consent-only output is marked unavailable."
+      },
+      {
+        "title": "Explain partial compiles",
+        "body": "Compile reports the count of usable sources separately from unavailable source files."
+      }
+    ],
+    "intro": "Source fetching checks remote PDFs, empty JavaScript pages, cookie-only output, and stale cache entries. Partial compiles report usable and unavailable sources separately.",
+    "published": true
+  },
+  {
+    "version": "0.5.5",
+    "changes": [
+      {
+        "title": "Improve terminal scrolling",
+        "body": "Final responses and long compile source lists use internal scrolling areas that fit the terminal."
+      },
+      {
+        "title": "Set up browser rendering",
+        "body": "First-run setup offers optional Playwright Chromium installation. Compile also surfaces missing browser support for JavaScript-only pages."
+      },
+      {
+        "title": "Keep usable compile results accessible",
+        "body": "Partial compiles remain available with warnings. Opening a current result avoids rerunning compile; r explicitly retries it."
+      },
+      {
+        "title": "Recover from HTML extraction errors",
+        "body": "A text fallback can retain a source with a warning when the primary HTML extractor fails."
+      },
+      {
+        "title": "Remove local state for a clean reinstall",
+        "body": "The new uninstall command removes Liner configuration and source cache, shared Playwright browsers, and npm npx execution cache."
+      }
+    ],
+    "intro": "This release improves terminal scrolling, JavaScript rendering setup, partial compiles, and clean reinstall testing.",
+    "published": true
+  },
+  {
+    "version": "0.5.4",
+    "changes": [
+      {
+        "title": "Find the bundled research skill",
+        "body": "npm installs locate the included skill bundle more reliably and report the checked paths when it is missing."
+      },
+      {
+        "title": "Add a Windows install path",
+        "body": "Windows x64 receives a native platform package alongside macOS and Linux."
+      },
+      {
+        "title": "Configure models by phase",
+        "body": "Discovery and evaluation can use a cheaper configured model, while other research phases use the runner default. A rejected model setting warns and retries once with the default."
+      },
+      {
+        "title": "Detect an unresponsive runner",
+        "body": "A runner that emits no output within 15 seconds produces a clear failure with retry and switch-runner options."
+      },
+      {
+        "title": "Report usage accurately",
+        "body": "Run summaries keep token counts and remove the unsupported dollar-cost estimate."
+      }
+    ],
+    "intro": "Fresh npm installs find the bundled research skill more reliably. Windows x64 gains a platform install path alongside macOS and Linux.",
+    "published": true
+  },
+  {
+    "version": "0.5.3",
+    "changes": [
+      {
+        "title": "Report both installed versions",
+        "body": "The version command reports the terminal UI package and bundled CLI core together, or only the terminal UI version when the core cannot be resolved."
+      },
+      {
+        "title": "Keep version labels consistent",
+        "body": "The header and startup screen read the package version directly."
+      }
+    ],
+    "intro": "Version output reports both the installed terminal UI package and the CLI core.",
+    "published": true
+  },
+  {
+    "version": "0.5.2",
+    "changes": [
+      {
+        "title": "Simplify the research hub",
+        "body": "The hub shows one status summary with a phase checklist. In this release, compile is the completion milestone."
+      },
+      {
+        "title": "Streamline import and navigation",
+        "body": "Import detects .mixtape files in the current folder and opens the imported research hub. Screen actions and back navigation become more consistent."
+      },
+      {
+        "title": "Fit lists and responses to the terminal",
+        "body": "Project lists and final responses use bounded viewports to reduce wrapping and repeated scrollback."
+      },
+      {
+        "title": "Improve runner reliability",
+        "body": "Claude runs avoid a known compaction error and use an isolated MCP configuration for the research workflow."
+      },
+      {
+        "title": "Remove unsupported cost estimates",
+        "body": "Run summaries show token counts without an invented dollar figure."
+      }
+    ],
+    "intro": "The terminal hub gains one status view, clearer navigation, and more accurate run summaries.",
+    "published": true
+  },
+  {
+    "version": "0.5.1",
+    "changes": [
+      {
+        "title": "Bundle the research skill",
+        "body": "The npm package includes the research skill needed for AI-assisted task clarification."
+      },
+      {
+        "title": "Improve terminal readability",
+        "body": "Updated colors, explicit text contrast, and a cleaner startup logo improve legibility."
+      },
+      {
+        "title": "Refine navigation and feedback",
+        "body": "Back navigation avoids a loop, result notes stay visible, and the o shortcut opens the research folder."
+      },
+      {
+        "title": "Reduce scrollback artifacts",
+        "body": "The terminal app uses the alternate-screen buffer and clears the screen after a run completes."
+      }
+    ],
+    "intro": "The first update after the npm terminal UI release improves startup, colors, navigation, and folder opening.",
+    "published": true
+  },
+  {
+    "version": "0.5.0",
+    "changes": [
+      {
+        "title": "Run the terminal UI from npm",
+        "body": "npx linersh opens the terminal UI on clean machines. After a global install, liner opens the same interface."
+      },
+      {
+        "title": "Keep CLI commands available",
+        "body": "The installed command supports setup-js, compile, share, and status alongside the terminal UI."
+      }
+    ],
+    "intro": "The interactive terminal UI becomes available through npm on clean machines.",
+    "published": true,
+    "note": "first public release"
+  }
+]
