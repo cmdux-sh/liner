@@ -1,10 +1,9 @@
 // Per-task model and Thinking-effort selection.
 //
-// OpenAI Auto uses Luna/high for research-heavy tasks and Sol/medium for
-// judgment-heavy tasks. Claude retains its existing Sonnet downgrades for
-// Candidate discovery and Evaluation. A provider preference or hand-edited
-// phase override remains authoritative; choosing provider default disables
-// the OpenAI Auto policy.
+// OpenAI Auto runs Sol 6.1 at Medium for every task. Claude runs Sonnet 5.5 at
+// Medium unless Settings chooses another model or effort. A provider
+// preference or hand-edited phase override remains authoritative; choosing
+// provider default disables the OpenAI Auto policy.
 
 import type { AgentId } from "./types.js";
 import type { PhaseId } from "../phases.js";
@@ -29,32 +28,49 @@ export type RunProfileResolution = {
   effortSource: "provider" | "auto" | "default";
 };
 
-const AUTO_CODEX_POLICY: Partial<Record<ModelTaskId, { model: string; reasoningEffort: string }>> = {
-  "jtbd-clarify": { model: "gpt-5.6-luna", reasoningEffort: "high" },
-  candidates: { model: "gpt-5.6-luna", reasoningEffort: "high" },
-  evaluation: { model: "gpt-5.6-luna", reasoningEffort: "high" },
-  framing: { model: "gpt-5.6-sol", reasoningEffort: "medium" },
-  quality: { model: "gpt-5.6-sol", reasoningEffort: "medium" },
-  synthesis: { model: "gpt-5.6-sol", reasoningEffort: "medium" },
-  improvement: { model: "gpt-5.6-sol", reasoningEffort: "medium" },
-  assembly: { model: "gpt-5.6-sol", reasoningEffort: "medium" },
+export const AUTO_OPENAI_MODEL = "gpt-6.1-sol";
+export const AUTO_OPENAI_EFFORT: ReasoningEffort = "medium";
+export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
+export const DEFAULT_CLAUDE_EFFORT: ReasoningEffort = "medium";
+
+// Claude Code's --effort levels; "none" is OpenAI-only.
+export const CLAUDE_REASONING_EFFORTS: ReadonlySet<ReasoningEffort> = new Set([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
+// Claude Code aliases saved by earlier Liner versions, and the models that
+// replaced them in Settings.
+const LEGACY_CLAUDE_MODELS: Record<string, string> = {
+  sonnet: DEFAULT_CLAUDE_MODEL,
+  opus: "claude-opus-5-5",
 };
 
-// Default downgrades, applied unless the user overrides them in config. The
-// values are the agent CLIs' own model identifiers/aliases.
-const DEFAULT_MODELS: Record<AgentId, PhaseModelMap> = {
-  claude: { candidates: "sonnet", evaluation: "sonnet" },
-  codex: {},
+export function normalizeProviderModel(agent: AgentId, model: string): string {
+  const value = model.trim();
+  if (agent !== "claude") return value;
+  return LEGACY_CLAUDE_MODELS[value.toLowerCase()] ?? value;
+}
+
+// Built-in models when neither a phase override nor a provider preference is
+// set. The values are the agent CLIs' own model identifiers.
+const DEFAULT_MODELS: Record<AgentId, string | undefined> = {
+  claude: DEFAULT_CLAUDE_MODEL,
+  codex: undefined,
 };
 
-export function defaultModelMap(agent: AgentId): PhaseModelMap {
-  return DEFAULT_MODELS[agent] ?? {};
+export function defaultModelFor(agent: AgentId): string | undefined {
+  return DEFAULT_MODELS[agent];
 }
 
 /**
  * Resolve the model for a phase. A user override for that exact phase wins
  * (including an empty string, read as "use the agent default"); otherwise the
- * default downgrade map applies; otherwise undefined → the agent's own model.
+ * provider preference; otherwise the built-in model; otherwise undefined →
+ * the agent's own model.
  */
 export function modelForPhase(
   agent: AgentId,
@@ -77,7 +93,7 @@ export function resolveModelForPhase(
   if (providerModel?.trim()) {
     return { model: providerModel.trim(), source: "provider" };
   }
-  const builtin = defaultModelMap(agent)[phaseId];
+  const builtin = defaultModelFor(agent);
   if (builtin) return { model: builtin, source: "builtin" };
   return { model: undefined, source: "default" };
 }
@@ -90,7 +106,6 @@ export function resolveRunProfile(
   preference?: ProviderPreference,
 ): RunProfileResolution {
   const providerModel = preference?.model?.trim() || undefined;
-  const autoProfile = agent === "codex" ? AUTO_CODEX_POLICY[taskId] : undefined;
   const autoActive = agent === "codex" && !providerModel && preference?.modelMode !== "default";
 
   let model: string | undefined;
@@ -101,26 +116,26 @@ export function resolveRunProfile(
   } else if (providerModel) {
     model = providerModel;
     modelSource = "provider";
-  } else if (autoActive && autoProfile) {
-    model = autoProfile.model;
+  } else if (autoActive) {
+    model = AUTO_OPENAI_MODEL;
     modelSource = "auto";
   } else {
-    const builtin = defaultModelMap(agent)[taskId as PhaseId];
+    const builtin = defaultModelFor(agent);
     if (builtin) {
       model = builtin;
       modelSource = "builtin";
     }
   }
 
-  if (agent !== "codex") {
-    return { model, reasoningEffort: undefined, modelSource, effortSource: "default" };
-  }
   const providerEffort = preference?.reasoningEffort?.trim() || undefined;
   if (providerEffort) {
     return { model, reasoningEffort: providerEffort, modelSource, effortSource: "provider" };
   }
-  if (autoActive && autoProfile) {
-    return { model, reasoningEffort: autoProfile.reasoningEffort, modelSource, effortSource: "auto" };
+  if (agent === "claude") {
+    return { model, reasoningEffort: DEFAULT_CLAUDE_EFFORT, modelSource, effortSource: "auto" };
+  }
+  if (autoActive) {
+    return { model, reasoningEffort: AUTO_OPENAI_EFFORT, modelSource, effortSource: "auto" };
   }
   return { model, reasoningEffort: undefined, modelSource, effortSource: "default" };
 }

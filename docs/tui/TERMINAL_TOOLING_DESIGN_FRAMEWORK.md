@@ -184,17 +184,16 @@ creates projects. It discloses that saving creates the folder if needed and does
 not move existing files. AI runner opens the model and Thinking effort selector.
 Escape returns one level at a time.
 
-Runner preferences use one spatial keyboard model: Provider, Model, and the
-OpenAI-only Thinking effort are vertical columns. Up and Down choose within a
+Runner preferences use one spatial keyboard model: Provider, Model, and
+Thinking effort are vertical columns. Up and Down choose within a
 column; Left and Right change the focused column; Enter saves the staged
 combination and returns to Settings; Escape returns to Settings without writing
-it. Claude stops at Model. Runtime paths and diagnostics stay below the selector
+it. Runtime paths and diagnostics stay below the selector
 so they support the decision instead of dominating it.
 
-Auto is the recommended OpenAI Model choice. It pairs Luna + High with Clarify
-Job, Candidate discovery, and Evaluation, and Sol + Medium with Framing,
-Quality, Synthesis, Improvement, and Assembly. OpenAI default remains a distinct
-manual choice. Concrete model and Thinking effort selections apply globally to
+Auto is the recommended OpenAI Model choice. It runs Sol 6.1 at Medium for
+every task. OpenAI default remains a distinct manual choice. Claude defaults to
+Sonnet 5.5 at Medium. Concrete model and Thinking effort selections apply globally to
 fresh runs, while explicit per-phase configuration remains authoritative.
 
 Add Sources is for source ingress, not source judgment. It may accept URLs,

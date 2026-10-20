@@ -8753,14 +8753,14 @@ func TestSettingsAutoOpenAIProfilePersistsSeparatelyFromProviderDefault(t *testi
 
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, expected := range []string{"Auto", "Auto by task"} {
+	for _, expected := range []string{"Auto", "Auto (Medium)", "Sol 6.1"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("Auto Settings missing %q:\n%s", expected, m.viewSettings())
 		}
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
 	view = strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, expected := range []string{"Luna + High", "Sol + Medium"} {
+	for _, expected := range []string{"Sol 6.1 at Medium for every task"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("Auto Settings detail missing %q:\n%s", expected, m.viewSettings())
 		}
@@ -8804,7 +8804,6 @@ func TestSettingsEnterSavesStagedCombinationAndReturnsToMenu(t *testing.T) {
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Claude
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sonnet
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
@@ -8818,18 +8817,18 @@ func TestSettingsEnterSavesStagedCombinationAndReturnsToMenu(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"agent: claude", "model: opus", "custom_field: keep-me"} {
+	for _, expected := range []string{"agent: claude", "model: claude-opus-5-5", "reasoning_effort: medium", "custom_field: keep-me"} {
 		if !strings.Contains(string(data), expected) {
 			t.Fatalf("saved Settings missing %q:\n%s", expected, data)
 		}
 	}
 	restarted := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
-	if restarted.settings.preferredAgent() != "claude" || restarted.settings.providerModel("claude") != "opus" {
+	if restarted.settings.preferredAgent() != "claude" || restarted.settings.providerModel("claude") != "claude-opus-5-5" {
 		t.Fatalf("restarted Settings = provider %q model %q", restarted.settings.preferredAgent(), restarted.settings.providerModel("claude"))
 	}
 }
 
-func TestSettingsEscapeDiscardsStagedCombinationAndClaudeSkipsEffort(t *testing.T) {
+func TestSettingsEscapeDiscardsStagedCombinationAndClaudeOffersEffort(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(home, ".liner", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
@@ -8849,11 +8848,13 @@ func TestSettingsEscapeDiscardsStagedCombinationAndClaudeSkipsEffort(t *testing.
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
-	if m.settingsRow != 1 {
-		t.Fatalf("Claude should stop at Model column, got %d", m.settingsRow)
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight}))
+	if m.settingsRow != 2 {
+		t.Fatalf("Claude should reach the Thinking effort column, got %d", m.settingsRow)
 	}
-	if strings.Contains(stripANSICodesForTest(m.viewSettings()), "Thinking effort") {
-		t.Fatalf("Claude Settings should omit Thinking effort:\n%s", m.viewSettings())
+	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
+	if !strings.Contains(view, "Thinking effort") || !strings.Contains(view, "Use Medium Claude Thinking effort for new runs. This is the default.") {
+		t.Fatalf("Claude Settings should offer Thinking effort with Medium as the default:\n%s", m.viewSettings())
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
@@ -10144,7 +10145,7 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // OpenAI default
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // GPT-5.6 Sol
+	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sol 6.1
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if m.err != "" {
 		t.Fatalf("save OpenAI model: %s", m.err)
@@ -10153,7 +10154,6 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Claude
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyRight})) // Model
-	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Sonnet
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))  // Opus
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if m.err != "" {
@@ -10161,17 +10161,17 @@ func TestSettingsModelPreferencesPersistIndependentlyFromRealKeyFlow(t *testing.
 	}
 
 	restarted := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
-	if got := restarted.settings.providerModel("codex"); got != "gpt-5.6-sol" {
-		t.Fatalf("OpenAI model = %q, want gpt-5.6-sol", got)
+	if got := restarted.settings.providerModel("codex"); got != "gpt-6.1-sol" {
+		t.Fatalf("OpenAI model = %q, want gpt-6.1-sol", got)
 	}
-	if got := restarted.settings.providerModel("claude"); got != "opus" {
-		t.Fatalf("Claude model = %q, want opus", got)
+	if got := restarted.settings.providerModel("claude"); got != "claude-opus-5-5" {
+		t.Fatalf("Claude model = %q, want claude-opus-5-5", got)
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".liner", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codex:", "model: gpt-5.6-sol", "claude:", "model: opus"} {
+	for _, expected := range []string{"codex:", "model: gpt-6.1-sol", "claude:", "model: claude-opus-5-5"} {
 		if !strings.Contains(string(data), expected) {
 			t.Fatalf("config missing %q:\n%s", expected, data)
 		}
@@ -10188,7 +10188,7 @@ func TestSettingsOpenAIThinkingEffortPersistsFromRealKeyFlow(t *testing.T) {
 
 	m := Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	view := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	for _, label := range []string{"Thinking effort", "Auto by task", "None", "Low", "Medium", "High", "Extra high", "Maximum"} {
+	for _, label := range []string{"Thinking effort", "Auto (Medium)", "None", "Low", "Medium", "High", "Extra high", "Maximum"} {
 		if !strings.Contains(view, label) {
 			t.Fatalf("OpenAI Settings missing %q:\n%s", label, view)
 		}
@@ -10208,8 +10208,8 @@ func TestSettingsOpenAIThinkingEffortPersistsFromRealKeyFlow(t *testing.T) {
 	m = Model{screen: screenProject, width: 118, settingsInput: newSettingsModelInput()}.startSettings().openSettingsAIRunner()
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
 	claudeView := strings.Join(strings.Fields(stripANSICodesForTest(m.viewSettings())), " ")
-	if strings.Contains(claudeView, "Thinking effort") {
-		t.Fatalf("Claude Settings should not show Thinking effort:\n%s", claudeView)
+	if !strings.Contains(claudeView, "Thinking effort") || strings.Contains(claudeView, "None") {
+		t.Fatalf("Claude Settings should show Claude Code's effort levels:\n%s", claudeView)
 	}
 	m, _ = m.handleSettingsKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
 	if m.settingsEffortCursor != 6 {
@@ -10235,7 +10235,7 @@ func TestSettingsCustomOpenAIModelResetsEffortAndWarnsCompatibility(t *testing.T
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, []byte("provider_preferences:\n  codex:\n    model: gpt-5.6-sol\n    reasoning_effort: max\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("provider_preferences:\n  codex:\n    model: gpt-6.1-sol\n    reasoning_effort: max\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)

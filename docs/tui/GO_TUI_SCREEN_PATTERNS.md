@@ -96,7 +96,7 @@ Choose app-level preferences.
   ~/liner/projects
 
   AI runner
-  OpenAI · Auto · Auto by task
+  OpenAI · Auto (Sol 6.1) · Medium
 
 footer help
 ```
@@ -109,12 +109,12 @@ Choose the AI runner Liner uses to research sources and create project files.
 
 Provider          Model                 Thinking effort
 
-> OpenAI          > Auto                > Auto by task
+> OpenAI          > Auto                > Auto (Medium)
   Claude            OpenAI default        None
-                    GPT-5.6 Sol           Low
-                    GPT-5.6 Terra         Medium
-                    GPT-5.6 Luna          High
-                    Custom model ID       Extra high
+                    Sol 6.1               Low
+                    Custom model ID       Medium
+                                          High
+                                          Extra high
                                           Maximum
 
 Selected-choice detail and runtime diagnostics.
@@ -129,16 +129,18 @@ Rules:
   the selected choice; Escape returns to the previous screen.
 - Projects folder uses a focused path editor. The screen says that saving
   creates the folder if needed and does not move existing project files.
-- Settings uses vertical preference columns: Provider, Model, and OpenAI-only
-  Thinking effort inside AI runner. Other compact choosers may keep a single
+- Settings uses vertical preference columns: Provider, Model, and Thinking
+  effort inside AI runner. Other compact choosers may keep a single
   choice list.
 - Up and Down move only within the focused column. Left and Right move only
   between columns. Enter saves the staged combination and returns to Settings;
   Escape returns to Settings without writing it.
-- Claude stops at Model and does not render an empty Thinking effort column.
+- Claude offers Sonnet 5.5 (the default), Opus 5.5, and Custom model ID, and
+  its Thinking effort column lists Claude Code's levels (Low through Maximum)
+  with Medium selected by default.
 - Auto is the recommended OpenAI model choice. Its default effort label is
-  `Auto by task`; selected-choice detail explains Luna + High for research-heavy
-  tasks and Sol + Medium for higher-judgment tasks.
+  `Auto (Medium)`; selected-choice detail explains that Auto runs Sol 6.1 at
+  Medium for every task.
 - Keep OpenAI default distinct from Auto. Persist the routing mode separately;
   never pass `auto` to Codex CLI as though it were a model ID.
 - Keep the same interaction at narrow supported widths; truncate long custom

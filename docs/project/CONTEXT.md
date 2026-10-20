@@ -88,24 +88,23 @@ uses this runtime name.
 _Avoid_: OpenAI provider choice, Codex as a separate provider
 
 **Provider Preference**:
-A durable, provider-specific model choice or Auto model policy and, for OpenAI,
-optional Thinking effort. OpenAI and Claude preferences persist independently
-of the active provider.
+A durable, provider-specific model choice or Auto model policy and Thinking
+effort. OpenAI and Claude preferences persist independently of the active
+provider. Claude defaults to Sonnet 5.5 at Medium effort.
 _Avoid_: Per-phase override, credential, active-provider-only setting
 
 **Auto model policy**:
-The recommended OpenAI model choice that resolves each fresh Liner AI task to a
-curated model and Thinking effort. Clarify Job, Candidate discovery, and
-Evaluation use Luna with High effort; Framing, Quality, Synthesis, Improvement,
-and Assembly use Sol with Medium effort. Explicit phase, model, or effort
-preferences remain authoritative, and resumed sessions keep their starting
-profile.
+The recommended OpenAI model choice. Every fresh Liner AI task runs Sol 6.1
+(`gpt-6.1-sol`) at Medium effort. Explicit phase, model, or effort preferences
+remain authoritative, and resumed sessions keep their starting profile.
 _Avoid_: OpenAI default, automatic provider selection, literal `auto` model ID
 
 **Thinking effort**:
-The OpenAI-only Settings control backed by Codex CLI reasoning-effort values.
-Auto by task follows the Auto model policy, Model default omits the override,
-and explicit values apply to fresh runs without retargeting resumed sessions.
+The Settings control for how much a model reasons. For OpenAI it maps to Codex
+CLI's reasoning effort: Auto follows the Auto model policy and Model default
+omits the override. For Claude it maps to Claude Code's `--effort` (Low through
+Maximum) and defaults to Medium. Explicit values apply to fresh runs without
+retargeting resumed sessions.
 _Avoid_: Claude thinking budget, portable provider setting, model
 
 **Isolated Development Root**:

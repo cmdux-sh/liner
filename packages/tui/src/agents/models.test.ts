@@ -2,16 +2,10 @@ import { describe, it, expect } from "vitest";
 import { modelForPhase, resolveModelForPhase, resolveRunProfile } from "./models.js";
 
 describe("modelForPhase", () => {
-  it("downgrades the heavy phases by default (claude → sonnet)", () => {
-    expect(modelForPhase("claude", "candidates")).toBe("sonnet");
-    expect(modelForPhase("claude", "evaluation")).toBe("sonnet");
-  });
-
-  it("leaves taste-heavy phases on the agent default (undefined)", () => {
-    expect(modelForPhase("claude", "synthesis")).toBeUndefined();
-    expect(modelForPhase("claude", "quality")).toBeUndefined();
-    expect(modelForPhase("claude", "framing")).toBeUndefined();
-    expect(modelForPhase("claude", "assembly")).toBeUndefined();
+  it("runs every Claude phase on Sonnet 5.5 by default", () => {
+    for (const phase of ["candidates", "evaluation", "synthesis", "quality", "framing", "assembly"] as const) {
+      expect(modelForPhase("claude", phase)).toBe("claude-sonnet-5-5");
+    }
   });
 
   it("keeps Codex on the CLI default by default because supported model ids vary by account", () => {
@@ -28,7 +22,7 @@ describe("modelForPhase", () => {
   });
 
   it("an override for one phase doesn't affect another", () => {
-    expect(modelForPhase("claude", "evaluation", { candidates: "opus" })).toBe("sonnet");
+    expect(modelForPhase("claude", "evaluation", { candidates: "opus" })).toBe("claude-sonnet-5-5");
   });
 
   it("still lets users pin a Codex model explicitly", () => {
@@ -49,19 +43,19 @@ describe("modelForPhase", () => {
 });
 
 describe("resolveRunProfile", () => {
-  it("routes OpenAI Auto tasks through the approved Luna and Sol tiers", () => {
-    for (const task of ["jtbd-clarify", "candidates", "evaluation"] as const) {
+  it("runs every OpenAI Auto task on Sol 6.1 at Medium", () => {
+    for (const task of [
+      "jtbd-clarify",
+      "candidates",
+      "evaluation",
+      "framing",
+      "quality",
+      "synthesis",
+      "improvement",
+      "assembly",
+    ] as const) {
       expect(resolveRunProfile("codex", task)).toMatchObject({
-        model: "gpt-5.6-luna",
-        reasoningEffort: "high",
-        modelSource: "auto",
-        effortSource: "auto",
-      });
-    }
-
-    for (const task of ["framing", "quality", "synthesis", "improvement", "assembly"] as const) {
-      expect(resolveRunProfile("codex", task)).toMatchObject({
-        model: "gpt-5.6-sol",
+        model: "gpt-6.1-sol",
         reasoningEffort: "medium",
         modelSource: "auto",
         effortSource: "auto",
@@ -72,7 +66,7 @@ describe("resolveRunProfile", () => {
   it("keeps explicit phase, global model, global effort, and provider-default choices authoritative", () => {
     expect(resolveRunProfile("codex", "candidates", { candidates: "phase-model" })).toMatchObject({
       model: "phase-model",
-      reasoningEffort: "high",
+      reasoningEffort: "medium",
       modelSource: "phase",
       effortSource: "auto",
     });
@@ -93,12 +87,21 @@ describe("resolveRunProfile", () => {
     });
   });
 
-  it("leaves Claude routing and thinking behavior unchanged", () => {
+  it("runs Claude on Sonnet 5.5 at Medium unless Settings chooses otherwise", () => {
     expect(resolveRunProfile("claude", "candidates")).toMatchObject({
-      model: "sonnet",
-      reasoningEffort: undefined,
+      model: "claude-sonnet-5-5",
+      reasoningEffort: "medium",
       modelSource: "builtin",
-      effortSource: "default",
+      effortSource: "auto",
+    });
+    expect(resolveRunProfile("claude", "synthesis", undefined, {
+      model: "claude-opus-5-5",
+      reasoningEffort: "high",
+    })).toMatchObject({
+      model: "claude-opus-5-5",
+      reasoningEffort: "high",
+      modelSource: "provider",
+      effortSource: "provider",
     });
   });
 });

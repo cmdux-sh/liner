@@ -177,7 +177,7 @@ if [ "$PWD" != "$EXPECTED_CWD_REAL" ]; then
   echo "wrong cwd: $PWD" >&2
   exit 42
 fi
-if [ "$*" != "-p --output-format stream-json --verbose --model opus" ]; then
+if [ "$*" != "-p --output-format stream-json --verbose --model claude-opus-5-5 --effort medium" ]; then
   echo "wrong args: $*" >&2
   exit 43
 fi
@@ -541,4 +541,42 @@ func evaluatedPath(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return evaluated
+}
+
+func TestGenerateClarifyingQuestionsKeepsSavedClaudeModelWhenDefaultEffortIsRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fixture is unix-only")
+	}
+	home := t.TempDir()
+	project := t.TempDir()
+	configHome := filepath.Join(home, "saved-claude-home")
+	if err := os.MkdirAll(configHome, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(home, "saved-claude")
+	body := `#!/bin/sh
+case " $* " in *" --effort "*) echo "error: unknown option '--effort'" >&2; exit 1 ;; esac
+if [ "$*" != "-p --output-format stream-json --verbose --model claude-opus-5-5" ]; then
+  echo "wrong retry args: $*" >&2
+  exit 43
+fi
+/bin/cat >/dev/null
+printf '{"type":"result","result":"[\"Which output should Claude produce?\"]"}\n'
+`
+	writeExecutable(t, script, body)
+	writeRunnerConfig(t, home, "claude", script, configHome, "opus")
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("LINER_AGENT", "")
+	t.Setenv("LINER_CLAUDE_BIN", "")
+	t.Setenv("LINER_CLAUDE_HOME", "")
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+
+	got, err := GenerateClarifyingQuestions(project, "Help my AI agent read references.", 5*time.Second)
+	if err != nil {
+		t.Fatalf("the retry should drop only Liner's default effort and keep the saved Opus model: %v\n%s", err, clarifyErrorLog(err))
+	}
+	if len(got) != 1 {
+		t.Fatalf("questions = %#v", got)
+	}
 }

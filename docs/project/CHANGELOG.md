@@ -40,6 +40,13 @@
   pass is no longer offered again because an older quality-check file still
   recommended it. When the offer does appear, it states the gaps in plain words
   instead of a raw heading.
+- **Sol 6.1 and Sonnet 5.5 are the defaults, both at Medium effort.** OpenAI
+  Auto runs Sol 6.1 at Medium for every task, and Claude runs Sonnet 5.5 at
+  Medium. Settings offers Sol 6.1 for OpenAI and Sonnet 5.5 and Opus 5.5 for
+  Claude, and Claude now has its own Thinking effort setting (Low through
+  Maximum), passed to Claude Code as `--effort`. A saved GPT-5.6 model keeps
+  working as a custom model ID, and a saved Sonnet or Opus choice moves to the
+  5.5 model.
 
 ## 1.1.1
 
