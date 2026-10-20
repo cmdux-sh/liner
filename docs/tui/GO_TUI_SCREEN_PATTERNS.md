@@ -409,9 +409,10 @@ Rules:
 - Sources review is a navigable table. Bubble source problems to the top, keep
   usable rows scrollable with the screen controls, and show row detail below the
   table. Use clear origin labels such as `research source` and `custom source`.
-- Source repair is explicit. `r repair sources` retries unavailable custom
-  sources, installs JS rendering first when needed, and stops on a recovery
-  review. If content recovered, Enter refreshes source evaluation from
+- Source repair is explicit and free. `r retry custom sources` (or `r retry
+  compile` when no custom source can be retried) never downloads anything and
+  stops on a recovery review. Sources that need a browser are counted, and only
+  `i` installs JS rendering, with its measured size. If content recovered, Enter refreshes source evaluation from
   Evaluation onward without rerunning Candidate discovery. If nothing recovered,
   Enter returns to Sources.
 - Regression coverage for source repair must prove the runner starts

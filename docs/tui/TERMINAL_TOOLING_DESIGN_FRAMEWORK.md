@@ -227,8 +227,9 @@ merely `left outside tape.yaml`; that names an implementation effect, not the
 failure the user can understand or repair.
 
 Repair from Compile is a guided batch, not a mystery rerun. It retries
-unavailable custom sources, installs JS rendering first when needed, and then
-returns to a review state. If no sources recover, stop and send the user back to
+unavailable custom sources without installing anything, then returns to a
+review state. Sources that still need a browser are counted, and the separate
+`i` install states its measured size. If no sources recover, stop and send the user back to
 Sources with repair, open, and add-replacement choices. If sources recover, say
 where the local copies were saved, then ask the user to refresh source
 evaluation from Evaluation onward so Liner can reconsider them without rerunning

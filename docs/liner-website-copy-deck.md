@@ -370,7 +370,7 @@ For a global install, run this command.
 
 <CommandSnippet command="liner setup-js" />
 
-The browser download is about 150 MB. You can run setup again when needed. The terminal UI also offers setup when compile encounters a page that requires it.
+The browser download is about 100 MB and takes about 220 MB on disk. You can run setup again when needed. The terminal UI also offers setup when compile encounters a page that requires it.
 
 ## Optional agent maintenance
 
@@ -964,26 +964,30 @@ When research finishes, **Review Draft Sources** shows the proposed canonical So
 
 | Key | Action |
 | --- | --- |
-| `enter` | Continue with the recommended action. This opens source review, repairs sources, rebuilds the corpus after recovery, or creates the Operating Layer as needed. |
-| `r` | Repair unavailable custom sources when possible, otherwise retry compile. |
+| `enter` | Continue with the recommended action. This opens source review, retries sources, rebuilds the corpus after recovery, or creates the Operating Layer as needed. It never downloads the browser. |
+| `r` | Retry unavailable custom sources when possible, otherwise retry compile. Nothing is downloaded. |
+| `l` | Create the Operating Layer without the failed sources, once you have reviewed them. |
 | `p` | Preview `mixtape/MIXTAPE.md`. |
 | `v` | Preview compile logs when available. |
 | `y` | Copy compiled `mixtape/MIXTAPE.md`. |
 | `a` | Add sources when compile output shows source gaps. |
-| `i` | Install JS rendering support when the compile warning needs it. |
+| `i` | Install JS rendering when a source needs it: about 100 MB to download, about 220 MB on disk. This is the only key that downloads it. |
 | `up` / `down` | Move through warning rows or source rows. |
 | `o` / `d` | Open or drop the selected warning/source row when that action is available. |
 | `esc` | Go back. |
 
 Compile opens with a compact result summary. Press Enter to review individual sources. Rows with errors, custom sources you can retry, and recovered content needing Build Corpus appear first. Press `r` to retry
-unavailable custom YouTube or web sources. If a source needs browser rendering,
-the repair flow installs JS support first, then retries recovery. Recovered
+unavailable custom YouTube or web sources; retrying never installs anything. If
+a source needs browser rendering, Sources review counts it and offers `i`, which
+downloads Playwright's headless Chromium (about 100 MB, about 220 MB on disk).
+You can also continue without that source. Recovered
 content is saved under `mixtape/local-sources/recovered/` and the TUI asks for Build
 Corpus only when the AI needs to reconsider new local material.
 
 Compile treats a written `mixtape/MIXTAPE.md` as usable even when warnings
 remain. Reviewed warnings stay visible, but a usable partial result can continue
-to Operating Layer creation.
+to Operating Layer creation: after reviewing the failed sources, press `l` in
+Compile or on the Project screen to continue without them.
 
 ## Maintain project
 

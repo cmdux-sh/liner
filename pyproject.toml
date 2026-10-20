@@ -37,10 +37,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Enables `render: js` for web sources via headless Chromium. Adds ~150MB.
-js = ["playwright>=1.40"]
+# Enables `render: js` for web sources via headless Chromium. `liner setup-js`
+# then downloads the headless shell: about 100 MB, about 220 MB on disk.
+js = ["playwright>=1.49"]
 binary = [
-    "playwright>=1.40",
+    "playwright>=1.49",
     "pyinstaller>=6.0",
 ]
 dev = [

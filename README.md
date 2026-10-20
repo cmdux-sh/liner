@@ -55,7 +55,7 @@ notes live in [packages/tui/README.md](packages/tui/README.md).
 To enable `render: js` for JavaScript-rendered pages (Apple HIG, Notion docs, etc.):
 
 ```sh
-liner setup-js              # installs Playwright + headless Chromium (~150MB)
+liner setup-js              # installs Playwright's headless Chromium (about 100 MB download, 220 MB on disk)
 ```
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).

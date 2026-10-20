@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.1.2
+
+- **Repair no longer installs the browser.** On the Compile Console, `r` and
+  Enter run only the recovery steps that cost nothing: retrying saved custom
+  Sources, or retrying the compile for failures that do not need a browser.
+  Sources that need a browser are counted, and `i` remains the only key that
+  installs JS rendering, with its measured size. Keys are labeled with what
+  they do, such as `retry compile`.
+- **`liner setup-js` installs only the browser Liner launches.** Liner runs
+  Chromium headless, so setup now downloads Playwright's headless shell
+  (`playwright install --only-shell chromium`): about 100 MB to download and
+  about 220 MB on disk, down from about 290 MB and 575 MB. Every size claim now
+  states the measured figure instead of "about 150 MB". Liner now requires
+  Playwright 1.49 or later, and setup upgrades an older one first, so the full
+  Chromium build is never downloaded.
+- **Review Draft Sources shows the agents' notes.** Attached Sources show the
+  note the draft gives them instead of "no note". The selected Source's full
+  note wraps on screen beside the accept panel at 100 × 30, and a Read column
+  shows how much of each Source the agents could read (the evaluation's
+  `fetch_status`). Attached Sources also show the draft's section and kind
+  instead of "unsectioned"; the review says when those come from the draft,
+  and accepting still keeps the saved Source as it is. A note too long for the
+  screen scrolls with PgUp/PgDn instead of being cut off.
+- **The synthesis and Project Skill editors accept new lines at any length.**
+  Enter no longer stops once the text is as long as the visible editor. While
+  you edit, the editor fills the screen and keeps the cursor line visible.
+  After Ctrl+D, the review keeps the decision and the approve action on screen
+  at 100 × 30, and Core's approval preview uses the full height for the
+  replacement text.
+- **Continue without failed Sources from where you are.** Create Operating
+  Layer (`l`) on the Project screen shows the failed Sources instead of
+  refusing. Once you have reviewed them, `l` creates the Operating Layer from
+  the usable Sources, and every key on that path is listed. That shortcut
+  still stops when no Source is usable, and a new compile or Source change
+  asks for the review again. The compile docs no longer say repair installs
+  the browser.
+- **The improvement offer follows the latest status.** An applied improvement
+  pass is no longer offered again because an older quality-check file still
+  recommended it. When the offer does appear, it states the gaps in plain words
+  instead of a raw heading.
+
 ## 1.1.1
 
 - **Resumed interrupted corpus work from the last durable checkpoint.** If an

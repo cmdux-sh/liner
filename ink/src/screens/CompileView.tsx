@@ -366,7 +366,7 @@ export function CompileView({
                 <Text color={MUTED}>
                   Some pages require headless Chromium to fetch correctly. Press{" "}
                   <Text color={STRUCTURE}>j</Text> to run{" "}
-                  <Text color={STRUCTURE}>liner setup-js --yes</Text> (~150MB).
+                  <Text color={STRUCTURE}>liner setup-js --yes</Text> (about 100 MB download, 220 MB on disk).
                 </Text>
                 <Text color={MUTED}>
                   Liner retries this compile after setup.

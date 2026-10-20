@@ -55,12 +55,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.synthesisReviewArea.SetWidth(max(20, styles.ClampWidth(msg.Width-8)))
 		m.operatingLayerReviewSkillArea.SetWidth(max(20, styles.ClampWidth(msg.Width-8)))
 		m.synthesisReviewCurrent.SetWidth(max(20, styles.ClampWidth(msg.Width-8)))
-		m.synthesisReviewCurrent.SetHeight(max(3, min(10, msg.Height-20)))
+		m.synthesisReviewCurrent.SetHeight(semanticReviewCurrentRows(msg.Height))
 		if m.screen == screenSynthesisReview && m.synthesisReviewPlan == nil {
 			m.syncSemanticReviewCurrent(false)
 		}
+		if m.screen == screenSynthesisReview && m.synthesisReviewEditing {
+			m.fitSemanticReviewEditor()
+		}
 		m.synthesisReviewPlanView.SetWidth(max(20, styles.ClampWidth(msg.Width-8)))
-		m.synthesisReviewPlanView.SetHeight(max(3, msg.Height-14))
+		m.synthesisReviewPlanView.SetHeight(semanticReviewPlanRows(msg.Height))
 		if m.synthesisReviewPlan != nil {
 			m.syncSynthesisReviewPlanView()
 		}
@@ -923,7 +926,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenSourceReview:
 			m.sourceTable, cmd = m.sourceTable.Update(msg)
 		case screenAssemblyReview:
-			m.sourceTable, cmd = m.sourceTable.Update(msg)
+			// pgup/pgdn scroll the selected detail, not the table.
+			if keyMsg, ok := msg.(tea.KeyPressMsg); !ok || (keyMsg.String() != "pgup" && keyMsg.String() != "pgdown") {
+				before := m.sourceTable.Cursor()
+				m.sourceTable, cmd = m.sourceTable.Update(msg)
+				if m.sourceTable.Cursor() != before {
+					m.assemblyDetailOffset = 0
+				}
+			}
 		case screenSkills:
 			m.skillTable, cmd = m.skillTable.Update(msg)
 		case screenSkillReview:
@@ -977,14 +987,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenSynthesisReview:
 			if wasSynthesisReviewEditing && m.synthesisReviewEditing && !m.synthesisReviewLoading && m.synthesisReviewPlan == nil {
 				if keyMsg, ok := msg.(tea.KeyPressMsg); !ok || shouldEditSemanticReviewText(keyMsg) {
+					m.fitSemanticReviewEditor()
 					area := m.activeSemanticReviewArea()
 					updated, nextCmd := area.Update(msg)
 					*area = updated
 					cmd = nextCmd
+					if m.semanticReviewHasLocalChanges() {
+						m.note = strings.TrimPrefix(m.note, "No changes yet. ")
+					}
 				}
 			}
 		}
 	}
+	m.fitSemanticReviewLayout()
 	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }

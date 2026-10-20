@@ -210,20 +210,28 @@ type Model struct {
 	boardIndex                int
 	clarifySpin               spinner.Model
 
-	compileEvents                           <-chan core.CompileEvent
-	compileDone                             <-chan error
-	compileLines                            []string
-	compileSpin                             spinner.Model
-	compileBar                              progress.Model
-	compiling                               bool
-	compileTotal                            int
-	compileDoneN                            int
-	compileFailed                           int
-	compileResult                           *core.CompileResultPayload
-	compileWarningIndex                     int
-	compilePane                             int
-	compileSourceIndex                      int
-	compileSourcesReviewed                  bool
+	compileEvents          <-chan core.CompileEvent
+	compileDone            <-chan error
+	compileLines           []string
+	compileSpin            spinner.Model
+	compileBar             progress.Model
+	compiling              bool
+	compileTotal           int
+	compileDoneN           int
+	compileFailed          int
+	compileResult          *core.CompileResultPayload
+	compileWarningIndex    int
+	compilePane            int
+	compileSourceIndex     int
+	compileSourcesReviewed bool
+	// compileFailuresReviewedKey records, for this session, the Project state
+	// (path, Core revision and MIXTAPE.md) whose failed Sources the person has
+	// seen in the Compile Console. Continuing without them is then their call
+	// from the Project screen too, until that state changes.
+	compileFailuresReviewedKey string
+	// assemblyDetailOffset is the first visible row of a selected Source's
+	// detail that is longer than the review has room for.
+	assemblyDetailOffset                    int
 	compileRepairAttempted                  bool
 	compileRepairRetryCompileAfterRecovery  bool
 	compileRepairRebuildCorpusAfterRecovery bool
