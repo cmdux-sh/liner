@@ -1,5 +1,51 @@
 [
   {
+    "version": "1.1.3",
+    "changes": [
+      {
+        "title": "Stop the launcher loop",
+        "body": "If npm skipped Liner's platform package, liner could start copies of itself until stopped. It now stops with a clear message instead."
+      },
+      {
+        "title": "Find a separately installed CLI",
+        "body": "When the bundled CLI is missing, liner uses another Liner CLI on your PATH, never another copy of the launcher."
+      }
+    ],
+    "intro": "liner no longer starts itself in a loop when its platform package is missing, and it finds a separately installed Liner CLI on your PATH.",
+    "published": true
+  },
+  {
+    "version": "1.1.2",
+    "changes": [
+      {
+        "title": "Install the browser only when you ask",
+        "body": "Repair never downloads it. Press i to install JS rendering: about 100 MB to download, about 220 MB on disk."
+      },
+      {
+        "title": "Read every source note",
+        "body": "Review Draft Sources shows each Source's full agent note, how much of it the agents could read, and its section and kind."
+      },
+      {
+        "title": "Edit long text",
+        "body": "The synthesis and Project Skill editors accept new lines at any length, and the approve action stays on screen."
+      },
+      {
+        "title": "Continue without failed sources",
+        "body": "After you review the failed Sources, press l to create the Operating Layer from the usable ones."
+      },
+      {
+        "title": "Follow the latest improvement status",
+        "body": "An applied improvement pass is no longer offered again, and its gaps are shown in plain words."
+      },
+      {
+        "title": "New default models",
+        "body": "OpenAI Auto runs Sol 6.1 at Medium. Claude runs Sonnet 5.5 at Medium, with Opus 5.5 and a Thinking effort setting."
+      }
+    ],
+    "intro": "You decide which sources to trust and what the synthesis says, with the agents' notes on screen. JS rendering installs only when you ask, and Sol 6.1 and Sonnet 5.5 are the new defaults.",
+    "published": true
+  },
+  {
     "version": "1.1.1",
     "changes": [
       {
