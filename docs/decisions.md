@@ -36,3 +36,7 @@ The release checklist builds all six npm packages from the public `cmdux-sh/line
 ## 2026-10-20 - Mirror 1.1.2 publicly without internal docs
 
 Arturo approved mirroring the 1.1.2 release to the public `cmdux-sh/liner` repository. The mirror merges private `master` into public `main` through a public pull request, keeps the public-only example project (`docs/examples/designing-for-ai-uncertainty/`), and reconciles the two Depot CI changes. Internal working docs stay private: `AGENTS.md` (it names the private repository), `docs/agents/`, and the website copy deck, language notes, performance audit, review, and truth audit (`docs/liner-website-*.md`). npm publication and the site deploy still need their own approval.
+
+## 2026-10-20 - Build the Windows package on Depot's Windows runner
+
+Arturo has no GitHub Actions credits, and Depot CI runs only Linux. To build `linersh-win32-x64` for 1.1.2, Arturo chose Depot's GitHub Actions Windows runner. The new manual workflow `.github/workflows/windows-bundle.yml` runs only on `depot-windows-2025`, keeps the trial cutoff guard, and never publishes; Depot bills the runner minutes. Linux packages build on Depot CI, and both macOS packages build on Arturo's Mac (Intel through Rosetta, with `cryptography` pinned below 49 because later releases ship no Intel-Mac wheel).
