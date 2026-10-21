@@ -24,6 +24,10 @@ or enable paid usage without Arturo's approval.
 - Depot labels are `depot-ubuntu-24.04` and `depot-ubuntu-24.04-arm`, including
   labels emitted by target resolution. Native Depot CI supports neither macOS
   nor Windows; those builds remain local/manual.
+- `.github/workflows/windows-bundle.yml` builds `linersh-win32-x64` on
+  Depot's GitHub Actions Windows runner (`depot-windows-2025`), because Depot CI
+  has no Windows machines. It is manual, runs no GitHub-hosted job, keeps the
+  trial cutoff guard, and never publishes. Depot bills its runner minutes.
 - The original `.github/workflows/platform-bundles.yml` remains unchanged as a
   manual fallback for all platform targets. The GitHub public-surface workflow
   has only its trigger changed to `workflow_dispatch`; all its job steps remain.

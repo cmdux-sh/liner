@@ -1,0 +1,65 @@
+name: Windows Bundle (Depot runner)
+
+# Builds linersh-win32-x64 on Depot's GitHub Actions Windows runner. Depot CI
+# has no Windows machines, and this job runs on no GitHub-hosted runner, so it
+# uses no GitHub Actions minutes; Depot bills the runner time. Manual only, and
+# it never publishes.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build linersh-win32-x64
+    runs-on: depot-windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Enforce free-trial cutoff
+        shell: bash
+        run: |
+          if [[ "$(date -u +%s)" -ge 1793119680 ]]; then
+            echo 'Depot trial ended; hosted work is paused.' >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/go-tui/go.mod
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Build platform package
+        shell: bash
+        run: |
+          python scripts/build-platform-package.py
+          test -d "packages/platform/linersh-win32-x64"
+
+      - name: Validate platform package
+        shell: bash
+        run: python scripts/validate-platform-package.py --pack-dry-run "packages/platform/linersh-win32-x64"
+
+      - name: Pack platform package
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          npm pack "packages/platform/linersh-win32-x64" --pack-destination release-artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linersh-win32-x64
+          path: release-artifacts/*.tgz
+          if-no-files-found: error
+          retention-days: 1
