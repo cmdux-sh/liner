@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.3
+
+- **`liner` no longer starts itself in a loop when its platform package is
+  missing.** If npm skipped the bundled `linersh-<platform>-<arch>` package (an
+  unsupported platform, optional packages turned off, or an install in the
+  minutes after a release), the launcher fell back to the first `liner` on
+  `PATH`, which was its own npm symlink, and kept starting new copies. It now
+  follows symlinks, never hands off to another Liner launcher, lists every
+  `liner` on `PATH` instead of only the first, and stops with a clear message
+  when no Liner CLI is available.
+
 ## 1.1.2
 
 - **Repair no longer installs the browser.** On the Compile Console, `r` and

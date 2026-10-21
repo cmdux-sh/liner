@@ -40,3 +40,7 @@ Arturo approved mirroring the 1.1.2 release to the public `cmdux-sh/liner` repos
 ## 2026-10-20 - Build the Windows package on Depot's Windows runner
 
 Arturo has no GitHub Actions credits, and Depot CI runs only Linux. To build `linersh-win32-x64` for 1.1.2, Arturo chose Depot's GitHub Actions Windows runner. The new manual workflow `.github/workflows/windows-bundle.yml` runs only on `depot-windows-2025`, keeps the trial cutoff guard, and never publishes; Depot bills the runner minutes. Linux packages build on Depot CI, and both macOS packages build on Arturo's Mac (Intel through Rosetta, with `cryptography` pinned below 49 because later releases ship no Intel-Mac wheel).
+
+## 2026-10-21 - Build Windows in kast-things, and ship the launcher fix as 1.1.3
+
+`cmdux-sh` is a personal GitHub account, so Depot's GitHub Actions runners can't attach to it. Arturo chose to build `linersh-win32-x64` for 1.1.2 in a temporary private repository in the `kast-things` organization, with the exact release code, on Depot's `depot-windows-2025` runner; Arturo connected Depot's runners to `kast-things`. 1.1.2 then published all six packages. The clean-install check found that when the platform package is missing, the launcher's `PATH` fallback started itself in a loop. Arturo chose to fix it now as 1.1.3, with the site deploy waiting until 1.1.3 ships. Release tooling keeps all six packages in lockstep, so 1.1.3 rebuilds and republishes every platform package.

@@ -11,13 +11,21 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(here, "..");
 const argv = process.argv.slice(2);
+
+// How many Liner launchers are already running above this one. The PATH
+// fallback below must never start another launcher, and this depth limit
+// stops a loop even where symlink checks can't see one (Windows .cmd shims).
+const LAUNCHER_DEPTH_ENV = "LINER_LAUNCHER_DEPTH";
+const launcherDepth = Number.parseInt(process.env[LAUNCHER_DEPTH_ENV] ?? "0", 10) || 0;
+const MAX_PATH_FALLBACK_DEPTH = 1;
+process.env[LAUNCHER_DEPTH_ENV] = String(launcherDepth + 1);
 
 const COMMAND_GROUPS = [
   {
@@ -373,17 +381,49 @@ function findRepoVenvBinary() {
   return null;
 }
 
+// A separately installed Liner CLI on PATH, never a Liner launcher: npm puts
+// this script on PATH through a symlink, so running the first hit would start
+// this launcher again, which would do the same, without end.
 function findPathBinary() {
-  const probe = spawnSync(process.platform === "win32" ? "where" : "which", ["liner"], {
-    encoding: "utf8",
-  });
+  if (launcherDepth > MAX_PATH_FALLBACK_DEPTH) return null;
+  // `where` lists every match; `which` needs -a, or it stops at the first one,
+  // which is usually this launcher.
+  const probe = spawnSync(
+    process.platform === "win32" ? "where" : "which",
+    process.platform === "win32" ? ["liner"] : ["-a", "liner"],
+    { encoding: "utf8" },
+  );
   if (probe.status !== 0) return null;
   const hits = probe.stdout
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const thisShim = fileURLToPath(import.meta.url);
-  return hits.find((hit) => hit !== thisShim) ?? null;
+  return hits.find((hit) => !isLinerLauncher(hit)) ?? null;
+}
+
+function isLinerLauncher(candidate) {
+  let real;
+  try {
+    real = realpathSync(candidate);
+  } catch {
+    return true;
+  }
+  if (real === realpathSync(fileURLToPath(import.meta.url))) return true;
+  // Another linersh install's launcher.
+  if (basename(real) === "liner.js" && basename(dirname(real)) === "bin") return true;
+  // npm's wrapper scripts (Windows .cmd/.ps1, and extensionless shell
+  // wrappers where symlinks aren't used) name the launcher they run, in any
+  // install layout. Real CLI binaries are not small text files that do.
+  return wrapperRunsLinerLauncher(real);
+}
+
+function wrapperRunsLinerLauncher(path) {
+  try {
+    if (statSync(path).size > 64 * 1024) return false;
+    return /linersh[\\/]+bin[\\/]+liner\.js/.test(readFileSync(path, "utf8"));
+  } catch {
+    return false;
+  }
 }
 
 function exeName() {
