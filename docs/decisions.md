@@ -19,7 +19,7 @@ From the Liner 1.1.1 case-study run, Arturo set the principle that Liner's agent
 
 ## 2026-10-20 - Move Linux CI to the bounded Depot free trial
 
-Arturo approved migrating Linux CI to Depot through 2026-10-27T16:48:00Z, the same cutoff as Akast, to avoid automatic GitHub-hosted Actions usage. Preserve the original checks and manual GitHub fallback, keep macOS and Windows local/manual, and guard every Depot job before checkout. No paid upgrade, package publication, public mirroring, provider operation, or deployment is authorized. See [the trial coverage and rollback record](ci/depot-ci-trial.md).
+Arturo approved migrating Linux CI to Depot through 2026-10-27T16:48:00Z, the same cutoff as Akast, to avoid automatic GitHub-hosted Actions usage. Preserve the original checks and manual GitHub fallback, keep macOS and Windows local/manual, and guard every Depot job before checkout. No paid upgrade, package publication, public mirroring, provider operation, or deployment is authorized.
 
 ## 2026-10-20 - Release 1.1.2 in order: merge, npm, mirror, then site
 
@@ -48,3 +48,9 @@ Arturo has no GitHub Actions credits, and Depot CI runs only Linux. To build `li
 ## 2026-10-21 - Deploy the 1.1.3 site, then build it only when it changes
 
 After 1.1.3 was live on npm and a clean `npx` install passed, Arturo approved the site deploy. The production pause was cleared and `master` (18ccbea) was deployed to liner.sh. The changelog page still called 1.1.3 a candidate because its release data stopped at 1.1.1, so 1.1.2 and 1.1.3 were added as published releases. Arturo didn't want TUI and Core work to keep rebuilding the site, and chose to keep the site in this repository: release tooling stamps the version into site files and the changelog page reads `VERSION`. The Vercel project's Ignored Build Step is now `git diff --quiet HEAD^ HEAD -- . ../../VERSION` (run from `marketing/site`), so a commit builds the site only when it changes `marketing/site` or `VERSION`; if git can't compare, Vercel builds.
+
+## 2026-11-05 - Move CI back from Depot to GitHub Actions
+
+The Public Surface workflow runs on GitHub Actions again for pull requests and pushes to `main`, and can still be started by hand. Platform Bundles stays manual on GitHub-hosted runners for every target, including Windows on `windows-2025`, so the separate Depot Windows workflow is removed. The `.depot/` workflows and the trial record are deleted; the October 20 entries above stay as history.
+
+Why: Arturo asked to go back to GitHub after the Depot trial ended on 2026-10-27, and the GitHub billing limit is fixed.
