@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 
 import pytest
@@ -111,3 +112,21 @@ def test_project_folder_keeps_legacy_root_layout_after_liner_metadata(tmp_path: 
     assert project.corpus_path == root
     assert project.tape_path == root / "tape.yaml"
     assert project.is_valid()
+
+
+def test_research_protocol_ships_every_phase() -> None:
+    root = resources.files("liner") / "bundled" / "research"
+    names = {path.name for path in (root / "phases").iterdir()}
+    assert names == {
+        f"{phase}.md"
+        for phase in (
+            "framing",
+            "candidates",
+            "evaluation",
+            "quality",
+            "synthesis",
+            "assembly",
+        )
+    }
+    for name in ("workspace-discipline.md", "output-discipline.md", "final-message.md"):
+        assert (root / name).read_text(encoding="utf-8").strip()

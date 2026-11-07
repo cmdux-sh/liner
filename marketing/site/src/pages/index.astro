@@ -61,7 +61,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
           <div class="mb-16 lg:mb-auto">
             {/* Eyebrow */}
             <div class="eyebrow eyebrow--accent mb-6 flex items-center">
-              <span>Local research toolkit</span>
+              <span>Your research library</span>
             </div>
 
             {/* Masked-reveal headline */}
@@ -71,7 +71,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
             </h1>
 
             <p class="mt-6 max-w-xl text-base leading-relaxed md:mt-8 md:text-lg" style="color: var(--color-text-secondary);">
-              Liner is a local CLI and terminal UI for turning focused research into files your AI assistant can use. Bring URLs, YouTube videos, PDFs, local files, or pasted text. Choose the evidence, review the research summary, and save it with instructions for the next session.
+              Liner is a personal library of reusable research that any AI agent can find, use, and maintain. Your agent does the research and you approve what goes in. Then a live terminal view shows you everything your liners hold.
             </p>
           </div>
 
@@ -136,7 +136,7 @@ const releaseVersion = readFileSync(resolve(process.cwd(), "../../VERSION"), "ut
 
             <div class="relative z-10 mt-8">
               <p class="mb-3 text-3xl font-light mix-blend-plus-lighter" style="color: white;">
-                Open the terminal UI<br />with one command.
+                Start your library<br />with one command.
               </p>
               <CommandSnippet command="npx linersh" tone="accent" accessibleLabel="Copy the install command" />
               <p class="mono mt-3 text-[length:var(--type-label)] uppercase tracking-widest" style="color: #0a0a0a;">
@@ -476,10 +476,10 @@ mixtape/
       <div class="mb-12 max-w-3xl"><p class="eyebrow eyebrow--accent mb-4">From research to reuse</p><h2 class="h1" style="font-size: var(--type-heading);">Four steps to a folder your AI can use.</h2></div>
       <div class="workflow-tiles grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { n: "01", title: "Frame", body: "Define one task and the output you need. The terminal UI helps clarify its situation and boundaries before research begins.", proof: "A specific job" },
-          { n: "02", title: "Gather", body: "Add material you already have, then build and review the research with your configured Claude Code or Codex runner. Choose which proposed sources to keep.", proof: "Selected evidence" },
+          { n: "01", title: "Frame", body: "Tell your agent the task and the output you need. It clarifies the situation and boundaries with you before research begins.", proof: "A specific job" },
+          { n: "02", title: "Gather", body: "Your agent researches with its own tools, and Liner checks each step. You choose which proposed sources to keep.", proof: "Selected evidence" },
           { n: "03", title: "Review", body: "Approve the synthesis separately from the source selection. Compile then fetches the source content and writes the research packet.", proof: "Research compiled" },
-          { n: "04", title: "Use", body: "Create the AI instruction files in the terminal UI. Give the whole folder to a file-reading assistant, or paste MIXTAPE.md into a conversation.", proof: "Instructions written" },
+          { n: "04", title: "Use", body: "Agents find the liner with liner catalog and liner search. What they could not answer and what real work teaches comes back to you for review.", proof: "Instructions written" },
         ].map((step) => (
           <article class="p-7 md:p-8" style="background: var(--color-bg-deep);">
             <p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-5 text-2xl" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-secondary);">{step.body}</p><p class="mono mt-6 text-[length:var(--type-label)] uppercase tracking-widest" style="color: var(--color-text-dim);">{step.proof}</p>
@@ -522,7 +522,7 @@ mixtape/
       <div class="content-tiles mt-px grid gap-px" style="background: var(--color-line-medium);">
         {[
           { title: "Inspectable files", body: "Read the sources, synthesis, and instructions in Markdown. Inspect the recipe and status in YAML." },
-          { title: "Your local tools", body: "The installed tool has no telemetry. AI-assisted research uses your configured Codex CLI or Claude Code runner and its account limits or charges. Files are saved locally; material read by the runner is processed under your provider's terms. Compile and instruction-file creation make no model calls." },
+          { title: "Your local tools", body: "The installed tool has no telemetry and makes no AI calls of its own. Research uses your agent and its account limits or charges. Files are saved locally; material read by the runner is processed under your provider's terms. Compile and instruction-file creation make no model calls." },
           { title: "Check before sharing", body: "A .mixtape archive can include local source files and saved content. Review its contents before sending or publishing it." },
         ].map((item) => (
           <article class="p-6 md:p-8" style="background: var(--color-bg-workspace);"><h3 class="text-lg" style="font-weight: 400; color: var(--color-text-primary);">{item.title}</h3><p class="mt-3 text-sm leading-relaxed" style="color: var(--color-text-muted);">{item.body}</p></article>

@@ -1,6 +1,6 @@
 ---
 name: Liner Core Product
-description: Terminal-native product system for creating and managing source-grounded AI context projects.
+description: Terminal-native navigator for reading a library of source-grounded liners.
 colors:
   ink: "#F7F7F2"
   muted: "#8B8C89"
@@ -66,15 +66,16 @@ components:
 
 **Creative North Star: "The Local Workbench"**
 
-Liner's core product design is a restrained terminal workbench for creating and
-maintaining source-grounded projects. It is not a decorative shell around CLI
-commands. It is the place where a user starts a project, opens a project
-list, manages one project, imports another project, reviews generated files, and
-checks the evidence that makes the project trustworthy.
+Liner's core product design is a restrained terminal workbench for reading a
+library of source-grounded liners. It is not a decorative shell around CLI
+commands. It is the place where a user browses their liners, sees what needs
+them, reads a synthesis or a source, follows a citation, and checks the evidence
+that makes a liner trustworthy. The coding agent builds and changes liners; the
+navigator is read-only and never changes a liner.
 
 The system should feel calm, dense, explicit, and durable. Calm enough to read in
-a terminal. Dense enough to manage real project state. Explicit enough that
-writes are never ambiguous. Durable enough that future agents can add screens by
+a terminal. Dense enough to show real library state. Explicit enough that
+the person always knows what to ask their agent next. Durable enough that future agents can add screens by
 choosing a named pattern instead of re-litigating the information architecture.
 
 It rejects marketing-page composition, dashboard card grids, duplicate command
@@ -167,8 +168,8 @@ navigation items, table cells, table headers, footer guidance, and `Next` copy
 are not bold.
 
 **The Product Noun Rule.** UI copy uses exact product nouns: `Status`, `Name`,
-`Settings`, `Operating Layer`, `Import Project`, `Open MIXTAPE.md`, `LINER.md`,
-`Project Skill`, and `Audit Output`.
+`Settings`, `Operating Layer`, `Open MIXTAPE.md`, `LINER.md`, and
+`Project Skill`.
 
 ## 4. Elevation
 
@@ -210,7 +211,7 @@ label/value rows, and viewports before adding borders or containers.
 ### Label/Value Block
 
 - **Shape:** compact rows with muted labels and ink values.
-- **Usage:** selected project detail, Settings details, Import Project facts.
+- **Usage:** a liner's detail page and Settings details.
 - **Wrapping:** long values wrap under the value column, never into the label
   column or adjacent pane.
 - **Rules:** do not add `Field`/`Value` headers to this pattern.
@@ -219,72 +220,47 @@ label/value rows, and viewports before adding borders or containers.
 
 - **Shape:** muted regular headers, ink cells, two-column padding between cells,
   optional focused-row fill.
-- **Usage:** section details, audit lists, composition,
-  source inventories, and write-aware action tables.
+- **Usage:** library lists, source inventories, and connections between
+  liners.
 - **Rules:** use one table per section detail. If a second table has a different
   purpose, promote it to a separate section.
 
-### Section Workspace
+### Library List
 
-- **Shape:** opened artifact identity at top, names-only section list on the
-  left, selected section detail on the right.
-- **Usage:** Project and future opened-object workspaces.
-- **Section list:** names only. No mini-statuses beside section names.
-- **Detail rhythm:** one title, one muted description, one blank line, one
-  table.
+- **Shape:** numbered view tabs above one list; `space` opens a short peek of
+  the selected liner below the list.
+- **Usage:** the Library's All, Attention, Sources, and Connections views.
+- **Rules:** the peek stays to identity and decision context. Deeper detail
+  belongs on the liner's page.
 
-### Split Browser
+### Liner Page
 
-- **Shape:** collection list on the left, compact selected-item detail on the
-  right.
-- **Usage:** Projects and other libraries where the user chooses an item before
-  opening it.
-- **Rules:** default detail stays to identity and decision context. Deeper
-  capability counts belong in the opened workspace.
+- **Shape:** the liner's job at top, an optional waiting or building line, then
+  label/value rows for the synthesis, sources, and other files.
+- **Usage:** one opened liner. `enter` reads the selected file in the Reader,
+  where `tab` moves between citations and `enter` follows one to its source.
+- **Rules:** reading only. Work on the liner goes to the agent: `y` offers
+  prompts to copy.
 
-### File Picker
+### Retired Patterns
 
-- **Shape:** title, muted instruction, label/value facts, picker viewport.
-- **Usage:** Import Project and future filesystem selection flows.
-- **Rules:** filter or disable invalid file types. Keep path typing out of the
-  primary flow unless a deliberate fallback mode is designed.
-
-### Review Surface
-
-- **Shape:** read-only preview or table plus explicit accept/open/discard/back
-  controls in footer or action table.
-- **Usage:** source cleanup, import checks, and future maintenance reviews.
-- **Rules:** generated fixes are proposed before they are written. Apply writes,
-  discard removes drafts, and review output explains decisions.
-
-### Maintenance Preview
-
-- **Shape:** Project/Source identity, operation summary, Core risk, exact file
-  effects, lifecycle consequences, validation conditions, and one explicit
-  approval action when Core requires it.
-- **Usage:** `Maintain project` operations for Source add, update, replace,
-  remove, purge, and Project rename or move.
-- **Rules:** render the versioned Core Change Set; do not reconstruct risk or
-  approval requirements in the TUI. Additive or metadata plans may continue
-  after validation when Core says approval is not required. Structural,
-  destructive, or destination-sensitive plans wait for approval of that exact
-  preview. A changed or malformed plan fails closed and returns to inspection.
-- **Completion:** show the Change Receipt and refreshed Project Snapshot. A
-  console success string alone is not completion evidence.
+File Picker, Review Surface, and Maintenance Preview belonged to the older app
+that imported projects, reviewed generated files, and ran maintenance from the
+terminal. The navigator does none of that. Reviews and approvals now happen in
+the agent's chat, and maintenance goes through the CLI. Do not bring these
+patterns back into the navigator.
 
 ## 6. Do's and Don'ts
 
 ### Do:
 
-- **Do** keep Home as the command hub and Projects as the project browser.
-- **Do** keep Project as a section workspace for one opened project.
+- **Do** keep the Library as the home page, with its All, Attention, Sources,
+  and Connections views.
+- **Do** keep a liner's page as the place to open its synthesis and files.
 - **Do** use footer/help as the only navigation and key-hint surface.
 - **Do** use Command Orange only for selection, action, progress, and filter
   matches.
-- **Do** show write behavior before writes happen.
-- **Do** show immutable Project and Source IDs when selecting maintenance
-  targets.
-- **Do** derive maintenance risk, approval, and file effects from Liner Core.
+- **Do** hand work to the agent with a copyable prompt instead of a write action.
 - **Do** keep `MIXTAPE.md` readiness separate from full Liner project readiness.
 - **Do** use current evidence from files, command output, and audits when showing
   status.
@@ -308,7 +284,7 @@ label/value rows, and viewports before adding borders or containers.
 - **Don't** imply a project is complete only because `MIXTAPE.md` exists.
 - **Don't** let previews, read-only views, or render paths create files or
   directories.
-- **Don't** let the TUI or an adapter write canonical Project files directly
-  for a supported maintenance operation.
+- **Don't** let the navigator or an adapter write canonical Project files.
+  The navigator never changes a liner.
 - **Don't** present Source removal as deletion; removal retains content, while
   purge is a separately approved destructive action.

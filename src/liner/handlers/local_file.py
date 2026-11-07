@@ -3,7 +3,7 @@
 Resolves `local_file` source paths against the project's `personal/` or
 `local-sources/` directory
 and extracts text by extension: `.md`/`.txt` as-is, `.html`/`.htm` via the
-shared trafilatura pipeline, `.pdf` via pdfplumber.
+shared trafilatura pipeline, `.pdf` via pdfplumber, `.epub` chapter by chapter.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from liner.handlers.base import HandlerHardFailure
+from liner.handlers.epub_extraction import extract_epub_text
 from liner.handlers.html_extraction import (
     extract_html_text,
     looks_like_js_stub,
@@ -23,7 +24,7 @@ from liner.types import SourceContent, SourceSpec
 # 10MB cap — matches MIXTAPE-FORMAT.md.
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
-ALLOWED_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}
+ALLOWED_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf", ".epub"}
 
 
 class LocalFileHandler:
@@ -126,6 +127,8 @@ class LocalFileHandler:
             return body
         if ext == ".pdf":
             return extract_pdf_text(path, file_url)
+        if ext == ".epub":
+            return extract_epub_text(path, file_url)
         # Should be unreachable — guard above filters extensions.
         raise HandlerHardFailure(f"Unsupported extension {ext!r}", file_url)
 

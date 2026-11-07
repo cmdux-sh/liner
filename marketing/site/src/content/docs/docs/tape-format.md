@@ -6,8 +6,9 @@ description: Reference for tape.yaml metadata, source types, local-file requirem
 
 `mixtape/tape.yaml` is the recipe for a Project's research packet. It lists the sources and the metadata used during compile.
 
-This page is a format reference. Use the terminal UI or `liner sources` and
-`liner project` commands for supported post-creation maintenance so immutable
+This page is a format reference. When your agent builds a liner, `liner research`
+writes this file for you. To change a finished liner, ask your agent: it uses the
+`liner sources` and `liner project` commands, so immutable
 IDs, lineage, lifecycle invalidation, approvals, and Change Receipts remain
 intact. An optional Maintenance Adapter delegates to those commands; it does not
 edit the recipe directly.
@@ -19,7 +20,7 @@ title: Mobile Design Foundations
 description: Core touch and gesture references for native mobile UX.
 version: 1
 curator: cmdux-sh
-mode: quick
+mode: methodology
 jtbd: When I am designing native mobile interactions, I want grounded touch guidance, so I can avoid brittle gesture patterns.
 
 sources:
@@ -38,11 +39,11 @@ The following top-level fields are required.
 - `curator`
 - `sources`
 
-`sources` can be empty while you are drafting a tape. The terminal UI requires at least one source before compiling.
+`sources` can be empty while you are drafting a tape. Compiling and sharing need at least one source.
 
 ## Optional top-level fields
 
-- `mode`, either `quick` or `methodology`
+- `mode`, either `quick` or `methodology`. Liners your agent builds use `methodology`, and `liner init` starts a tape with `quick`. The label doesn't change how a liner compiles.
 - `tags`
 - `created`
 - `updated`
@@ -61,7 +62,7 @@ When [circumstance], I want [motivation], so I can [outcome].
 
 ## Source types
 
-The tape format supports four source types.
+The tape format supports six source types.
 
 ### Web
 
@@ -101,7 +102,7 @@ The fetcher tries transcript fetching first and falls back through `yt-dlp` wher
   section: research
 ```
 
-In current Projects, put files under `mixtape/local-sources/`. The recipe uses a path relative to `mixtape/`, such as `path: local-sources/touch-target-paper.pdf`. Legacy root-level Projects resolve that recipe path from their root and also support `personal/`. Supported formats are Markdown, text, HTML, and PDF, up to 10 MiB per file.
+In current Projects, put files under `mixtape/local-sources/`. The recipe uses a path relative to `mixtape/`, such as `path: local-sources/touch-target-paper.pdf`. Legacy root-level Projects resolve that recipe path from their root and also support `personal/`. Supported formats are Markdown, text, HTML, PDF, and EPUB, up to 10 MiB per file.
 
 ### Skill
 
@@ -113,6 +114,28 @@ In current Projects, put files under `mixtape/local-sources/`. The recipe uses a
 ```
 
 Skill sources can use an installed skill name, a local skill folder or `SKILL.md` path, a project snapshot under `local-sources/skills/`, or a GitHub skill URL. Skill files are read as reference material and are not installed or executed.
+
+### Repository
+
+```yaml
+- type: repository
+  url: https://github.com/owner/project
+  note: The project's own docs on its configuration format.
+  section: reference
+```
+
+A `repository` Source reads the documentation files of a public GitHub repository at the commit it was compiled from. It doesn't read code files or private repositories. A folder URL needs a branch or tag name without a slash.
+
+### Liner
+
+```yaml
+- type: liner
+  url: liner://mobile-design-foundations
+  note: The touch-target rules this liner builds on.
+  section: foundations
+```
+
+A `liner` Source reads another finished liner in the same library. `liner://<slug>` contributes its reviewed synthesis, and `liner://<slug>/<source-id>` contributes one of its sources' saved text. `liner find-sources` gives each source's address.
 
 ## Source fields
 

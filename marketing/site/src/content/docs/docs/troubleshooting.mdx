@@ -9,13 +9,13 @@ import CommandSnippet from "../../../components/CommandSnippet.astro";
 
 <CommandSnippet command="npx linersh@latest --version" />
 
-For version 1.1.3, the output is the following.
+For version 1.2.0, the output is the following.
 
 ```text
-liner 1.1.3 (tui) · 1.1.3 (core)
+liner 1.2.0 (tui) · 1.2.0 (core)
 ```
 
-If the platform core binary cannot be resolved, the version command prints only the TUI package version.
+If the platform core binary cannot be resolved, the version command prints only the package version.
 
 ## Enable JavaScript rendering
 
@@ -29,7 +29,6 @@ For a global install, run this command.
 
 <CommandSnippet command="liner setup-js" />
 
-The terminal UI also offers setup from the compile screen when it shows the JavaScript rendering notice.
 
 ## Recover YouTube transcripts
 
@@ -37,9 +36,9 @@ YouTube can block transcript fetching for age-restricted, region-locked, or rate
 
 <CommandSnippet command="liner compile mobile-design-foundations --cookies ~/cookies.txt" />
 
-You can also set the Core fetcher's default in `~/.liner/config.toml`. The AI runner uses the separate `~/.liner/config.yaml` file.
+You can also set the Core fetcher's default in `~/.liner/config.toml`.
 
-## Help the terminal UI find the CLI
+## Help the navigator find the CLI
 
 For local development, point the npm launcher at a specific CLI core binary.
 

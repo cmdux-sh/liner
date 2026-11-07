@@ -575,7 +575,7 @@ def _status_snapshot_stale(project: ProjectFolder, existing_status: dict[str, An
     if bool(existing_status.get("stale")):
         return True
     updated = existing_status.get("updated")
-    updated_at = _parse_status_time(updated)
+    updated_at = parse_status_time(updated)
     if updated_at is None:
         return True
     evidence = _status_evidence_paths(project, existing_status)
@@ -700,7 +700,7 @@ def _clean_status_string(value: Any, default: str) -> str:
     return default
 
 
-def _parse_status_time(value: Any) -> datetime | None:
+def parse_status_time(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, str) and value.strip():

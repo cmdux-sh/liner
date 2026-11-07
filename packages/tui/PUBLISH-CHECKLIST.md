@@ -1,6 +1,6 @@
 # Liner NPM Release Checklist
 
-This is the v1 npm release path for the Go TUI package shape. Do not use the
+This is the v1 npm release path for the navigator package shape. Do not use the
 old Ink-era tarball flow.
 
 The install command remains one package for users:
@@ -14,17 +14,15 @@ Behind that, npm installs the matching optional platform package for the
 machine. Each platform package contains both native binaries:
 
 - `liner` or `liner.exe`: Python core CLI bundle
-- `liner-tui` or `liner-tui.exe`: Go TUI bundle
+- `liner-tui` or `liner-tui.exe`: navigator bundle
 
 ## Current Active Package Shape
 
 - `packages/tui` remains the `linersh` npm package shell.
-- `bin/liner.js` launches the Go TUI and forwards CLI subcommands.
+- `bin/liner.js` launches the navigator and forwards CLI subcommands.
 - `packages/go-tui` is the active terminal UI implementation.
 - `scripts/build-platform-package.py` builds the current platform package with
   both native binaries.
-- `docs/curation-skill` is copied into `packages/tui/cli-update-docs` during
-  packaging so the headless runner can find the bundled methodology files.
 - The old React/Ink package shape is historical and should not be published.
 
 ## Release Order
@@ -62,7 +60,7 @@ Minimum checks before publishing:
 - Go tests from `packages/go-tui`.
 - TypeScript typecheck, tests, and package build from `packages/tui`.
 - `npm run acceptance:go -- release-smoke` from `packages/tui`.
-- Explicit validation that `liner` opens the Go TUI by default.
+- Explicit validation that `liner` opens the navigator by default.
 - `npm audit --omit=dev` and full `npm audit` for `packages/tui`.
 
 Clean-user smoke pattern:

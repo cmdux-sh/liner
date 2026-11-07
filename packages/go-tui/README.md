@@ -1,134 +1,35 @@
-# Liner Go TUI
+# Liner terminal navigator
 
-Charm-based terminal interface for Liner. This is the active default TUI. The
-previous React/Ink UI is decommissioned; `LINER_TUI=ink` is intentionally
-unsupported.
-
-For the current v1 product and Go TUI model, start with
-[../../docs/project/PRODUCT.md](../../docs/project/PRODUCT.md) and
-[../../docs/project/DESIGN.md](../../docs/project/DESIGN.md).
+A live, read-only view of your library, built with Charm. Agents do the work in
+chat, and this app shows what they leave behind. The reasons are in
+[the decision log](../../docs/decisions.md), and the plan is in
+[the navigator plan](../../docs/project/TUI-NAVIGATOR-PLAN.md).
 
 ## Run
-
-From this package:
 
 ```sh
 go run ./cmd/liner-tui
 ```
 
-Through the npm shim:
+`LINER_DIR` picks the library. `LINER_BIN` picks the Core binary, otherwise it uses
+the bundled one, the repository's `.venv`, then `liner` on `PATH`.
 
-```sh
-npm --prefix ../tui run dev:go
-```
+## How it's built
 
-From the repo root:
+- `internal/navigator/data.go` reads Core: `liner library`, `liner search`, and
+  `liner handoff`. Core output is stripped of control characters, because titles
+  and snippets come from web pages.
+- `internal/navigator/model.go` holds a back stack of pages and polls every 3
+  seconds, one load at a time.
+- `internal/navigator/view.go` draws each page. Lists are rows of columns, and a
+  row with a target can be selected.
+- `internal/navigator/reader.go` lays out files and finds citations.
 
-```sh
-LINER_TUI=go npm --prefix packages/tui run dev:go
-```
+The app changes nothing in a liner. The only write it starts is
+`liner agent-skill install`, from first run and Settings.
 
-By default, Liner stores visible Liner Projects in `~/liner/projects`. Override
-the projects folder for dev/testing:
-
-```sh
-LINER_DIR=/path/to/projects LINER_TUI=go npm --prefix packages/tui run dev:go
-```
-
-## Build And Test
+## Test
 
 ```sh
 go test ./...
-npm --prefix ../tui run build:go
-npm --prefix ../tui run build
-npm --prefix ../tui run acceptance:go
 ```
-
-`build:go` writes the Go binary to `packages/tui/bin/liner-tui`. `build` also
-builds the TypeScript headless runner that powers the Build Corpus flow.
-
-For real-binary, step-by-step visual testing with isolated fixtures, controlled
-keyboard input, screenshots, cold restarts, and bounded automatic repair, use
-the [Automated TUI Visual Acceptance And Repair runbook](../../docs/tui/AUTOMATED_VISUAL_ACCEPTANCE.md).
-
-## Current Screen Model
-
-- Home is the selectable/filterable command list.
-- Projects is the project browser with a project-name list and compact
-  label/value selected details.
-- Project is a sectioned workspace with Health, Flow, Sources, Artifacts,
-  Operating Layer, and Usage details. Its body starts with the project name and
-  description, then uses a names-only section list plus selected-section detail.
-- Project action hints live in the global footer/help row, not in a duplicate
-  orange row inside the Project body.
-- Project details use one title, one muted description, one blank line, and one
-  table. Headers are left-aligned to row content. Health uses this table rhythm
-  too.
-- Project `Next` describes the recommended milestone action: continue Corpus
-  Creation, Create Operating Layer, or show complete-project management
-  actions.
-- Maintain project is the Core-backed Project and Source maintenance surface;
-  it renders versioned Change Sets and Change Receipts.
-- Build Corpus uses the TypeScript headless runner bridge.
-- Compile streams `liner compile --emit-events`.
-- Preview remembers its origin screen.
-- First Launch introduces the local projects folder and AI runner install check.
-- Settings shows OpenAI/Claude provider choices, their independent model
-  preferences, and Thinking effort for both. Codex CLI and Claude Code remain the
-  technical runtime names.
-- Current reusable patterns include Command Hub, Preference Chooser, Split
-  Browser, Section Workspace, File Picker, Progress Console, and Maintenance
-  Preview.
-
-## Important Packages
-
-- `internal/app`: Bubble Tea model, screens, key handling, and UI rendering.
-- `internal/core`: bridge to the Python core binary.
-- `internal/agent`: bridge to the TypeScript headless runner used for corpus builds.
-- `internal/progress`: progress/gate compatibility with existing projects.
-- `internal/source`: source import/staging helpers.
-- `internal/tape`: tape read/write helpers.
-
-## Maintenance Authority
-
-Post-creation Project maintenance is delegated to the running Liner Core. The
-Go TUI requests a versioned Project Snapshot, sends a versioned maintenance
-request, renders the returned Change Set risk/file effects/validation, and
-applies only that exact Change Set. Validated additive and metadata operations
-continue without a redundant prompt; approval-required risk waits for explicit
-confirmation. The TUI then displays the Core receipt, durable receipt path,
-stale corpus artifacts, and next actions.
-
-Use `m maintain` from the open Project workspace to inspect immutable Source IDs
-and submit one versioned operation for update, replace, remove, purge, rename,
-or move. The ordinary Add Sources flow uses the same Core contract for additions.
-
-Do not add new `tape.yaml`, `liner.yaml`, Source-retention, rename, or move
-writers to the Go app. Extend `internal/core/maintenance.go` and the Core
-contract instead. First-run corpus assembly remains a distinct curation flow.
-Initial clarification and first Operating Layer publication are narrowly
-allowlisted construction steps. Initial assembly is one-shot: Core creates an
-empty construction boundary, the TUI adds accepted Sources through Core, and
-later Build Corpus runs cannot replace canonical Sources from a draft.
-Composition lineage and reusable `skills/*.md` authoring remain separate
-artifact managers; they do not implement Project/Source maintenance
-operations. Operating Layer regeneration is hidden until it can use a Core
-semantic-review operation.
-Legacy composition-draft apply, contradiction-cleanup apply, and production
-merge actions are fail-closed until an equivalent Core operation exists; their
-review artifacts remain readable and the refusal points to `Maintain project`.
-
-Run the canonical writer boundary check directly with:
-
-```sh
-go test ./internal/app -run 'TestCanonicalWriterAudit|TestLegacyCanonicalWriterRefusal'
-```
-
-## Gotchas
-
-- If Project Health reports `status failed`, verify which core binary the shim
-  resolved. Older bundled cores may not support `liner status --no-write`; the
-  Go wrapper fails closed instead of falling back to a writable status command.
-- Do not shell out or mutate files from `View()`.
-- Keep Home as commands and Projects as the browser.
-- Keep footer/help as the single action-hint surface on Project.

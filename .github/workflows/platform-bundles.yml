@@ -148,6 +148,7 @@ jobs:
         working-directory: packages/tui
         run: |
           npm run typecheck
+          uv sync --frozen
           npm test -- --run
           npm run build
           npm pack --dry-run

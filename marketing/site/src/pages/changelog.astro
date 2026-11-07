@@ -28,7 +28,7 @@ function inlineMarkdown(value: string) {
 
 <BaseLayout
   title="Liner Changelog"
-  description="Changes to Liner's local CLI, terminal UI, source handling, and Project maintenance. Candidate work is labeled separately from shipped releases."
+  description="Changes to Liner's local CLI, navigator, source handling, and Project maintenance. Candidate work is labeled separately from shipped releases."
 >
   <main id="content" tabindex="-1" class="changelog-page min-h-screen">
     <SiteHeader current="changelog" />
@@ -63,9 +63,9 @@ function inlineMarkdown(value: string) {
       <div class="release-focus">
         <div class="release-focus-copy">
           <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Current release" : "Release candidate"} /// {releaseVersion}</p>
-          <h2>Pick up interrupted research from its saved checkpoint.</h2>
+          <h2>Your library, built by your agent and read in your terminal.</h2>
           <p>
-            Version {releaseVersion} preserves accepted work when a research step stops or a generated file fails validation. Reopen the Project to return to the right review or build step. Decisions from Improve Corpus survive restarts, and applied changes remain visible in the audit history.
+            Version {releaseVersion} makes Liner a personal library of reusable research. Your agent builds and maintains liners, stopping for your approval, and the terminal app becomes a live view of everything they hold.
           </p>
           <p>
             The optional Maintenance Adapter continues to route Project changes through the installed CLI. You can review the planned effects, approve changes when required, and inspect the saved Change Receipt.
@@ -90,7 +90,7 @@ function inlineMarkdown(value: string) {
           <p class="eyebrow">Open Liner</p>
           <CommandSnippet command="npx linersh" label="Copy" />
           <p>
-            Runs locally. AI-assisted research uses your configured Codex CLI or Claude Code runner and its account limits or charges. Compile and instruction-file creation make no model calls. The installed tool has no telemetry.
+            Runs locally. Research uses your agent and its account limits or charges. Compile and instruction-file creation make no model calls. The installed tool has no telemetry.
           </p>
         </aside>
       </div>

@@ -77,7 +77,6 @@ describe("isolated development launch", () => {
     expect(launch.env.LINER_BIN).toBeUndefined();
     expect(launch.env.LINER_AGENT).toBeUndefined();
     expect(launch.env.LINER_TUI_INITIALIZATION_PROBE).toBeUndefined();
-    expect(launch.env.LINER_HEADLESS_RUNNER).toBe(join(packageDir, "dist", "agents", "headless-runner.js"));
   });
 
   it("refuses reused roots and roots whose requested path is a symlink", () => {

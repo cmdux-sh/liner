@@ -1,23 +1,60 @@
 # Liner
 
-**Liner** is an open-source toolkit for building local, source-grounded context
-projects that help an AI agent do one hyper-specific task better.
+**Liner** is a personal library of reusable research that any AI agent can find,
+use, and maintain. Each liner is a local folder built for one narrow job. It
+holds the sources you reviewed, a synthesis of what they say, and instructions
+for using them, so the research outlives the chat that produced it.
 
-A *tape file* (`tape.yaml`) is the source recipe. A *Mixtape* is the compiled
-corpus artifact Liner builds from that recipe: `synthesis.md`, `sources/`,
-`working/`, and `MIXTAPE.md`. A *Liner Project* is the durable local folder
-around that corpus. After the corpus is ready, Create Operating Layer writes
-`LINER.md`, a root `SKILL.md`, and `liner.yaml` so future AI sessions know what
-the resource is for, how to use the evidence, and where its boundaries are. Tape
-!= Mixtape != Liner Project.
+- **Your agent does the research.** Liner owns the steps and checks each result.
+  Your agent does the work with its own tools, and Liner makes no AI calls.
+- **You decide.** Agents suggest a liner and stop for your approval of the
+  sources and the synthesis.
+- **Liners improve with use.** Questions a liner couldn't answer become gaps,
+  what real work teaches waits in an inbox for your review, `liner refresh`
+  shows what changed online, and `liner test` records whether a liner helped.
+- **It's all files.** Everything stays on your machine in folders you can read.
 
-First-run setup creates a **Liner Project** around one narrow **Job to Be Done**.
-Liner captures that job in **Job Story** form, then **Clarify Job** makes the
-situation, motivation, expected outcome, and boundaries explicit before source
-work begins. "SEO" is too broad; "When I am preparing a launch for a
-mental-health startup, I want evidence-backed keyword direction, so I can focus
-the site on credible search intent" is narrow enough to derive research lanes,
-find the right sources, and produce a resource a future agent can use.
+## Use it from your agent
+
+Install the `liner` skill once, and your agent can find your liners:
+
+```sh
+npm install -g linersh
+liner agent-skill install claude --yes    # or codex
+```
+
+On Claude Code, this also adds the subagent that reads fetched pages and the rules
+that make Claude Code ask you before approvals. Add `--no-subagent` or `--no-guard`
+to leave either out.
+
+Then ask for lasting research on a subject. The agent follows
+`liner research next` to build a liner, stopping for your approval, and later
+sessions find it with `liner catalog` and `liner search`. Point a repository at
+a liner with `liner use <slug>`. Agents with no shell can use [`liner mcp`](#connect-an-agent-over-mcp).
+
+Run `liner` with no arguments to open the navigator, a live view of your library
+to keep beside your chat. It shows every liner, what needs you, your whole source
+collection, and how liners connect. You can read any file, follow a citation to
+its source, and press `y` to copy a prompt for your agent. Agents do the work, and
+the navigator never changes a liner.
+
+## Terms
+
+A *tape file* (`tape.yaml`) is a liner's source recipe. A *Mixtape* is the
+compiled corpus Liner builds from that recipe: `synthesis.md`, `sources/`,
+`working/`, and `MIXTAPE.md`. A *Liner Project*, a liner for short, is the local
+folder around that corpus. After the corpus is ready, Create Operating Layer
+writes `LINER.md`, a root `SKILL.md`, and `liner.yaml` so future AI sessions know
+what the resource is for, how to use the evidence, and where its boundaries are.
+Tape != Mixtape != Liner Project.
+
+Each liner serves one **Job to Be Done**, captured in **Job Story** form.
+**Clarify Job** then makes the situation, motivation, expected outcome, and
+boundaries explicit before source work begins. "SEO" is too broad; "When I am
+preparing a launch for a mental-health startup, I want evidence-backed keyword
+direction, so I can focus the site on credible search intent" is narrow enough
+to derive research lanes, find the right sources, and produce a resource a
+future agent can use.
 
 This repo contains the **CLI**, the **Go TUI**, the **npm package shell**, and
 the project docs. The methodology lives in
@@ -26,7 +63,7 @@ platform doc in
 [docs/curation-skill/PLATFORM.md](docs/curation-skill/PLATFORM.md), the format
 spec in
 [docs/curation-skill/MIXTAPE-FORMAT.md](docs/curation-skill/MIXTAPE-FORMAT.md),
-the curation skill in [docs/curation-skill/SKILL.md](docs/curation-skill/SKILL.md),
+the curation skill in [src/liner/bundled/research/methodology/SKILL.md](src/liner/bundled/research/methodology/SKILL.md),
 the Go TUI implementation in [packages/go-tui](packages/go-tui), and the npm
 shim/package notes in [packages/tui](packages/tui).
 
@@ -40,17 +77,11 @@ Liner is a solo project. The code is MIT-licensed and you're free to read, fork,
 ## Install
 
 ```sh
-npx linersh                 # one-shot — opens the TUI
+npx linersh                 # one-shot — opens the navigator
 npm install -g linersh      # persistent install (binary: `liner`)
 ```
 
-The npm package ships the Go TUI plus a per-platform bundled CLI binary. No Python install needed. Running `liner` with no arguments opens the Go TUI; subcommands like `liner compile`, `liner share`, `liner status`, and `liner setup-js` forward to the bundled core.
-
-The active TUI is the Charm-based Go app under `packages/go-tui/`. The previous
-React/Ink implementation is decommissioned and no longer part of the active
-package shape; `LINER_TUI=ink` is no longer supported. Go TUI developer notes
-live in [packages/go-tui/README.md](packages/go-tui/README.md), and npm package
-notes live in [packages/tui/README.md](packages/tui/README.md).
+The npm package ships the navigator plus a per-platform bundled CLI binary. No Python install needed. Running `liner` with no arguments opens the navigator; subcommands like `liner research`, `liner compile`, and `liner setup-js` forward to the bundled core.
 
 To enable `render: js` for JavaScript-rendered pages (Apple HIG, Notion docs, etc.):
 
@@ -60,7 +91,7 @@ liner setup-js              # installs Playwright's headless Chromium (about 100
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).
 
-**Platform support (1.1.3):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
+**Platform support (1.2.0):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
 
 Requires Node 18+.
 
@@ -74,14 +105,14 @@ liner sources add mobile-design-foundations \
   --url https://developer.apple.com/app-store/review/guidelines/ \
   --note "Use the current review rules as primary evidence." \
   --priority required
-# open `liner`, then build and review the corpus with the Curator workflow
+# ask your agent to build and review the corpus, or compile what you added
 liner compile mobile-design-foundations
 ```
 
 This produces `mobile-design-foundations/mixtape/MIXTAPE.md` and
-`mobile-design-foundations/mixtape/sources/`. That is Corpus Ready. In the TUI, open the
-project and run Create Operating Layer to write `LINER.md`, the default Project
-Skill, and `liner.yaml`.
+`mobile-design-foundations/mixtape/sources/`. That is Corpus Ready. Your agent then
+creates `LINER.md`, the default Project Skill, and `liner.yaml` through
+`liner research`.
 
 When you need a portable archive later:
 
@@ -90,19 +121,9 @@ liner share mobile-design-foundations            # → mobile-design-foundations
 liner import mobile-design-foundations.mixtape   # → unzip + refetch sources locally
 ```
 
-Or interactively:
+To add sources by hand, drop `.md`, `.txt`, `.html`, `.htm`, `.pdf`, or `.epub` files into the project's `local-sources/` folder and add them with `liner sources add`.
 
-```sh
-npx linersh
-```
-
-When you create a new Liner Project in the TUI, Liner asks whether you already have sources after the Job Story and Clarify Job flow. You can paste a batch immediately, open the source editor, or skip and let the methodology discover sources later. The curated research packet inside the project is its Mixtape.
-
-In the TUI source editor, press `p` to paste a batch of sources. The inbox accepts web URLs, YouTube URLs, GitHub skill URLs, installed skill names, local file paths, existing `local-sources/...` paths, and pasted website/article text. Absolute local files are copied into the project’s `local-sources/` folder automatically. Pasted article text is saved under `local-sources/captured/` and added as a `local_file` source.
-
-For multiple sources: paste five URLs together separated by spaces, commas, or new lines. For multiple full article bodies, paste each article as a separate block and put `--- source ---` on its own line between articles; Liner saves each block as its own file under `local-sources/captured/`. You can also drop `.md`, `.txt`, `.html`, `.htm`, or `.pdf` files into the project’s `local-sources/` folder and add their paths from the inbox or local-file picker.
-
-For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then paste it into the source inbox. Liner saves the pasted content under `local-sources/captured/` and adds it as a `local_file` source. A browser extension that captures rendered page text/HTML from your already-authenticated browser session is planned for the next version; Liner should not read browser cookies directly.
+For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then save it under `local-sources/` and add it as a `local_file` source. A browser extension that captures rendered page text/HTML from your already-authenticated browser session is planned for the next version; Liner should not read browser cookies directly.
 
 ## Commands
 
@@ -111,9 +132,25 @@ For authenticated or paid sources, use "capture yourself" for now: open the page
 | `liner init <folder>` | Scaffold a project folder: starter `mixtape/tape.yaml`, `mixtape/synthesis.md` placeholder, `mixtape/working/01..04` stubs. |
 | `liner compile <folder>` | Fetch every source and write `mixtape/MIXTAPE.md` + `mixtape/sources/NN-<slug>.md` into the folder. Requires `mixtape/synthesis.md`. |
 | `liner share <folder>` | Zip the folder into `<folder>.mixtape`. Flags: `--no-working-notes`, `--no-source-content`, `--minimal`, `--out`. |
-| `liner import <archive> [dest]` | Unzip a `.mixtape` archive into `dest` and refetch any uncached sources. `--no-refetch` to skip the refetch step. |
+| `liner import <archive> [dest]` | Unzip a `.mixtape` archive into `dest` and refetch any uncached sources. `--no-refetch` skips the refetch step, and `--overwrite` replaces an existing folder's matching files. |
 | `liner clone <url-or-path> [dest]` | Fetch a remote tape file (raw URL) or copy a local one. Does not compile. |
 | `liner list` | List mixtape project folders in the current directory. `--json` for programmatic use, `--recursive` to descend one level. |
+| `liner catalog` | List every liner in your library with its job, readiness, and source count. Reads `LINER_DIR`, then `projects_dir` in `~/.liner/config.yaml`, then `~/liner/projects`. `--json` for agents, `--root` to read another folder. |
+| `liner search <query>` | Find cited passages in your liners' syntheses and sources. `--liner <slug>` narrows the search; repeat it for more than one. `--limit`, `--root`, and `--json` are available. |
+| `liner use <slug>` | Add a pointer to a liner in this repo's `CLAUDE.md` or `AGENTS.md`. Previews first; `--yes` writes, `--remove` takes it out, and `--repo` and `--agent` choose the target. |
+| `liner gaps add <slug> <question>` | Record what a liner could not answer. `liner gaps list` and `liner gaps close` manage them, and Improve Corpus targets the open ones. |
+| `liner test start <slug> <question>` | Save a with-and-without comparison as unlabeled answers A and B, in random order, for the person to judge. |
+| `liner test judge <slug> <id> --preferred <a\|b\|same>` | Record the person's choice as a verdict and reveal which answer used the liner. |
+| `liner test add <slug> <question>` | Record a comparison the person judged with the labels showing. `liner catalog` shows all results and how many were blind. |
+| `liner mcp` | Serve your liners to an agent with no shell over MCP. Add it to a client with the command `liner` and the argument `mcp`. It can't approve anything. |
+| `liner refresh <slug>` | Refetch a liner's online sources and report what changed. It changes nothing in the liner. |
+| `liner findings add <slug> <finding>` | Put what real work learned in the inbox. `list` shows it; `accept --yes` adds it as a Source and `reject --yes` declines it. |
+| `liner research start <job>` | Start a liner that your own agent builds. `liner research next <slug> --json` gives the current step with its prompt in a file, `liner research plan <slug>` lists the steps ahead and the kind of work each needs, `submit` checks a step, and `approve` records the person's approval. |
+| `liner research check <project> <phase>` | Check a research phase's artifact without moving on. |
+| `liner find-sources "<words>"` | List sources already in your library, with the liner that holds each one, its earlier verdict, and a `reuse` address that copies its saved text into another liner, in short capped rows. `--json` for agents. |
+| `liner fetch <slug> <url>` | Save a page, or a YouTube video's transcript, to a file in the liner and return its path, so untrusted text stays out of the agent's session. It warns when almost nothing was saved. `--json` for agents. |
+| `liner research subagent install --yes` | Add the optional Claude Code subagent that reads fetched pages without shell, network, or write tools. This reduces exposure but is not isolation: it can still read local files, and its report goes to the main agent. `liner agent-skill install claude` adds it for you. If your session can't use it yet, the next one will. `inspect` and `remove` are available. |
+| `liner research guard install --yes` | Make Claude Code ask you directly before an agent approves research, accepts or rejects a finding, records a test verdict, or applies a change with `--approve`. `liner agent-skill install claude` adds it for you. It adds `ask` rules and a hook that reads the whole command, so a command wrapped in `bash -c` or `env` asks too, to `~/.claude/settings.json`. It keeps everything else there and saves a `settings.json.liner-backup` copy the first time. This is a guardrail, not a lock: an agent can still get past it, for example with a script that runs the command. `inspect` and `remove` are available. |
 | `liner cache {info,list,show,clear,purge}` | Inspect or wipe the URL-keyed source cache. |
 | `liner project inspect [path]` | Read a versioned Project Snapshot with immutable IDs, compatibility, lifecycle state, capabilities, and root-discovery evidence. |
 | `liner project guidance <folder> --format json\|markdown` | Print the installed CLI's versioned maintenance contract, compatibility state, instruction allowlist, and exact remediation. |
@@ -131,21 +168,27 @@ For authenticated or paid sources, use "capture yourself" for now: open the page
 | `liner adapters install <codex\|claude>` | Explicitly install the thin CLI-delegating Maintenance Adapter. |
 | `liner adapters update <codex\|claude>` | Update only content owned by the managed adapter. |
 | `liner adapters remove <codex\|claude>` | Remove only Liner-managed adapter content while preserving user content. |
+| `liner agent-skill inspect <codex\|claude>` | Check the optional `liner` skill, including whether its subject list is out of date. |
+| `liner agent-skill install <codex\|claude>` | Preview, or with `--yes` install, a skill that lets your agent find, suggest, and build your liners. On Claude Code, it also adds the subagent and the approval rules; `--no-subagent` and `--no-guard` leave them out. `remove` takes out only the skill. |
+| `liner agent-skill update <codex\|claude>` | Refresh the skill and the subjects it names. |
+| `liner agent-skill remove <codex\|claude>` | Remove only Liner-managed content and keep your own text. |
 | `liner setup-js` | One-time: install Playwright and download the headless Chromium binary used by `render: js` web sources. Idempotent. |
 | `liner skills list` | Discover installed local skills that can be added as `skill` sources. |
+
+The `liner` skill names your usable liners in its description, so an agent can notice one that fits the work in front of it. It suggests a liner and asks before loading it. It is never installed automatically, and it needs the `liner` command on your `PATH`.
 
 The maintenance skill ships with Liner but is never installed automatically. It delegates to
 the installed CLI's current guidance and does not replace the canonical Project Skill. Adapter
 removal deletes only Liner-managed content and preserves user-authored files and text outside
 managed markers.
 
-For the Go TUI package layout and developer commands see [packages/tui/README.md](packages/tui/README.md).
+For the package layout and developer commands see [packages/tui/README.md](packages/tui/README.md).
 
 ## Tape format (v1)
 
 Required: `title`, `description`, `version: 1`, `curator`, `sources` (≥1).
-Optional: `tags`, `created`, `updated`, `license`, `homepage`, `mode` (`quick` | `methodology`), `jtbd`, `methodology_version`.
-Source types: `youtube`, `web`, `local_file`, `skill`.
+Optional: `tags`, `created`, `updated`, `license`, `homepage`, `jtbd`, `methodology_version`. Tapes may also carry `mode`, a label that changes nothing.
+Source types: `youtube`, `web`, `local_file` (including EPUB), `skill`, `repository` (the documentation files of a public GitHub repository, at the commit it was compiled from; folder URLs need a branch or tag name without a slash), `liner` (`liner://<slug>`, the reviewed synthesis of another finished liner in the same library, or `liner://<slug>/<source-id>`, one of its sources' saved text, including a local file, with its original address; `liner find-sources` gives each source's address).
 
 Per-source optional fields: `note`, `section`, `priority`. `local_file` sources require `path` (under `local-sources/` or the legacy `personal/` folder) and `citation`. `skill` sources require either `path` (an installed skill name, a local folder, or a project-relative snapshot) or `url` (a GitHub skill URL). `web` sources accept an optional `render` field for explicit control over how the page is fetched — by default Liner tries server-rendered HTML and automatically falls back to headless Chromium if the page is JS-walled (provided you've run `liner setup-js`). Set `render: js` to skip the server attempt; set `render: server` to opt out of the fallback (useful for library submissions).
 
@@ -154,7 +197,6 @@ title: Mobile Design Foundations
 description: Core touch and gesture references for native mobile UX.
 version: 1
 curator: cmdux-sh
-mode: quick
 jtbd: When I'm designing the core UI of a consumer iOS app, I want to follow Apple's interaction conventions while choosing where to deviate visually, so I can ship something that feels native without looking generic.
 
 sources:
@@ -190,7 +232,7 @@ sources:
 
 `local_file` paths resolve under `<project>/local-sources/` or the legacy `<project>/personal/` folder. Supported formats: `.md`, `.txt`, `.html`, `.htm`, `.pdf`. Max 10MB per file.
 
-`skill` sources are read as reference artifacts. Liner never installs or executes them. A skill source can point to an installed skill name discovered by `liner skills list`, a local folder containing `SKILL.md`, a project-relative snapshot under `local-sources/skills/`, or a GitHub `tree`/`blob` URL. Compiled skill sources are labeled as reference material so downstream AI treats them as evidence and examples, not active system instructions.
+`skill` sources are read as reference artifacts. Liner never installs or executes them. A skill source can point to an installed skill name discovered by `liner skills list`, a project-relative snapshot under `local-sources/skills/`, or a GitHub `tree`/`blob` URL. Local skill folders must sit inside the liner, in an installed skills folder, or in a folder you list in `LINER_SKILL_PATHS`, because a tape can come from someone else. Compiled skill sources are labeled as reference material so downstream AI treats them as evidence and examples, not active system instructions.
 
 The full spec is in
 [docs/curation-skill/MIXTAPE-FORMAT.md](docs/curation-skill/MIXTAPE-FORMAT.md).
@@ -212,32 +254,52 @@ liner compile mobile-design-foundations --cookies ~/cookies.txt
 
 or set `cookies_file = "/path/to/cookies.txt"` under `[fetch]` in `~/.liner/config.toml`.
 
-When Build Corpus drops user-provided YouTube or web Sources because a
-transcript or body was unavailable, the TUI surfaces them in Compile Console as
-`custom sources`. Press `r` there to repair them. Recovered content is saved
-under `local-sources/recovered/` as a `local_file` Source, and Liner prompts you
-to run Build Corpus again so the AI can reconsider the new local material.
+When a YouTube transcript or web page is unavailable, save the text under
+`local-sources/` and add it as a `local_file` Source, then ask your agent to take it
+into the liner.
+
+## Private addresses and size limits
+
+Liner refuses to fetch URLs that lead to this machine, your local network, or a cloud metadata address, including through redirects, because a tape can come from someone else. Web pages and PDFs stop at 50 MB. If your sources live on an intranet or a Tailscale network, add this to `~/.liner/config.toml`:
+
+```toml
+[fetch]
+allow_private_network = true
+```
 
 ## Cache
 
 URL-keyed SQLite at `~/.liner/cache.db`. Default TTLs: 30 days for YouTube, 7 days for web. Override in `config.toml` or skip with `--no-cache`. Inspect with `liner cache list` and `liner cache show <url>`.
 
+## Connect an agent over MCP
+
+`liner mcp` serves your liners over standard input and output. It can't approve anything, so an agent that only has MCP can't approve its own work, but it can fetch pages into a liner, start a liner, submit research steps, and add gaps and findings.
+
+```sh
+claude mcp add --transport stdio liner -- liner mcp    # Claude Code
+codex mcp add liner -- liner mcp                       # Codex
+```
+
+Other clients, including Cursor (`~/.cursor/mcp.json`) and Claude Desktop, take the same command in their JSON configuration:
+
+```json
+{ "mcpServers": { "liner": { "command": "liner", "args": ["mcp"] } } }
+```
+
 ## What Liner does and doesn't do
 
 - **No hosted compilation.** Everything runs on your machine.
 - **No accounts, no telemetry.** The tools don't phone home.
-- **No LLM calls in the core CLI.** The CLI does not call AI models. The TUI invokes your configured OpenAI provider through Codex CLI or Claude provider through Claude Code for methodology phases. Liner doesn't pay for inference.
+- **No LLM calls in the core CLI.** The CLI does not call AI models. Your agent does the research on your account. Liner doesn't pay for inference.
 - **No paywall bypass.** Gated content requires you to provide it from your own access.
+- **No guarantee against a malicious page or a determined agent.** [SECURITY.md](SECURITY.md) lists what Liner protects against and what it doesn't.
 
 ## Status
 
-Active solo project. The current source targets **v1.1.3** for the Go TUI npm
-release. The CLI and Go TUI are functional. The TUI creates and manages local
-Liner Projects, builds the corpus through the configured local AI runner,
-treats partial compiles as usable when `MIXTAPE.md` is written, opens existing
-compile results instead of re-running by default, and creates an Operating Layer
-with `LINER.md`, root `SKILL.md`, and `liner.yaml`. A public mixtape library is
-planned. The curation skill and a future MCP server are also planned; their
+Active solo project. The current source targets **v1.2.0** for the npm
+release. Agents build and maintain liners through `liner research`,
+`liner catalog`, `liner search`, and `liner mcp`, and the terminal navigator reads
+the same folders. A public library of liners is planned. The methodology's
 place in the stack is described in
 [docs/curation-skill/LINER-MASTER.md](docs/curation-skill/LINER-MASTER.md).
 
@@ -294,7 +356,7 @@ Your mixtape project folders are never touched unless you pass `--purge-workspac
 chflags -R nohidden .venv
 ```
 
-**TUI can't find `liner`** — the bin-resolver tries `LINER_BIN`, the bundled npm binary, the repo-local `.venv/bin/liner`, then `liner` on PATH. If none of those work, activate the venv (`source .venv/bin/activate`) or set `LINER_BIN=$(pwd)/.venv/bin/liner`.
+**The navigator can't find `liner`** — it tries `LINER_BIN`, the bundled npm binary, the repo-local `.venv/bin/liner`, then `liner` on PATH. If none of those work, activate the venv (`source .venv/bin/activate`) or set `LINER_BIN=$(pwd)/.venv/bin/liner`.
 
 ## License
 

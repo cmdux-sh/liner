@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -9,13 +10,25 @@ import yaml
 
 from liner.types import JtbdClarification, SourceSpec, Tape
 
-ALLOWED_SOURCE_TYPES = {"youtube", "web", "local_file", "skill"}
+ALLOWED_SOURCE_TYPES = {"youtube", "web", "local_file", "skill", "repository", "liner"}
 ALLOWED_PRIORITIES = {"required", "optional"}
 ALLOWED_MODES = {"quick", "methodology"}
 ALLOWED_RENDER = {"server", "js"}
 ALLOWED_KINDS = {"reference", "principle", "prescription", "example"}
-ALLOWED_LOCAL_FILE_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}
+ALLOWED_LOCAL_FILE_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf", ".epub"}
 SUPPORTED_TAPE_VERSION = 1
+LINER_URL_PREFIX = "liner://"
+_LINER_URL = re.compile(
+    r"liner://(\w[\w.-]*)(?:/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}))?", re.ASCII
+)
+
+
+def liner_locator(url: str) -> tuple[str, str | None]:
+    """The cited liner's slug, and the source id when only one of its sources is reused."""
+    match = _LINER_URL.fullmatch(url)
+    if match is None:
+        raise ValueError(f"Not a liner address: {url!r}")
+    return match.group(1), match.group(2).lower() if match.group(2) else None
 
 
 class TapeValidationError(ValueError):
@@ -201,6 +214,19 @@ def _validate_url_source(
                 f"only valid on local_file sources, not {s_type!r}",
             )
 
+    if s_type == "liner" and not _LINER_URL.fullmatch(url):
+        raise TapeValidationError(
+            f"{path_prefix}.url", "must be liner://<slug> or liner://<slug>/<source-id>"
+        )
+
+    if s_type == "repository" and (
+        parsed.netloc.lower() != "github.com" or len(parsed.path.strip("/").split("/")) < 2
+    ):
+        raise TapeValidationError(
+            f"{path_prefix}.url",
+            "repository sources must be public github.com repository URLs",
+        )
+
     render = src.get("render")
     if render is not None:
         if s_type != "web":
@@ -337,6 +363,7 @@ def _validate_skill_source(
         path_value = raw_path.strip()
         # Absolute paths and bare discovered names are allowed for skill sources:
         # they are local reference artifacts, not share-safe library sources.
+        # SkillHandler limits which folders they can reach.
         if not Path(path_value).is_absolute():
             parts = path_value.replace("\\", "/").split("/")
             if any(part == ".." for part in parts):
@@ -368,6 +395,20 @@ def _optional_str(raw: dict[str, Any], key: str) -> str | None:
     if key not in raw or raw[key] is None:
         return None
     return str(raw[key])
+
+
+_STAND_IN_DESCRIPTIONS = {
+    "ai-generated description pending.",
+    "liner project.",
+    "a starter tape with one youtube video and one article so you can see the output immediately.",
+}
+
+
+def is_stand_in_description(description: str, title: str, slug: str) -> bool:
+    """Whether a description is one Liner writes at creation rather than a real one."""
+    lowered = " ".join(description.split()).lower()
+    generated = {f"guidance for {name.lower()}." for name in (title, slug)}
+    return not lowered or lowered in _STAND_IN_DESCRIPTIONS | generated
 
 
 STARTER_TAPE = """# liner starter tape — edit the sources and curator notes, then run

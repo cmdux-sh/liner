@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 from collections.abc import Iterator
@@ -14,18 +15,29 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from liner import __version__
+from liner.library import build_catalog, default_library_root
 
 ADAPTER_PLAN_CONTRACT = "liner.agent_adapter_plan"
 ADAPTER_RECEIPT_CONTRACT = "liner.agent_adapter_receipt"
 ADAPTER_STATE_CONTRACT = "liner.agent_adapter_state"
 ADAPTER_CONTRACT_VERSION = 1
 SKILL_NAME = "liner-maintenance"
-MANAGED_SKILL_START = "<!-- liner-maintenance-skill:start"
-MANAGED_SKILL_END = "<!-- liner-maintenance-skill:end -->"
+ROUTER_SKILL_NAME = "liner"
 SUPPORTED_ENVIRONMENTS = {
-    "codex": Path(".codex/skills") / SKILL_NAME,
-    "claude": Path(".claude/skills") / SKILL_NAME,
+    "codex": Path(".codex/skills"),
+    "claude": Path(".claude/skills"),
 }
+_DESCRIPTION_SLOT = "{{DESCRIPTION}}"
+# Agent Skills caps a description at 1024 characters.
+_MAX_DESCRIPTION_CHARS = 1024
+_MAX_SUBJECT_CHARS = 60
+_ROUTER_INTRO = (
+    "Find the user's local research liners, suggest the right one, and build new ones. Use "
+    "when the user mentions Liner or a liner, asks to build one, asks what research they "
+    "already have, or works on "
+)
+_NO_SUBJECTS = "something that could use earlier research."
+_UNSAFE_SUBJECT_CHARS = re.compile(r"[^\w\s&+/.,'()-]", re.UNICODE)
 
 
 class AdapterError(RuntimeError):
@@ -45,9 +57,11 @@ class AdapterPlan:
     approval_required: bool
     file_effects: dict[str, list[str]]
     expected_state_hash: str
+    skill: str = SKILL_NAME
+    description: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "contract": ADAPTER_PLAN_CONTRACT,
             "version": ADAPTER_CONTRACT_VERSION,
             "plan_id": self.plan_id,
@@ -61,8 +75,9 @@ class AdapterPlan:
             "approval_required": self.approval_required,
             "file_effects": self.file_effects,
             "expected_state_hash": self.expected_state_hash,
-            "remediation": _remediation(self.environment, self.home),
+            "remediation": _remediation(self.environment, self.home, self.skill),
         }
+        return {**payload, **_plan_extras(self)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,11 +111,13 @@ class AdapterReceipt:
         return {**payload, "receipt_hash": _hash_payload(payload)}
 
 
-def inspect_agent_adapter(environment: str, home: Path) -> dict[str, Any]:
+def inspect_agent_adapter(
+    environment: str, home: Path, *, skill: str = SKILL_NAME
+) -> dict[str, Any]:
     environment = _environment(environment)
     home = _home(home)
-    target = home / SUPPORTED_ENVIRONMENTS[environment]
-    inspection = _inspect_target(environment, target)
+    target = _target(home, environment, skill)
+    inspection = _inspect_target(environment, target, skill)
     return {
         "contract": "liner.agent_adapter_inspection",
         "version": ADAPTER_CONTRACT_VERSION,
@@ -111,32 +128,35 @@ def inspect_agent_adapter(environment: str, home: Path) -> dict[str, Any]:
         "status": inspection["status"],
         "compatibility": inspection["compatibility"],
         "managed_files": inspection["managed_files"],
-        "remediation": _remediation(environment, home),
+        "remediation": _remediation(environment, home, skill),
+        **_skill_field(skill),
     }
 
 
-def plan_agent_adapter(action: str, environment: str, home: Path) -> AdapterPlan:
+def plan_agent_adapter(
+    action: str, environment: str, home: Path, *, skill: str = SKILL_NAME
+) -> AdapterPlan:
     if action not in {"install", "update", "remove"}:
         raise AdapterError("Adapter action must be install, update, or remove.")
     environment = _environment(environment)
     home = _home(home)
-    target = home / SUPPORTED_ENVIRONMENTS[environment]
-    inspection = _inspect_target(environment, target)
+    target = _target(home, environment, skill)
+    inspection = _inspect_target(environment, target, skill)
     status = str(inspection["status"])
     compatibility = str(inspection["compatibility"])
     if compatibility == "incompatible":
         raise AdapterError(
-            "Installed adapter state is incompatible. " + _remediation(environment, home)
+            "Installed adapter state is incompatible. " + _remediation(environment, home, skill)
         )
     if status in {"unmanaged", "modified"}:
         noun = "managed content changed" if status == "modified" else "target is unmanaged"
         raise AdapterError(
             f"Adapter {noun}; Liner will not overwrite {target}. "
             "Review it and move that target aside, then run "
-            f"`liner adapters install {environment} --yes --home {shlex.quote(str(home))}`."
+            f"`{_command(skill)} install {environment} --yes --home {shlex.quote(str(home))}`."
         )
     if action == "update" and status in {"absent", "preservable"}:
-        raise AdapterError(f"Adapter is not installed. {_remediation(environment, home)}")
+        raise AdapterError(f"Adapter is not installed. {_remediation(environment, home, skill)}")
     if action == "remove" and status in {"absent", "preservable"}:
         raise AdapterError("Adapter is already absent; no removal is needed.")
     replay = action in {"install", "update"} and status == "current"
@@ -186,6 +206,12 @@ def plan_agent_adapter(action: str, environment: str, home: Path) -> AdapterPlan
         approval_required=not replay,
         file_effects=effects,
         expected_state_hash=str(inspection["state_hash"]),
+        skill=skill,
+        description=(
+            _router_description()
+            if skill == ROUTER_SKILL_NAME and action in {"install", "update"}
+            else None
+        ),
     )
     return replace(
         plan,
@@ -205,6 +231,7 @@ def _plan_identity_payload(plan: AdapterPlan) -> dict[str, Any]:
         "approval_required": plan.approval_required,
         "file_effects": plan.file_effects,
         "expected_state_hash": plan.expected_state_hash,
+        **_plan_extras(plan),
     }
 
 
@@ -213,7 +240,7 @@ def _validate_plan_structure(plan: AdapterPlan) -> None:
         raise AdapterError("Adapter plan has an unsupported action.")
     environment = _environment(plan.environment)
     home = _home(plan.home)
-    target = home / SUPPORTED_ENVIRONMENTS[environment]
+    target = _target(home, environment, plan.skill)
     if environment != plan.environment or home != plan.home or target != plan.target:
         raise AdapterError("Adapter plan target is not canonical for its environment and home.")
     if plan.liner_version != __version__ or plan.compatibility != "compatible":
@@ -299,7 +326,7 @@ def apply_agent_adapter_plan(
     if recovered is not None:
         return recovered
 
-    canonical = plan_agent_adapter(plan.action, plan.environment, plan.home)
+    canonical = plan_agent_adapter(plan.action, plan.environment, plan.home, skill=plan.skill)
     if plan != canonical:
         raise AdapterError("Adapter plan is not canonical or state changed; inspect and plan again.")
     if canonical.approval_required and not approved:
@@ -321,7 +348,9 @@ def apply_agent_adapter_plan(
 
     try:
         with _adapter_lock(canonical.home, canonical.target):
-            fresh = plan_agent_adapter(canonical.action, canonical.environment, canonical.home)
+            fresh = plan_agent_adapter(
+                canonical.action, canonical.environment, canonical.home, skill=canonical.skill
+            )
             if fresh != canonical:
                 raise AdapterError("Adapter state changed after planning; inspect and plan again.")
             _write_pending_receipt(pending_path, canonical, receipt)
@@ -361,11 +390,18 @@ def _publish_adapter_mutation(plan: AdapterPlan, receipt_id: str) -> None:
         staging.mkdir()
     try:
         if plan.action == "install":
-            _install_staged(staging, plan.environment, receipt_id, preserving=plan.status == "preservable")
+            _install_staged(
+                staging,
+                plan.environment,
+                receipt_id,
+                preserving=plan.status == "preservable",
+                skill=plan.skill,
+                description=plan.description,
+            )
         elif plan.action == "update":
-            _update_staged(staging, plan.environment, receipt_id)
+            _update_staged(staging, plan.environment, receipt_id, plan.skill, plan.description)
         else:
-            _remove_staged(staging)
+            _remove_staged(staging, plan.skill)
         _publish_staged_tree(target, staging, backup)
     finally:
         if staging.exists():
@@ -378,38 +414,42 @@ def _install_staged(
     receipt_id: str,
     *,
     preserving: bool,
+    skill: str,
+    description: str | None,
 ) -> None:
     skill_path = target / "SKILL.md"
     preserved = skill_path.read_text(encoding="utf-8") if preserving and skill_path.is_file() else ""
-    skill_text, openai_text = _bundle_text()
+    skill_text, openai_text = _bundle_text(skill, description)
     installed_skill = skill_text + preserved
     _atomic_write(skill_path, installed_skill)
     _atomic_write(target / "agents" / "openai.yaml", openai_text)
-    _write_state(target, environment, installed_skill, openai_text, receipt_id)
+    _write_state(target, environment, installed_skill, openai_text, receipt_id, skill)
 
 
-def _update_staged(target: Path, environment: str, receipt_id: str) -> None:
-    inspection = _inspect_target(environment, target)
+def _update_staged(
+    target: Path, environment: str, receipt_id: str, skill: str, description: str | None
+) -> None:
+    inspection = _inspect_target(environment, target, skill)
     if inspection["status"] not in {"current", "update_required"}:
         raise AdapterError("Adapter managed content changed; inspect and reinstall explicitly.")
     installed = (target / "SKILL.md").read_text(encoding="utf-8")
-    _, suffix = _split_managed_skill(installed)
-    source_skill, source_openai = _bundle_text()
-    source_prefix, _ = _split_managed_skill(source_skill)
+    _, suffix = _split_managed_skill(installed, skill)
+    source_skill, source_openai = _bundle_text(skill, description)
+    source_prefix, _ = _split_managed_skill(source_skill, skill)
     updated_skill = source_prefix + suffix
     _atomic_write(target / "SKILL.md", updated_skill)
     _atomic_write(target / "agents" / "openai.yaml", source_openai)
-    _write_state(target, environment, updated_skill, source_openai, receipt_id)
+    _write_state(target, environment, updated_skill, source_openai, receipt_id, skill)
 
 
-def _remove_staged(target: Path) -> None:
+def _remove_staged(target: Path, skill: str) -> None:
     state = _load_state(target)
     if state is None:
         raise AdapterError("Adapter managed state is missing; remove was refused.")
     skill_path = target / "SKILL.md"
     agents_path = target / "agents" / "openai.yaml"
     installed = skill_path.read_text(encoding="utf-8")
-    prefix, suffix = _split_managed_skill(installed)
+    prefix, suffix = _split_managed_skill(installed, skill)
     if _hash_text(prefix) != state.get("managed_prefix_hash"):
         raise AdapterError("Adapter managed content changed; remove was refused.")
     if _hash_file(agents_path) != state.get("openai_hash"):
@@ -443,7 +483,7 @@ def _publish_staged_tree(target: Path, staging: Path, backup: Path) -> None:
         shutil.rmtree(backup, ignore_errors=True)
 
 
-def _inspect_target(environment: str, target: Path) -> dict[str, Any]:
+def _inspect_target(environment: str, target: Path, skill: str = SKILL_NAME) -> dict[str, Any]:
     if not target.exists():
         return {
             "status": "absent",
@@ -493,7 +533,7 @@ def _inspect_target(environment: str, target: Path) -> dict[str, Any]:
                     "state_hash": "unreadable",
                     "skill_exists": True,
                 }
-            if "liner-maintenance-skill:" in text:
+            if f"{skill}-skill:" in text:
                 return {
                     "status": "modified",
                     "compatibility": "incompatible",
@@ -527,7 +567,7 @@ def _inspect_target(environment: str, target: Path) -> dict[str, Any]:
     openai_path = target / "agents" / "openai.yaml"
     suffix = ""
     try:
-        prefix, suffix = _split_managed_skill(skill_path.read_text(encoding="utf-8"))
+        prefix, suffix = _split_managed_skill(skill_path.read_text(encoding="utf-8"), skill)
     except (OSError, UnicodeError, AdapterError):
         prefix = ""
     if (
@@ -536,8 +576,8 @@ def _inspect_target(environment: str, target: Path) -> dict[str, Any]:
     ):
         status = "modified"
     else:
-        source_skill, source_openai = _bundle_text()
-        source_prefix, _ = _split_managed_skill(source_skill)
+        source_skill, source_openai = _bundle_text(skill)
+        source_prefix, _ = _split_managed_skill(source_skill, skill)
         status = (
             "current"
             if state.get("liner_version") == __version__
@@ -562,8 +602,9 @@ def _write_state(
     skill_text: str,
     openai_text: str,
     receipt_id: str,
+    skill: str,
 ) -> None:
-    prefix, _ = _split_managed_skill(skill_text)
+    prefix, _ = _split_managed_skill(skill_text, skill)
     state = {
         "contract": ADAPTER_STATE_CONTRACT,
         "version": ADAPTER_CONTRACT_VERSION,
@@ -676,7 +717,7 @@ def _recover_pending_receipt(
 
 
 def _adapter_effects_are_published(plan: AdapterPlan) -> bool:
-    inspection = _inspect_target(plan.environment, plan.target)
+    inspection = _inspect_target(plan.environment, plan.target, plan.skill)
     if plan.action in {"install", "update"}:
         return inspection.get("status") == "current"
     return inspection.get("status") in {"absent", "preservable"}
@@ -706,7 +747,7 @@ def _validated_receipt_replay(plan: AdapterPlan, receipt_path: Path) -> AdapterR
     }
     if any(raw.get(key) != value for key, value in expected.items()):
         raise AdapterError("Adapter receipt does not match the approved plan; mutation was refused.")
-    inspection = _inspect_target(plan.environment, plan.target)
+    inspection = _inspect_target(plan.environment, plan.target, plan.skill)
     if plan.action in {"install", "update"}:
         if inspection.get("status") != "current":
             raise AdapterError("Adapter receipt exists but its installed effects are not current.")
@@ -759,21 +800,50 @@ def _receipt_from_dict(raw: dict[str, Any], *, replayed: bool) -> AdapterReceipt
         raise AdapterError("Adapter receipt is invalid; mutation was refused.") from error
 
 
-def _bundle_text() -> tuple[str, str]:
-    root = resources.files("liner").joinpath("bundled", SKILL_NAME)
-    return (
-        root.joinpath("SKILL.md").read_text(encoding="utf-8"),
-        root.joinpath("agents", "openai.yaml").read_text(encoding="utf-8"),
-    )
+def _bundle_text(skill: str = SKILL_NAME, description: str | None = None) -> tuple[str, str]:
+    root = resources.files("liner").joinpath("bundled", skill)
+    skill_text = root.joinpath("SKILL.md").read_text(encoding="utf-8")
+    if skill == ROUTER_SKILL_NAME:
+        skill_text = skill_text.replace(
+            _DESCRIPTION_SLOT,
+            json.dumps(description or _router_description(), ensure_ascii=False),
+        )
+    return skill_text, root.joinpath("agents", "openai.yaml").read_text(encoding="utf-8")
 
 
-def _split_managed_skill(text: str) -> tuple[str, str]:
-    if text.count(MANAGED_SKILL_START) != 1 or text.count(MANAGED_SKILL_END) != 1:
+def _router_description() -> str:
+    """Name each usable liner, so the skill fires while working on one of those subjects."""
+    catalog = build_catalog(default_library_root())
+    subjects = [
+        subject for entry in catalog["liners"] if entry["usable"] and (subject := _subject(entry))
+    ]
+    for count in range(len(subjects), 0, -1):
+        left = len(subjects) - count
+        ending = f"; and {left} more." if left else "."
+        text = f"{_ROUTER_INTRO}these subjects: {'; '.join(subjects[:count])}{ending}"
+        if len(text) <= _MAX_DESCRIPTION_CHARS:
+            return text
+    return _ROUTER_INTRO + _NO_SUBJECTS
+
+
+def _subject(entry: dict[str, Any]) -> str:
+    """Reduce a title to plain words, since it lands in text the agent always reads."""
+    title = str(entry["title"])
+    if title == entry["slug"]:
+        title = title.replace("-", " ")
+    words = " ".join(_UNSAFE_SUBJECT_CHARS.sub("", title).split())
+    return re.sub(r"-{2,}", "-", words)[:_MAX_SUBJECT_CHARS].strip()
+
+
+def _split_managed_skill(text: str, skill: str = SKILL_NAME) -> tuple[str, str]:
+    managed_start = f"<!-- {skill}-skill:start"
+    managed_end = f"<!-- {skill}-skill:end -->"
+    if text.count(managed_start) != 1 or text.count(managed_end) != 1:
         raise AdapterError("Adapter managed content changed; markers are missing or duplicated.")
-    marker = text.find(MANAGED_SKILL_END)
+    marker = text.find(managed_end)
     if marker < 0:
         raise AdapterError("Adapter managed content changed; end marker is missing.")
-    end = marker + len(MANAGED_SKILL_END)
+    end = marker + len(managed_end)
     if text[end : end + 1] == "\n":
         end += 1
     prefix = text[:end]
@@ -790,6 +860,25 @@ def _load_state(target: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     return raw if isinstance(raw, dict) else None
+
+
+def _target(home: Path, environment: str, skill: str) -> Path:
+    return home / SUPPORTED_ENVIRONMENTS[environment] / skill
+
+
+def _skill_field(skill: str) -> dict[str, str]:
+    """Only the router names itself, so maintenance plans and receipts keep their shape."""
+    return {} if skill == SKILL_NAME else {"skill": skill}
+
+
+def _plan_extras(plan: AdapterPlan) -> dict[str, str]:
+    """Bind the router's text to the plan: an agent reads it every session."""
+    description = {"description": plan.description} if plan.description else {}
+    return {**_skill_field(plan.skill), **description}
+
+
+def _command(skill: str) -> str:
+    return "liner adapters" if skill == SKILL_NAME else "liner agent-skill"
 
 
 def _environment(value: str) -> str:
@@ -882,13 +971,16 @@ def _receipt_path(home: Path, receipt_id: str) -> Path:
     return home / ".liner" / "adapter-receipts" / f"{receipt_id}.json"
 
 
-def _remediation(environment: str, home: Path | None = None) -> str:
+def _remediation(
+    environment: str, home: Path | None = None, skill: str = SKILL_NAME
+) -> str:
     home_option = f" --home {shlex.quote(str(home))}" if home is not None else ""
+    command = _command(skill)
     return (
-        f"Run `liner adapters inspect {environment}{home_option}`. If managed content is current, "
-        f"use `liner adapters remove {environment} --yes{home_option}`. If it is changed or "
+        f"Run `{command} inspect {environment}{home_option}`. If managed content is current, "
+        f"use `{command} remove {environment} --yes{home_option}`. If it is changed or "
         "incompatible, review and move the reported target aside before running "
-        f"`liner adapters install {environment} --yes{home_option}`."
+        f"`{command} install {environment} --yes{home_option}`."
     )
 
 

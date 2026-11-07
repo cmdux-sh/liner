@@ -37,6 +37,7 @@ export default defineConfig({
             { label: "Overview", slug: "docs" },
             { label: "Install", slug: "docs/install" },
             { label: "Build a Project", slug: "docs/build-a-mixtape" },
+            { label: "Use Liner from an Agent", slug: "docs/library" },
             { label: "Maintain with an Agent", slug: "docs/maintenance" },
           ],
         },
@@ -52,7 +53,7 @@ export default defineConfig({
           label: "Reference",
           items: [
             { label: "CLI commands", slug: "docs/cli" },
-            { label: "Terminal UI", slug: "docs/tui" },
+            { label: "Navigator", slug: "docs/tui" },
             { label: "Troubleshooting", slug: "docs/troubleshooting" },
             { label: "Changelog", link: "/changelog/" },
           ],

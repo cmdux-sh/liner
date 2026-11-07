@@ -82,8 +82,6 @@ mobile-design-foundations/
 |-- liner.yaml
 |-- LINER.md
 |-- SKILL.md
-|-- skills/
-|-- working/
 `-- mixtape/
     |-- MIXTAPE.md
     |-- tape.yaml
@@ -94,15 +92,18 @@ mobile-design-foundations/
     |   `-- ...
     |-- local-sources/
     |   `-- touch-target-paper.pdf
+    |-- .liner-runs/
     `-- working/
         |-- 01-jtbd-and-knowledge-map.md
         |-- 02-candidate-longlist.md
         |-- 03-evaluation.yaml
         |-- 04-quality-checks.md
-        `-- 07-tape-draft.yaml
+        |-- 05-operating-fit-audit.md
+        |-- 07-tape-draft.yaml
+        `-- empirical-tests.yaml
 ```
 
-`mixtape/tape.yaml` is the source recipe. `mixtape/synthesis.md` is the curator's distilled framing. `mixtape/sources/` contains extracted content. `mixtape/working/` contains the curation trace. `mixtape/MIXTAPE.md` is the compiled entry point.
+`liner.yaml`, `LINER.md`, and `SKILL.md` are the Operating Layer. `mixtape/tape.yaml` is the source recipe. `mixtape/synthesis.md` is the curator's distilled framing. `mixtape/sources/` contains extracted content. `mixtape/working/` contains the curation trace. `mixtape/.liner-runs/` holds fetched pages, step prompts, and review copies. `mixtape/MIXTAPE.md` is the compiled entry point.
 
 ## What Liner Is Good For
 
@@ -145,13 +146,34 @@ The key test is: will a curated context bundle make an AI meaningfully better at
 
 ## How Liner Is Used
 
-There are three common ways to use Liner.
+There are four common ways to use Liner.
 
-### 1. CLI-First
+### 1. Agent-Built
+
+Most liners are built by your coding agent. Install the `liner` skill once:
+
+```sh
+npm install -g linersh
+liner agent-skill install claude --yes    # or codex
+```
+
+Then ask your agent for lasting research on a subject. The agent writes your
+answer as a job story, runs `liner research start "<job story>" --title "<name>"`,
+and follows `liner research next <slug> --json` until it reports `done`.
+
+Liner owns the steps and checks each result. The agent does the research with
+its own tools, usually one subagent per step, and Liner makes no AI calls. The
+agent stops in chat for you to approve the synthesis, the source list, and the
+instructions. It never approves for you.
+
+Agents with no shell can use `liner mcp`. It can start a liner and submit steps,
+but it can't approve anything.
+
+### 2. CLI-First
 
 Use the installed CLI when you already have a Project folder or want a
-scriptable workflow. Add known Sources through Core, then use the Curator
-workflow to review the corpus and synthesis before compile.
+scriptable workflow. Add known Sources through Core, then ask your agent to build
+and review the corpus, or compile what you added.
 
 ```sh
 liner init mobile-design-foundations
@@ -175,42 +197,27 @@ liner share mobile-design-foundations
 liner import mobile-design-foundations.mixtape
 ```
 
-### 2. TUI-First
+### 3. The Navigator
 
-Use the terminal UI when you want an interactive authoring experience.
+Run `liner` with no arguments to open the navigator, a live view of your library
+to keep beside your chat.
 
 ```sh
 npx linersh
 ```
 
-The TUI helps create and manage Liner Projects, add Sources, run the curation
-workflow and compilation, create the Operating Layer, share archives, and
-inspect Project state. Supported Project and Source maintenance is delegated to
-the same Core contract used by the CLI.
+It shows every liner, what needs you, your whole source collection, and how
+liners connect. You can read any file, follow a citation to its source, and press
+`y` to copy a prompt for your agent. The navigator is read-only. Agents do the
+work, and the navigator never changes a liner.
 
-With no arguments, the `liner` npm package opens the TUI. CLI subcommands pass through to the bundled Python core:
+CLI subcommands pass through to the bundled Python core:
 
 ```sh
+liner research next mobile-design-foundations --json
 liner compile mobile-design-foundations
-liner setup-js
 liner share mobile-design-foundations
 liner project inspect mobile-design-foundations
-```
-
-### 3. Skill-Assisted Curation
-
-Use the `curating-mixtapes` skill when you want an AI assistant to run the curation methodology with you.
-
-The skill produces a project folder with:
-
-- `mixtape/tape.yaml`
-- `mixtape/synthesis.md`
-- `mixtape/working/*` notes
-
-The skill does not compile. After the skill finishes, run:
-
-```sh
-liner compile <project-folder>
 ```
 
 ### 4. Agent-Assisted Maintenance
@@ -231,7 +238,30 @@ Apply revalidates that plan and writes a durable, redacted Change Receipt.
 
 ## The Curation Lifecycle
 
-The current TUI-driven flow has six authoring phases plus Compile. The empirical test remains methodology guidance for library-quality mixtapes, not a required TUI stop.
+`liner research` runs twelve steps in order:
+
+1. `clarify`: Clarify Job.
+2. `framing`
+3. `candidates`
+4. `evaluation`
+5. `quality`
+6. `synthesis`
+7. `approve:synthesis`: you approve the synthesis.
+8. `assembly`
+9. `approve:sources`: you approve the source list.
+10. `build`: compile.
+11. `approve:operating_layer`: you approve the instructions.
+12. `finish`: write the Operating Layer.
+
+`liner research plan <slug>` lists the steps ahead and the kind of work each
+needs. `liner research check <folder> <phase>` checks the artifact of
+`candidates`, `evaluation`, `quality`, `synthesis`, or `assembly` without moving
+on.
+
+### Clarify Job
+
+The agent asks you a few targeted questions about the job, and you answer in
+chat. Liner records the answers. The agent never answers for you.
 
 ### Phase 1: Framing
 
@@ -243,13 +273,14 @@ The capability brief says what the corpus should make a downstream AI agent bett
 
 ### Phase 2: Candidate Discovery
 
-Gather more candidate sources than you expect to keep. This phase is about recall, not precision.
+Gather more candidate sources than you expect to keep. This phase is about recall, not precision. The long list ends with a log of the searches that were run.
 
 Good tactics include following citations, mining expert reading lists, searching course syllabi, checking official docs, searching by required source role, and asking AI to critique gaps rather than invent sources.
 
 ### Phase 3: Evaluation
 
-Decide keep, trim, or drop.
+Read each candidate and decide keep, trim, or drop. The agent saves pages with
+`liner fetch`, so untrusted page text stays in files, not in the chat.
 
 A kept source should have a specific role. The curator note should explain why the source belongs, what part matters, and any limitations.
 
@@ -257,7 +288,9 @@ A kept source should have a specific role. The curator note should explain why t
 
 Run tests for redundancy, coverage, disagreement, framing gaps, source-kind balance, and required source-role fit.
 
-This is where the methodology catches "good but narrow" corpora.
+This is where the methodology catches "good but narrow" corpora. A wide gap goes
+into `working/05-operating-fit-audit.md`, and `liner research improve` can target
+it later.
 
 ### Phase 5: Synthesis
 
@@ -265,25 +298,35 @@ Write the curator's distilled understanding of the domain.
 
 The synthesis is not a recap. It is the framing the AI should inherit before using the sources.
 
+You review and approve it at `approve:synthesis`.
+
 ### Phase 6: Assembly
 
-Write the final `mixtape/tape.yaml`, order the sources, and prepare for compile.
+Draft the source list in `working/07-tape-draft.yaml` and order the sources. You
+review and approve it at `approve:sources`. If some sources need JavaScript
+rendering and Playwright isn't installed, the review lists them, and the agent
+asks you about `liner setup-js --yes` as its own question.
 
-### Compile
+### Build
 
-Fetch every kept source, extract readable content, write `mixtape/sources/`, and produce `mixtape/MIXTAPE.md`.
+Add the approved sources to `mixtape/tape.yaml` through Core, fetch every kept
+source, extract readable content, write `mixtape/sources/`, and produce
+`mixtape/MIXTAPE.md`. This is the Corpus Ready milestone.
 
-The TUI treats compilation as the corpus-ready milestone. A partial compile can
-still be usable when `MIXTAPE.md` is written; the Compile Console shows reviewed
-source warnings, opens Sources review for detail, and lets the user continue to
-the Operating Layer when the current mixtape is usable. Recompile and source
-repair are explicit from the compile result screen.
+### Instructions and Finish
 
-### Empirical Test (methodology guidance)
+The agent drafts `LINER.md` and `SKILL.md` for review. You approve them at
+`approve:operating_layer`. `finish` writes `LINER.md`, `SKILL.md`, and
+`liner.yaml`, and the liner is complete.
 
-Ask the same AI question with and without the mixtape. If the answer with the mixtape is not meaningfully better, the mixtape is not earning its place.
+### Empirical Test
 
-This is a methodology practice, not a driven step in the TUI. The TUI treats compilation as the corpus-ready milestone and no longer parks you on a trailing empirical-test phase — but the with-vs-without check remains the honest way to know whether a mixtape earns its place.
+Ask the same AI question with and without the liner. If the answer with the liner is not meaningfully better, the liner is not earning its place.
+
+This is not a research step. Record it with `liner test`. `liner test start`
+saves the two answers as unlabeled A and B for you to judge blind, and
+`liner test judge` records your choice. `liner test add` records a comparison you
+judged with the labels showing. `liner catalog` shows the results.
 
 ## How Compilation Works
 
@@ -305,6 +348,8 @@ Supported source types:
 - `youtube`
 - `local_file`
 - `skill`
+- `repository`: the documentation files of a public GitHub repository
+- `liner`: another finished liner's synthesis, or one of its sources
 
 Web sources use `httpx` and `trafilatura` for server-rendered extraction. If a page is JavaScript-walled and Playwright support has been set up, Liner can use headless Chromium. You enable that path once:
 
@@ -312,7 +357,7 @@ Web sources use `httpx` and `trafilatura` for server-rendered extraction. If a p
 liner setup-js
 ```
 
-The npm/TUI onboarding offers this setup on first run, and the compile result screen offers it again when a source needs JS rendering. Repair never installs it; installing is always a separate choice. Setup downloads only Playwright's headless Chromium: about 100 MB, about 220 MB on disk.
+During `liner research`, the sources approval lists any sources that need JS rendering, and the agent asks before running `liner setup-js --yes`. The build step won't compile those sources until it's installed. Liner never installs it on its own. Setup downloads only Playwright's headless Chromium: about 100 MB, about 220 MB on disk.
 
 If `trafilatura` itself crashes on a page, the web handlers now keep the source through a tag-stripped HTML fallback where possible and surface a soft warning instead of losing the source to an internal Python exception.
 
@@ -358,6 +403,11 @@ Important areas:
   - `web_js.py`
   - `youtube.py`
   - `local_file.py`
+  - `skill.py`
+  - `repository.py`
+  - `liner.py`
+- `src/liner/research.py` runs the `liner research` steps, checks, and approvals.
+- `src/liner/empirical_tests.py` records `liner test` results.
 - `src/liner/output/mixtape.py` renders `MIXTAPE.md` and source files.
 - `src/liner/cache.py` manages the local SQLite cache.
 - `src/liner/share.py` handles `.mixtape` archives.
@@ -369,33 +419,26 @@ The Python core can still be installed directly for development or fallback test
 pipx install linersh
 ```
 
-### Terminal UI
+### The Navigator
 
-The active TUI is a Charm-based Go application in `packages/go-tui`.
-`packages/tui` is still the npm package/shim plus the TypeScript headless
-methodology runner; it is no longer the React/Ink TUI implementation. The old
-React/Ink UI is decommissioned.
+The terminal app is a read-only navigator, a Charm-based Go application in
+`packages/go-tui`. `packages/tui` is the npm package shell.
 
 Important areas:
 
-- `packages/go-tui/cmd/liner-tui/` starts the active terminal app.
-- `packages/go-tui/internal/app/` owns screen routing, key handling, and UI rendering.
-- `packages/tui/src/yaml-io.ts` supports initial methodology artifact parsing
-  and authoring; it is not a supported post-creation maintenance path.
-- `packages/tui/src/bin-resolver.ts` finds the Python core.
-- `packages/tui/src/agents/` runs and parses agent-backed methodology phases.
-- `packages/go-tui/internal/core/` streams compile progress and carries the
-  versioned maintenance contract between the Go app and Python Core.
+- `packages/go-tui/cmd/liner-tui/` starts the navigator.
+- `packages/go-tui/internal/navigator/` owns the library view, the file reader,
+  and key handling.
+- `packages/go-tui/internal/core/` calls the Python core.
 
-The TUI does not reimplement Core compile, share, import, Project, or Source
-maintenance behavior. It shells out to Core, renders structured results, and
-applies only exact Core-issued Change Sets.
+The navigator reads what Core reports through `liner library` and gets agent
+prompts from `liner handoff`. It never changes a liner.
 
 ### npm Distribution
 
 The npm package is named `linersh`.
 
-It contains the TUI plus a small `bin/liner.js` shim. Platform-specific Python binaries are distributed as optional npm dependencies:
+It contains a small `bin/liner.js` launcher. Platform-specific binaries, the Python core and the navigator, are distributed as optional npm dependencies:
 
 - `linersh-darwin-arm64`
 - `linersh-darwin-x64`
@@ -409,9 +452,9 @@ This follows the native-binary package pattern used by many developer tools: ins
 
 The shim behavior:
 
-- `liner` with no arguments opens the TUI.
-- CLI subcommands such as `compile`, `share`, `project`, `sources`, `adapters`,
-  `setup-js`, and `status` forward to the bundled Python binary.
+- `liner` with no arguments opens the navigator.
+- CLI subcommands such as `research`, `compile`, `share`, `project`, `sources`,
+  `adapters`, `setup-js`, and `mcp` forward to the bundled Python binary.
 - `LINER_BIN=/path/to/liner` overrides binary resolution for development/debugging.
 - `liner uninstall` removes local Liner state, the npm `_npx` execution cache, and Playwright's Chromium cache for clean reinstall testing. It does not delete mixtape project folders.
 
@@ -431,31 +474,37 @@ Validation:
 python3 scripts/validate-platform-package.py --pack-dry-run
 ```
 
-The GitHub workflow `.github/workflows/platform-bundles.yml` builds one package
-artifact at a time from the public `cmdux-sh/liner` repo. The default release
-path is:
+Version check:
 
 ```sh
-scripts/release-tarballs.sh --version <version>
+uv run python scripts/release-version.py --check
+uv run python scripts/release-version.py --check --check-registry
 ```
 
-The helper verifies the requested version against `packages/tui/package.json`,
-`packages/tui/package-lock.json`, `pyproject.toml`, and
-`src/liner/__init__.py`, confirms the public branch is pushed, confirms the
-version is not already published on npm, downloads all six tarballs into a
-local `release-tarballs-<version>` folder, deletes the GitHub artifacts, writes
-checksums, and writes `PUBLISH-COMMANDS.md`. Give Arturo that generated command
-block verbatim and publish the five platform packages before the main
-`linersh` package.
+`release-version.py` keeps every version file in step with the canonical
+`VERSION` file. `--check-registry` also confirms the version isn't already on
+npm.
+
+The manual GitHub workflow `.github/workflows/platform-bundles.yml` builds one
+package artifact at a time from the public `cmdux-sh/liner` repo. Download each
+artifact, then delete it before building the next. Publish the five platform
+packages before the main `linersh` package. The full steps are in
+`packages/tui/PUBLISH-CHECKLIST.md`.
 
 ### The Skill Bundle
 
-The tracked skill bundle lives in `docs/curation-skill/`.
+The skill bundle ships inside the CLI, in `src/liner/bundled/`:
 
-It encodes the curation methodology as executable instructions for an AI assistant. It is not the same thing as the CLI or TUI. It is one surface for producing Liner project folders.
+- `liner/`: the `liner` skill that `liner agent-skill install` adds to Codex or
+  Claude Code.
+- `research/`: the step prompts `liner research` hands to the agent, and the
+  curation methodology in `research/methodology/`.
+- `liner-maintenance/`: the optional Maintenance Adapter.
 
-The skill writes initial authoring artifacts. The CLI compiles them and owns
-supported post-creation Project and Source maintenance.
+The bundle encodes the curation methodology as instructions for an AI agent. It
+is not the same thing as the CLI or the navigator. The agent writes the research
+artifacts. The CLI checks them, compiles them, and owns supported post-creation
+Project and Source maintenance.
 
 ## How Liner Differs From Skills
 
@@ -469,7 +518,7 @@ They overlap because Liner includes a skill, but they are not the same kind of t
 
 | Question | Skill | Liner |
 |---|---|---|
-| What is it? | Runtime instructions for an AI assistant | A file format, CLI, TUI, methodology, and packaging workflow |
+| What is it? | Runtime instructions for an AI assistant | A file format, CLI, navigator, methodology, and packaging workflow |
 | Where does it live? | Inside a specific AI tool's skill system | On disk as YAML, Markdown, source files, and archives |
 | What does it produce? | Usually task output in the current session | A durable mixtape project folder |
 | Is it portable across AI tools? | Usually no, or only with adaptation | Yes, `MIXTAPE.md` and sources are plain files |
@@ -479,8 +528,9 @@ They overlap because Liner includes a skill, but they are not the same kind of t
 
 The relationship is:
 
-- The curation skill helps author a Mixtape.
-- The Liner CLI compiles the mixtape.
+- The `liner` skill and the bundled methodology guide your agent through
+  `liner research`.
+- The Liner CLI checks each step and compiles the mixtape.
 - The Operating Layer creates the root Project Skill that teaches future
   sessions how to use that completed Project.
 - The optional Maintenance Adapter delegates Codex or Claude maintenance to the
@@ -510,7 +560,7 @@ title: Mobile Design Foundations
 description: Core touch and gesture references for native mobile UX.
 version: 1
 curator: cmdux-sh
-mode: quick
+mode: methodology
 jtbd: When I'm designing the core UI of a consumer iOS app, I want to follow Apple's interaction conventions while choosing where to deviate visually, so I can ship something that feels native without looking generic.
 
 sources:
@@ -537,8 +587,8 @@ sources:
 # Start a project.
 liner init mobile-design-foundations
 
-# Add known source material through Core, then use the TUI or curation skill to
-# review Sources, author synthesis, and assemble the corpus.
+# Add known source material through Core, then ask your agent to review
+# Sources, author synthesis, and assemble the corpus.
 liner sources add mobile-design-foundations \
   --type web \
   --url https://developer.apple.com/design/human-interface-guidelines/gestures \
@@ -558,7 +608,8 @@ liner compile mobile-design-foundations
 liner share mobile-design-foundations
 ```
 
-Or with the TUI:
+Or ask your agent to build the liner with `liner research`, and watch it in the
+navigator:
 
 ```sh
 npx linersh
@@ -607,33 +658,43 @@ Liner's methodology exists to catch these before compile.
 
 ## Project Status
 
-The current source is the local v1.1.0 release candidate:
+1.1.3 is the latest published release. The current source is the unreleased
+1.2.0:
 
 - The Python CLI is functional.
-- The active Go TUI is functional. The old React/Ink TUI is decommissioned. The empirical-test phase has been removed from the driven flow — compilation is now the corpus-ready milestone and Create Operating Layer is the project-complete milestone. The hub is a single summary view (status box + always-visible phase checklist), import uses a file picker for `.mixtape` archives, and completed/partial compiles open the existing compile result instead of rerunning by default.
-- Phase 1 framing now validates the evidence plan before source discovery. The TUI requires a capability brief and required source roles with why/evidence/minimum coverage before advancing.
+- Coding agents build liners through `liner research`, with subagents doing the
+  steps. The person approves the synthesis, the source list, and the
+  instructions in chat.
+- The terminal app is a read-only navigator. The old authoring TUI is gone.
+- Framing sets the evidence plan before source discovery. The framing step asks
+  for a capability brief and required source roles with why, evidence, and
+  minimum coverage, and `liner research submit` won't move on without the brief.
 - The npm distribution uses a main `linersh` package plus five optional platform packages (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`).
 - Published releases install through `npx linersh` on Mac, Linux, and Windows
-  x64. The local 1.1.0 candidate is not shipped until publish succeeds.
-  `liner --version` reports the TUI version and the bundled Core version.
-- JavaScript-rendered web support is available through `liner setup-js`; the TUI prompts for it during first-run onboarding and from compile warnings when Chromium is missing.
+  x64. 1.2.0 is not shipped until publish succeeds.
+- JavaScript-rendered web support is available through `liner setup-js`. The
+  sources approval lists sources that need it, and the agent asks before
+  installing.
 - `liner uninstall` exists for clean local reinstall tests.
-- The curation skill exists, ships with the TUI package, and supports Claude or Codex as the local runner.
+- The skill bundle ships in the CLI and supports Claude Code or Codex.
 - Liner Core owns supported Project and Source maintenance through versioned
   Snapshots, Change Sets, exact-plan apply, retention-first removal, refresh
   gates, and durable Change Receipts.
-- The Go TUI exposes `Maintain project`, while optional Codex and Claude
-  Maintenance Adapters delegate to the installed CLI's current guidance.
+- Maintenance runs through `liner project` and `liner sources`, and optional Codex
+  and Claude Maintenance Adapters delegate to the installed CLI's current
+  guidance.
 - Project Skill, Maintenance Adapter, and inert `type: skill` Sources are
   separate surfaces with different authority.
-- The MCP server, hosted web builder, and public library are planned.
+- `liner mcp` serves liners to agents with no shell.
+- `liner test` records whether a liner improved an answer.
+- The hosted web builder and public library are planned.
 
 ## Where To Read Next
 
 - Root README: `README.md`
 - Curation methodology: `docs/curation-skill/CURATION.md`
 - Mixtape format: `docs/curation-skill/MIXTAPE-FORMAT.md`
-- Skill bundle: `docs/curation-skill/SKILL.md`
-- TUI docs: `packages/tui/README.md`
+- Curation skill: `src/liner/bundled/research/methodology/SKILL.md`
+- npm package and navigator docs: `packages/tui/README.md`
 - Platform binary packaging: `packages/tui/PLATFORM-BUNDLES.md`
 - Publish checklist: `packages/tui/PUBLISH-CHECKLIST.md`

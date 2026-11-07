@@ -1,7 +1,7 @@
 {
   "name": "linersh",
-  "version": "1.1.3",
-  "description": "Liner — npm shim, Go TUI launcher, and headless methodology runner.",
+  "version": "1.2.0",
+  "description": "Liner — npm launcher for the terminal navigator and Core CLI.",
   "type": "module",
   "license": "MIT",
   "author": "cmdux-sh",
@@ -17,10 +17,7 @@
     "liner": "bin/liner.js"
   },
   "files": [
-    "bin/liner.js",
-    "dist/",
-    "cli-update-docs/",
-    "maintenance-skill/"
+    "bin/liner.js"
   ],
   "scripts": {
     "build": "tsc",
@@ -31,8 +28,7 @@
     "dev:go": "node bin/liner.js",
     "predev:isolated": "node scripts/unhide-venv.mjs && npm run build:package",
     "dev:isolated": "node scripts/dev-isolated.mjs",
-    "smoke:runner-preferences": "node scripts/runner-preferences-smoke.mjs",
-    "prepack": "npm run release:check && node scripts/copy-skill-bundle.mjs && npm run build:package",
+    "prepack": "npm run release:check && npm run build:package",
     "release:check": "uv run python ../../scripts/release-version.py --check",
     "release:check:publish": "uv run python ../../scripts/release-version.py --check --check-registry --registry-package linersh",
     "prepublishOnly": "npm run release:check:publish && npm run typecheck && npm test && npm run build:package",
@@ -44,15 +40,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "yaml": "^2.6.1"
-  },
   "optionalDependencies": {
-    "linersh-darwin-arm64": "1.1.3",
-    "linersh-darwin-x64": "1.1.3",
-    "linersh-linux-arm64": "1.1.3",
-    "linersh-linux-x64": "1.1.3",
-    "linersh-win32-x64": "1.1.3"
+    "linersh-darwin-arm64": "1.2.0",
+    "linersh-darwin-x64": "1.2.0",
+    "linersh-linux-arm64": "1.2.0",
+    "linersh-linux-x64": "1.2.0",
+    "linersh-win32-x64": "1.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-SourceType = Literal["youtube", "web", "local_file", "skill"]
+SourceType = Literal["youtube", "web", "local_file", "skill", "repository", "liner"]
 Priority = Literal["required", "optional"]
 Mode = Literal["quick", "methodology"]
 Render = Literal["server", "js"]

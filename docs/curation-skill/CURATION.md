@@ -12,7 +12,7 @@ This document is platform-agnostic. It describes *how to curate well*, not how a
 
 The methodology has two intended audiences:
 
-- **Tools running the methodology automatically** — like the Liner skill, which encodes this document as instructions for an AI executing the lifecycle on a curator's behalf.
+- **Tools running the methodology automatically** — like Liner, whose `liner research` steps hand this document to a coding agent as instructions, one step at a time, on the curator's behalf.
 - **Curators practicing the methodology themselves** — building library-quality mixtapes by engaging substantively at each step.
 
 Most users will be in the first group. Their tool runs the methodology for them; they confirm or lightly edit. The second group is the minority that produces the best mixtapes — including everything in the Liner library. This document serves both.
@@ -41,17 +41,17 @@ A mixtape stuffed with motivational talks will produce worse AI output than a mi
 
 Every mixtape moves through the same phases. The phases are ordered because each one's output is the next one's input. Skipping phases or running them out of order produces lower-quality mixtapes — even if the result looks complete.
 
+In Liner, `liner research` runs these phases as twelve steps: Clarify Job, framing, candidates, evaluation (which includes fetching), quality, synthesis, approve the synthesis, assembly, approve the source list, build, approve the instructions, and finish. The person answers Clarify Job and gives the three approvals in chat. The agent does the rest, and Liner checks each step.
+
 ### Phase 1 — Framing
 
 Define the reusable capability. Not the topic. The *specific thing a future AI agent should be able to do*.
 
-The user-facing prompt is:
+In Liner, the agent first asks, in plain words, what one job the liner should help with. It asks this as an open question, not a list of options.
 
-> What do you want this Liner to help your AI agent do?
+The user may answer in normal language. They do not need to provide source categories, research lanes, or a formal Job Story. Clarify Job then asks three or four targeted questions specific to this capability, such as what future sessions should produce, the narrow situation where the resource should be excellent, and the boundaries the agent must respect. It waits for the answers. Liner's job is to infer the rest from the desired capability and then create a source-grounded resource that future AI sessions can load.
 
-The user may answer in normal language. They do not need to provide source categories, research lanes, or a formal Job Story. Liner's job is to infer those from the desired capability, ask a few targeted follow-up questions only when the capability is under-specified, and then create a source-grounded resource that future AI sessions can load.
-
-Liner still derives an internal job-to-be-done because the downstream phases need a testable target. A Job Story is one useful internal shape: **"When [circumstance], I want [motivation], so I can [outcome]."** The user should not have to know or write this format. The AI may translate the capability into a Job Story silently, then expose the plain-language intent and research plan for review.
+Liner still derives an internal job-to-be-done because the downstream phases need a testable target. A Job Story is one useful internal shape: **"When [circumstance], I want [motivation], so I can [outcome]."** The user should not have to know or write this format. The agent writes the user's answer as a Job Story and starts the liner with it.
 
 "Mobile design" is a topic. It is too vague to curate against. Three Job Stories in that same topic produce three different mixtapes:
 
@@ -109,6 +109,8 @@ Two things matter here. First, fetching is part of research, not a tail step. A 
 
 After fetching, every candidate has either readable content available for evaluation or an explicit failure state. Search snippets, titles, and URLs are not source evidence.
 
+In Liner, fetching happens inside the evaluation step. The agent saves each page with `liner fetch`, which writes the text to a file so untrusted page content stays out of the agent's session.
+
 ### Phase 4 — Evaluation
 
 Read the fetched content and rate each candidate against the Capability Brief and internal JTBD. This is where keep/trim/drop decisions actually happen. Kept and trimmed sources must include `fetch_status`, `content_quality`, and at least two content-specific evidence bullets so the corpus can prove the decision came from content, not just URL plausibility.
@@ -161,11 +163,13 @@ The synthesis lives at the top of the compiled mixtape. It's the first thing the
 
 Length: 800–2000 words is typical. Shorter for narrow topics; longer for broader ones.
 
-The synthesis is required, not optional. In automated curation, the AI drafts it. In methodology-mode curation, the curator writes or substantially edits it. Either way, every mixtape has one.
+The synthesis is required, not optional. In automated curation, the AI drafts it. In methodology-mode curation, the curator writes or substantially edits it. Either way, every mixtape has one. In Liner, the agent drafts it in the synthesis step, and the person reviews and approves it before assembly.
 
 ### Phase 7 — Final assembly
 
-Compile the mixtape. The compile step:
+Draft the final source list and order it. In Liner, the agent writes the draft to `working/07-tape-draft.yaml`, and the person approves the source list before anything is compiled.
+
+Then compile the mixtape. The compile step, Liner's build step:
 
 - Reads the recipe and the synthesis
 - Reads cached source content for every kept source
@@ -174,19 +178,22 @@ Compile the mixtape. The compile step:
 
 The output is a self-contained mixtape folder ready to share, publish, or paste into an AI conversation.
 
+In Liner, the agent then drafts the liner's instructions, `LINER.md` and `SKILL.md`. The person approves them, and the finish step writes them with `liner.yaml`.
+
 ### Phase 8 — Empirical test (optional but recommended)
 
 Theory aside — here's how to know if the mixtape is actually working:
 
-1. Compile the mixtape
-2. Paste it into an AI conversation as context
-3. Ask the AI to do something the mixtape's capability should support
-4. Ask the same question without the mixtape in a separate conversation
-5. Compare the answers honestly
+1. Take a real question the mixtape's capability should support
+2. Write one answer without the mixtape
+3. Write one answer using the mixtape
+4. Compare the answers honestly, ideally without knowing which is which
+
+In Liner, `liner test start` saves the two answers as unlabeled A and B in random order, and `liner test judge` records which one the person preferred. `liner test add` records a comparison judged with the labels showing. `liner catalog` shows the results. The person always makes the call, never the agent.
 
 If the answer with the mixtape is meaningfully better — more specific, more correct, more nuanced, less generic — the mixtape is working. If the answers are similar, the mixtape isn't earning its place. Either the sources are too generic, the synthesis isn't doing enough work, or the capability is too broad.
 
-This empirical check is required for library contributions. Run it. Document the result.
+This empirical check is required for library contributions. Run it. Record the result with `liner test`.
 
 ---
 
@@ -232,7 +239,7 @@ The methodology supports two intensities of engagement.
 
 Both modes use the same lifecycle and produce the same artifact shape. They differ in how much human judgment shows up in the working notes and the synthesis. Quick mode mixtapes can be upgraded to methodology mode by going back and doing the substantive work; methodology mode mixtapes can be produced in one pass by curators who already know the domain.
 
-The default is quick mode because that's what most users want. Methodology mode is the path for serious curation work, including all library contributions.
+Methodology mode is the path for serious curation work, including all library contributions. In Liner, a liner started with `liner research start` is labeled methodology mode, and a `liner init` starter tape is labeled quick. The label records intent; it doesn't change how Liner builds.
 
 ---
 

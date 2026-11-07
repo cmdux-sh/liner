@@ -1,6 +1,6 @@
 # JTBD Master Prompt
 
-A drop-in prompt that interviews a Liner user and emits one tight, hyper-specific Job Story — the kind that belongs in the `jtbd:` field of a `tape.yaml`. Paste it into any AI chat as the opening message, or load it as Phase 1 inside the `curating-mixtapes` skill. Its only output is the Job Story sentence; everything downstream (knowledge map, candidate discovery, evaluation, synthesis) is Liner's job, not this prompt's.
+A drop-in prompt that interviews a Liner user and emits one tight, hyper-specific Job Story — the kind that belongs in the `jtbd:` field of a `tape.yaml`. Paste it into any AI chat as the opening message. `liner research` doesn't use it; its Clarify Job step has its own prompt in `src/liner/bundled/research/clarify.md`. Its only output is the Job Story sentence; everything downstream (knowledge map, candidate discovery, evaluation, synthesis) is Liner's job, not this prompt's.
 
 ---
 
@@ -132,11 +132,9 @@ The prompt's first move is always the same — ask the user whether they have pr
 
 **Pure chat (Claude.ai, ChatGPT, Cowork web).** Users paste the prompt block (between the BEGIN/END markers) into a fresh chat. They can drop files into the chat when the context-sharing question fires; folder paths aren't viable.
 
-**Agent with filesystem access (Claude Code, Cowork desktop, Codex, the Liner TUI as a subprocess).** Both file attachments and folder paths work. If the user gives a path, the agent reads from disk.
+**Agent with filesystem access (Claude Code, Cowork desktop, Codex).** Both file attachments and folder paths work. If the user gives a path, the agent reads from disk.
 
-**Inside the `curating-mixtapes` skill.** Drop the prompt block into `docs/curation-skill/SKILL.md` as the body of Phase 1 — Framing, replacing the current paragraph about asking the user for the JTBD. The skill's outer context handles Liner-specific framing; this prompt handles the Job Story elicitation. The skill runs in environments with full filesystem access.
-
-**Inside the TUI as a dedicated subprocess.** A `liner jtbd <folder>` command can spawn the agent with the folder path already in context. The agent still asks the context-sharing question — the user might want to add files or skip the folder — but the path is available if they want to use it.
+**With `liner research`.** A job story written with this prompt can be passed to `liner research start "<job story>"`. Clarify Job then asks its own few questions before framing begins.
 
 ## Where it can still go wrong
 

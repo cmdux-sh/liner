@@ -10,7 +10,15 @@ documentation, and agent-facing planning.
 The durable working folder and primary management object in Liner. It contains
 the corpus artifact plus project instructions, a default Project Skill, status,
 and composition records.
-_Avoid_: Mixtape project, archive, advisor, knowledge bot
+A **liner** is the everyday name for one Liner Project; use it in agent-facing
+text and suggestions, and keep "Liner Project" in specifications and code.
+_Avoid_: Mixtape project, archive, advisor, knowledge bot, expert
+
+**Liner Skill**:
+The optional agent skill that lists a person's usable liners so an agent can
+suggest one. It suggests and never loads a liner without asking, and it is
+separate from the Maintenance Adapter and from each liner's Project Skill.
+_Avoid_: router agent, advisor
 
 **Mixtape**:
 The curated corpus artifact inside a Liner Project. It is the source-backed

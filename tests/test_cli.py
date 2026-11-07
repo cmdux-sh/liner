@@ -74,29 +74,6 @@ def test_init_accepts_metadata_flags(tmp_path: Path) -> None:
     assert "TODO — a single specific Job Story" not in working
 
 
-def test_init_tui_construction_creates_one_shot_empty_assembly_boundary(tmp_path: Path) -> None:
-    target = tmp_path / "tui-construction"
-    result = runner.invoke(
-        app,
-        [
-            "init",
-            str(target),
-            "--title",
-            "TUI Construction",
-            "--jtbd",
-            "When assembling, I want a guarded first run, so identities stay safe.",
-            "--curator",
-            "Arturo",
-            "--tui-construction",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    project = ProjectFolder(target)
-    assert len(load_tape(project.tape_path).sources) == 0
-    assert (project.working_dir / ".liner-initial-assembly").is_file()
-
-
 def test_init_rejects_invalid_mode_before_scaffolding(tmp_path: Path) -> None:
     target = tmp_path / "demo"
 

@@ -12,15 +12,16 @@ excluded from the public repository.
 - [Liner Master Overview](curation-skill/LINER-MASTER.md)
 - [AI Maintainer Orientation](curation-skill/AI-HANDOFF.md)
 - [Terminal Tooling Design Framework](tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md)
-- [Go TUI Screen Patterns](tui/GO_TUI_SCREEN_PATTERNS.md)
-- [Automated TUI Visual Acceptance And Repair](tui/AUTOMATED_VISUAL_ACCEPTANCE.md)
+- [Terminal Navigator Plan](project/TUI-NAVIGATOR-PLAN.md)
 - [Curation Methodology](curation-skill/CURATION.md)
 - [Mixtape Format](curation-skill/MIXTAPE-FORMAT.md)
 
-These are the current source-of-truth docs for the 1.1 source tree. Version
-`1.1.0` is still a release candidate until publish succeeds. The current
-Operating Layer flow writes `LINER.md`, root `SKILL.md`, and `liner.yaml`; it
-does not show extra review screens or a separate Project Skill choice.
+These are the current source-of-truth docs for the 1.2 source tree. Version
+`1.2.0` is unreleased; `1.1.3` is the latest published version. Your coding
+agent builds a liner through `liner research` steps, and you approve the
+synthesis, the sources, and the instructions in chat. After the last approval,
+`liner research` writes `LINER.md`, root `SKILL.md`, and `liner.yaml`. The
+terminal app is a read-only navigator for your library.
 
 Supported post-creation Project and Source maintenance goes through Liner Core's
 versioned Snapshot, Change Set, apply, and Change Receipt contract. The curation
@@ -30,8 +31,8 @@ reference and task guide live under `marketing/site/src/content/docs/docs/`.
 
 ## Folders
 
-- `curation-skill/`: tracked source for the methodology bundle copied into the
-  npm package during `prepack`; edits here affect the shipped skill bundle.
+- `curation-skill/`: background on the methodology. The files agents read while
+  researching live in `src/liner/bundled/research/methodology/`.
 - `examples/`: small committed example projects and fixtures.
 - `project/`: product language, design system, and changelog.
 - `tui/`: current Go TUI design references.

@@ -1,36 +1,34 @@
 ---
 title: Install
-description: Start Liner with npx or install the CLI and terminal UI globally with npm.
+description: Start Liner with npx or install the CLI and navigator globally with npm.
 ---
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 
-You need Node.js 18 or newer. The `linersh` npm package includes the terminal UI and a matching CLI binary, so normal use needs no Python installation.
+You need Node.js 18 or newer. The `linersh` npm package includes the navigator and a matching CLI binary, so normal use needs no Python installation.
 
-## Open the terminal UI
+## Open the navigator
 
 <CommandSnippet command="npx linersh" />
 
-For AI-assisted research, install and authenticate Codex CLI or Claude Code first. The research runner uses that account's usage limits or charges and processes the material it reads under your provider's terms. Follow first-run setup to choose the runner and a local Project workspace, then create a Project for one focused task. The optional Maintenance Adapter described below is a separate feature for updating existing Projects.
-
-Compile and instruction-file creation run locally without new model calls.
+Your agent does the research, so install and authenticate Claude Code or Codex first. The app can connect it on first run. Research uses that account's usage limits or charges and processes the material it reads under your provider's terms. The optional Maintenance Adapter described below is a separate feature for updating existing Projects.
 
 Check the package version with the same one-shot form.
 
 <CommandSnippet command="npx --yes linersh@latest --version" />
 
-Continue with [Build a Project](/docs/build-a-mixtape/).
+Continue with [Build a Project](/docs/build-a-mixtape/), or [connect your agent](/docs/library/) to work from Claude Code, Codex, or an MCP client.
 
 ## Install globally
 
 <CommandSnippet command={`npm install -g linersh
 liner`} />
 
-Running `liner` with no arguments opens the terminal UI. A subcommand runs the bundled CLI operation. For one-shot use, replace `liner <command>` with `npx --yes linersh@latest <command>`.
+Running `liner` with no arguments opens the navigator. A subcommand runs the bundled CLI operation. For one-shot use, replace `liner <command>` with `npx --yes linersh@latest <command>`.
 
 ## Platform support
 
-Version `1.1.3` supports these native npm platform packages. The main `linersh` package declares them as optional dependencies, and npm selects the matching OS and CPU package during install.
+Version `1.2.0` supports these native npm platform packages. The main `linersh` package declares them as optional dependencies, and npm selects the matching OS and CPU package during install.
 
 | System | npm platform package |
 | --- | --- |
@@ -40,7 +38,7 @@ Version `1.1.3` supports these native npm platform packages. The main `linersh` 
 | Linux x64 | `linersh-linux-x64` |
 | Windows x64 | `linersh-win32-x64` |
 
-Each platform package contains the native Go TUI and bundled CLI core for that system. Install the main `linersh` package and let npm select the platform package.
+Each platform package contains the native navigator and bundled CLI core for that system. Install the main `linersh` package and let npm select the platform package.
 
 Node.js 18 or newer is required.
 
@@ -56,7 +54,7 @@ For a global install, run this command.
 
 <CommandSnippet command="liner setup-js" />
 
-The browser download is about 100 MB and takes about 220 MB on disk. You can run setup again when needed. The terminal UI also offers setup when compile encounters a page that requires it.
+The browser download is about 100 MB and takes about 220 MB on disk. You can run setup again when needed.
 
 ## Optional agent maintenance
 

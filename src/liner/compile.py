@@ -17,12 +17,13 @@ from liner.handlers.base import (
     SourceHandler,
 )
 from liner.handlers.html_extraction import (
+    EXTRACTOR_VERSION,
     MIN_USEFUL_BODY_CHARS,
     looks_like_cookie_notice_only,
     sanitize_source_title,
 )
 from liner.maintenance import inspect_project, publish_compiled_refresh
-from liner.output.mixtape import write_mixtape, written_source_paths
+from liner.output.mixtape import TRUNCATION_MARKER, write_mixtape, written_source_paths
 from liner.project import ProjectFolder, ensure_compile_review_approved, mark_corpus_ready
 from liner.tape import load_tape
 from liner.types import (
@@ -37,6 +38,10 @@ from liner.types import (
 
 class MissingSynthesisError(FileNotFoundError):
     """Raised when `liner compile` runs against a folder without synthesis.md."""
+
+
+class IncompleteCompileError(RuntimeError):
+    """Raised before writing when a build needs every source and one failed."""
 
 
 def _content_from_agent_fetch(spec: SourceSpec, fetch: AgentFetch) -> SourceContent:
@@ -90,6 +95,7 @@ def compile_tape(
     results: list[CompiledSource] = []
     warnings: list[CompileWarning] = []
     summary_cache: dict[str, AgentFetch] = agent_fetch_cache or {}
+    outdated: dict[str, SourceContent] = {}
 
     def try_summary_fallback(spec: SourceSpec, identifier: str, original_error: str) -> bool:
         """Last-ditch recovery: if the agent fetched this URL during research,
@@ -97,6 +103,22 @@ def compile_tape(
         success/failure to results+warnings; returns True if recovered."""
         if not spec.url:
             return False
+        older = outdated.pop(spec.url, None)
+        if older is not None:  # Better the copy an older extractor saved than nothing.
+            warnings.append(
+                CompileWarning(
+                    url=identifier,
+                    message=(
+                        f"fetch failed for {identifier} ({original_error}); used the copy "
+                        f"saved on {older.fetched_at[:10]} by an older extractor"
+                    ),
+                )
+            )
+            content = _maybe_truncate(_sanitize_source_metadata(spec, older), max_transcript_length)
+            item = CompiledSource(spec=spec, content=content, cached=True)
+            results.append(item)
+            reporter.on_source_done(item)
+            return True
         fetch = summary_cache.get(spec.url)
         if fetch is None:
             return False
@@ -121,13 +143,18 @@ def compile_tape(
         handler_key = _handler_key(spec)
         # local_file and skill sources are local/snapshot-by-definition and the file content may
         # change underneath us; bypass cache lookup and persist entirely.
-        cacheable = spec.type not in {"local_file", "skill"}
+        cacheable = spec.type not in {"local_file", "skill", "liner"}
         identifier = _source_identifier(spec)
 
         cached_content: SourceContent | None = None
         if cacheable and cache is not None and not no_cache:
             cached_content = cache.get(spec.url)
-            if cached_content is not None and not _cached_content_is_usable(spec, cached_content):
+            if cached_content is not None and is_outdated_extraction(cached_content):
+                current = {**cached_content.metadata, "extractor_version": EXTRACTOR_VERSION}
+                if content_is_usable(spec, replace(cached_content, metadata=current)):
+                    outdated[spec.url] = cached_content  # Kept in case the refetch fails.
+                cached_content = None
+            elif cached_content is not None and not content_is_usable(spec, cached_content):
                 cache.purge(spec.url)
                 cached_content = None
 
@@ -268,11 +295,13 @@ def compile_project(
     max_transcript_length: int | None = None,
     no_cache: bool = False,
     progress: ProgressReporter | None = None,
+    require_all_sources: bool = False,
 ) -> CompileResult:
     """Compile a project folder in-place: write MIXTAPE.md and sources/NN-slug.md.
 
     Requires `tape.yaml` and `synthesis.md` to exist in the folder. Raises
-    `MissingSynthesisError` if `synthesis.md` is absent.
+    `MissingSynthesisError` if `synthesis.md` is absent. With `require_all_sources`,
+    raises `IncompleteCompileError` instead of writing a corpus with sources missing.
     """
     if not project.tape_path.exists():
         raise FileNotFoundError(f"No tape.yaml found in {project.path}. Run `liner init` first.")
@@ -286,6 +315,84 @@ def compile_project(
 
     tape = load_tape(project.tape_path)
 
+    effective_handlers = _project_handlers(project, tape, handlers, config)
+    # Build a URL → agent-WebFetch map from this folder's .liner-runs/. Cheap
+    # (single JSONL walk over typically <10 runs). Used as a last-ditch
+    # fallback when handlers can't reach a URL — e.g. aggressive bot wall.
+    summary_cache = build_agent_fetch_cache(project.path)
+
+    try:
+        result = compile_tape(
+            tape,
+            cache=cache,
+            handlers=effective_handlers,
+            config=config,
+            include_sections=include_sections,
+            exclude_sections=exclude_sections,
+            skip_optional=skip_optional,
+            max_transcript_length=max_transcript_length,
+            no_cache=no_cache,
+            progress=progress,
+            agent_fetch_cache=summary_cache,
+        )
+    finally:
+        _close_injected_handlers(effective_handlers, handlers)
+
+    failed = [warning for warning in result.warnings if warning.severity == "error"]
+    if require_all_sources and failed:
+        details = "\n".join(f"- {warning.url}: {warning.message}" for warning in failed)
+        raise IncompleteCompileError(
+            f"{len(failed)} of {result.total_attempted} sources didn't compile, so nothing was "
+            f"written. Fix or replace them, then submit again.\n{details}"
+        )
+
+    refresh = before.lifecycle.get("refresh")
+    if isinstance(refresh, dict) and refresh.get("state") == "required":
+        publish_compiled_refresh(
+            project.path,
+            result,
+            expected_revision=before.revision,
+            expected_content_hash=before.content_hash,
+        )
+    else:
+        write_mixtape(project, result)
+        mark_corpus_ready(project)
+    return result
+
+
+def refetch_sources(
+    project: ProjectFolder,
+    tape: Tape,
+    *,
+    handlers: dict[str, SourceHandler],
+    config: Config,
+    progress: ProgressReporter | None = None,
+) -> CompileResult:
+    """Fetch a tape's sources live and write nothing.
+
+    Skips the cache and research summaries, because the caller needs what the
+    source says today.
+    """
+    effective_handlers = _project_handlers(project, tape, handlers, config)
+    try:
+        return compile_tape(
+            tape,
+            cache=None,
+            handlers=effective_handlers,
+            config=config,
+            no_cache=True,
+            progress=progress,
+        )
+    finally:
+        _close_injected_handlers(effective_handlers, handlers)
+
+
+def _project_handlers(
+    project: ProjectFolder,
+    tape: Tape,
+    handlers: dict[str, SourceHandler],
+    config: Config,
+) -> dict[str, SourceHandler]:
     # Inject the local_file handler — it needs the project folder to resolve paths.
     # Caller's handlers dict may already have one; only set if absent.
     effective_handlers = dict(handlers)
@@ -293,6 +400,18 @@ def compile_project(
         from liner.handlers.local_file import LocalFileHandler
 
         effective_handlers["local_file"] = LocalFileHandler(project)
+
+    if any(s.type == "liner" for s in tape.sources) and "liner" not in effective_handlers:
+        from liner.handlers.liner import LinerHandler
+
+        effective_handlers["liner"] = LinerHandler(project)
+
+    if any(s.type == "repository" for s in tape.sources) and (
+        "repository" not in effective_handlers
+    ):
+        from liner.handlers.repository import RepositoryHandler
+
+        effective_handlers["repository"] = RepositoryHandler()
 
     if any(s.type == "skill" for s in tape.sources) and "skill" not in effective_handlers:
         from liner.handlers.skill import SkillHandler
@@ -316,48 +435,18 @@ def compile_project(
 
             effective_handlers["web_js"] = WebJsHandler(config.fetch)
 
-    # Track handlers we injected so we can close them — handlers the caller
-    # passed in are the caller's lifecycle to manage.
-    injected_keys = set(effective_handlers) - set(handlers)
-    # Build a URL → agent-WebFetch map from this folder's .liner-runs/. Cheap
-    # (single JSONL walk over typically <10 runs). Used as a last-ditch
-    # fallback when handlers can't reach a URL — e.g. aggressive bot wall.
-    summary_cache = build_agent_fetch_cache(project.path)
+    return effective_handlers
 
-    try:
-        result = compile_tape(
-            tape,
-            cache=cache,
-            handlers=effective_handlers,
-            config=config,
-            include_sections=include_sections,
-            exclude_sections=exclude_sections,
-            skip_optional=skip_optional,
-            max_transcript_length=max_transcript_length,
-            no_cache=no_cache,
-            progress=progress,
-            agent_fetch_cache=summary_cache,
-        )
-    finally:
-        for key in injected_keys:
-            handler = effective_handlers.get(key)
-            close = getattr(handler, "close", None)
-            if callable(close):
-                with contextlib.suppress(Exception):
-                    close()
 
-    refresh = before.lifecycle.get("refresh")
-    if isinstance(refresh, dict) and refresh.get("state") == "required":
-        publish_compiled_refresh(
-            project.path,
-            result,
-            expected_revision=before.revision,
-            expected_content_hash=before.content_hash,
-        )
-    else:
-        write_mixtape(project, result)
-        mark_corpus_ready(project)
-    return result
+def _close_injected_handlers(
+    effective_handlers: dict[str, SourceHandler], handlers: dict[str, SourceHandler]
+) -> None:
+    # Handlers the caller passed in are the caller's lifecycle to manage.
+    for key in set(effective_handlers) - set(handlers):
+        close = getattr(effective_handlers[key], "close", None)
+        if callable(close):
+            with contextlib.suppress(Exception):
+                close()
 
 
 def project_written_paths(project: ProjectFolder, result: CompileResult) -> dict[str, object]:
@@ -413,7 +502,21 @@ def _filter_sources(
     return out
 
 
-def _cached_content_is_usable(spec: SourceSpec, content: SourceContent) -> bool:
+_HTML_EXTRACTIONS = {"trafilatura", "soft-fallback", "playwright", "playwright-fallback"}
+
+
+def is_outdated_extraction(content: SourceContent) -> bool:
+    """Whether a web page was saved by an older extractor, which a refetch could improve."""
+    if str(content.metadata.get("extraction", "")) not in _HTML_EXTRACTIONS:
+        return False
+    try:
+        version = int(content.metadata.get("extractor_version", 1))
+    except (TypeError, ValueError):
+        version = 1
+    return version < EXTRACTOR_VERSION
+
+
+def content_is_usable(spec: SourceSpec, content: SourceContent) -> bool:
     if spec.type != "web":
         return True
 
@@ -424,6 +527,8 @@ def _cached_content_is_usable(spec: SourceSpec, content: SourceContent) -> bool:
         return False
 
     extraction = str(content.metadata.get("extraction", ""))
+    if is_outdated_extraction(content):
+        return False  # Saved by an older extractor that may have cut the page short.
     path = urlparse(spec.url or content.url).path.lower()
     if path.endswith(".pdf") and extraction != "remote_pdf":
         return False
@@ -462,5 +567,5 @@ def _sanitize_source_metadata(spec: SourceSpec, content: SourceContent) -> Sourc
 def _maybe_truncate(content: SourceContent, max_chars: int | None) -> SourceContent:
     if max_chars is None or len(content.body) <= max_chars:
         return content
-    truncated = content.body[:max_chars].rstrip() + "\n\n[…truncated]"
+    truncated = content.body[:max_chars].rstrip() + "\n\n" + TRUNCATION_MARKER
     return replace(content, body=truncated)

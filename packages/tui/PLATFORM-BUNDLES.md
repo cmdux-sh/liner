@@ -15,12 +15,12 @@ The `linersh` npm package resolves native binaries from optional platform packag
 Each package contains:
 
 - a PyInstaller build of the CLI at package root as `liner` or `liner.exe`
-- a Go TUI build at package root as `liner-tui` or `liner-tui.exe`
+- a navigator build at package root as `liner-tui` or `liner-tui.exe`
 - PyInstaller's `_internal/` directory beside the Python CLI executable
 
 ## Version Rule
 
-Python or Go TUI changes should ship through all five platform packages at the
+Python or navigator changes should ship through all five platform packages at the
 same version as `packages/tui/package.json`, followed by the main `linersh`
 package.
 
@@ -41,7 +41,7 @@ The script:
 
 1. Runs PyInstaller through `uv` with Python 3.11 and the `binary` optional dependency group.
 2. Builds a one-directory CLI bundle that includes the Python `playwright` package.
-3. Builds the Go TUI binary for the current platform.
+3. Builds the navigator binary for the current platform.
 4. Writes `packages/platform/linersh-<platform>-<arch>/package.json`.
 5. Runs smoke checks:
    - `liner --version`
@@ -70,7 +70,7 @@ This installs the local `packages/tui` package and the generated platform
 package into a temporary npm project, then verifies:
 
 - `liner --version` resolves through the npm shim to the platform binary.
-- `liner` with no args resolves the Go TUI from the platform package.
+- `liner` with no args resolves the navigator from the platform package.
 - `LINER_BIN=/bin/echo liner setup-js` still honors the debugging override.
 
 ## Public GitHub Actions Artifacts

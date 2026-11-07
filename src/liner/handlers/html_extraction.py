@@ -11,6 +11,13 @@ from html.parser import HTMLParser
 import trafilatura
 
 MIN_USEFUL_BODY_CHARS = 100
+# Bump when extraction gets better at a kind of page, so cached pages saved by the
+# older extractor are fetched again instead of served. 2: pages trafilatura cut short
+# are read again in recall mode (2026-11-05). 3: table cells holding only an icon keep
+# its label, such as Apple's check marks (2026-11-06). 4: when recall mode stops short
+# too, the fallbacks are tried alone, which reads Apple's product page guide (2026-11-06).
+# 5: a page that needs a browser is read from its declared Markdown copy (2026-11-06).
+EXTRACTOR_VERSION = 5
 
 # Phrases indicating server-rendered HTML is just a noscript fallback for a
 # JavaScript-only app. Surfacing this as the source body misleads the AI.
@@ -183,6 +190,9 @@ class HtmlExtraction:
 def extract_html_text(html: str) -> HtmlExtraction:
     """Run trafilatura against `html` and pull metadata + crude fallback text."""
     extraction_error: str | None = None
+    labeled = _label_icon_cells(html)
+    icon_tables = labeled != html  # Its tables hold marks that only a table read keeps.
+    html = labeled
     try:
         body = trafilatura.extract(
             html,
@@ -194,6 +204,14 @@ def extract_html_text(html: str) -> HtmlExtraction:
     except Exception as e:
         body = None
         extraction_error = f"{type(e).__name__}: {e}"
+    if body and _keeps_too_little(body, html):
+        recalled = _read_again(html)
+        if recalled is not None and len(recalled.split()) > 2 * len(body.split()):
+            body = recalled
+    elif body and icon_tables:
+        recalled = _recall_extract(html)
+        if recalled is not None and len(recalled.split()) >= len(body.split()):
+            body = recalled
 
     title: str | None = None
     extracted_title: str | None = None
@@ -258,6 +276,108 @@ class _DeclaredMetadataParser(HTMLParser):
             if values:
                 return values[0]
         return None
+
+
+# Article pages keep two thirds or more of their visible words. A page that keeps
+# under a quarter, such as Apple's App Review Guidelines (1%), lost its body to the
+# precise extractor, so try again favoring recall.
+_MIN_KEPT_SHARE = 0.25
+_MIN_PAGE_WORDS_FOR_RETRY = 300
+_CHROME_TAGS = ("script", "style", "noscript", "svg", "template", "nav", "header", "footer")
+
+
+_CELL = re.compile(r"<(td|th)\b([^>]*)>(.*?)</\1\s*>", re.IGNORECASE | re.DOTALL)
+_LABEL = re.compile(r"""\b(?:alt|aria-label|title)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
+
+
+def _label_icon_cells(html: str) -> str:
+    """Give a table cell that holds only an icon its label, so a check mark isn't lost.
+
+    Apple's property tables mark each cell with an empty `<figure alt="Localized">`,
+    which extraction would drop as an empty cell.
+    """
+    lowered = html.lower()
+    if "<td" not in lowered and "<th" not in lowered:
+        return html
+
+    def label(match: re.Match[str]) -> str:
+        tag, attributes, inner = match.groups()
+        if "<td" in inner.lower() or re.sub(r"<[^>]*>|&nbsp;|\s", "", inner):
+            return match.group(0)
+        labels = [unescape(a or b).strip() for a, b in _LABEL.findall(inner)]
+        labels = [text for text in labels if text]
+        if not labels:
+            return match.group(0)
+        text = ", ".join(dict.fromkeys(labels)).replace("&", "&amp;").replace("<", "&lt;")
+        return f"<{tag}{attributes}>{text}</{tag}>"
+
+    return _CELL.sub(label, html)
+
+
+def _keeps_too_little(body: str, html: str) -> bool:
+    # A stub, cookie wall, or bot check is a short body on purpose: the fetch handlers
+    # detect those from it, so a retry must not replace it with the page's chrome.
+    if looks_like_js_stub(body) or looks_like_cookie_notice_only(body):
+        return False
+    if looks_like_bot_challenge(body):
+        return False
+    # Most article pages are well over a tenth text, so skip the page count for them.
+    if len(body) * 10 >= len(html):
+        return False
+    page_words = _visible_word_count(html)
+    return (
+        page_words >= _MIN_PAGE_WORDS_FOR_RETRY and len(body.split()) < _MIN_KEPT_SHARE * page_words
+    )
+
+
+def _visible_word_count(html: str) -> int:
+    """Words a reader sees, without navigation, headers, footers, or code."""
+    text = re.sub(r"<!--.*?-->", " ", html, flags=re.DOTALL)
+    for tag in _CHROME_TAGS:
+        text = re.sub(rf"<{tag}\b[^>]*>.*?</{tag}\s*>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    return len(re.sub(r"<[^>]+>", " ", text).split())
+
+
+def _recall_extract(html: str) -> str | None:
+    """A looser extraction for a page whose precise extract kept too little.
+
+    It keeps trafilatura's fallback extractors and tables on purpose: Apple's
+    guidelines need the fallbacks, and its field reference is a table.
+    """
+    return _extract_with_fallbacks(html, favor_recall=True)
+
+
+def _read_again(html: str) -> str | None:
+    """Recall mode, then the fallbacks alone if recall also stopped short.
+
+    Recall mode can stop at a page's intro, as on Apple's product page guide, while
+    the fallbacks without it read the whole page. They can also pick up more page
+    chrome, so they're used only when the recall read still keeps too little.
+    """
+    recalled = _recall_extract(html)
+    if recalled is not None and not _keeps_too_little(recalled, html):
+        return recalled
+    other = _extract_with_fallbacks(html, favor_recall=False)
+    if other is not None and (recalled is None or len(other.split()) > len(recalled.split())):
+        return other
+    return recalled
+
+
+def _extract_with_fallbacks(html: str, *, favor_recall: bool) -> str | None:
+    try:
+        text = trafilatura.extract(
+            html,
+            output_format="txt",
+            include_comments=False,
+            include_tables=True,
+            favor_recall=favor_recall,
+        )
+    except Exception:
+        return None
+    if not text:
+        return None
+    lines = (" ".join(line.split()) for line in text.splitlines())
+    return "\n".join(line for line in lines if line) or None
 
 
 def _declared_metadata(html: str) -> _DeclaredMetadataParser:

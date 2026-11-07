@@ -1,4 +1,4 @@
-# Isolated development and runner preferences
+# Isolated development
 
 Use the isolated development launch when testing Liner from this repository:
 
@@ -6,7 +6,7 @@ Use the isolated development launch when testing Liner from this repository:
 npm --prefix packages/tui run dev:isolated
 ```
 
-The command builds the current TypeScript runner and Go TUI, creates one
+The command builds the navigator, creates one
 temporary root, prints every writable Liner path, and launches the normal npm
 shim. The temporary root contains:
 
@@ -23,7 +23,7 @@ creation and writable runtime state cannot fall through to the normal user
 profile. Ambient provider credential variables are removed.
 That includes alternate cloud-backend selectors and AWS, Azure, and Google
 credential variables. Ambient `LINER_*` overrides are also removed; the launch
-pins the freshly built repository headless runner and lets the local shim
+lets the local shim
 resolve the repository Core.
 
 ## Optional authenticated runtime profiles
@@ -48,69 +48,11 @@ must not already exist. Liner creates and marks the root itself, refuses
 pre-existing contents and managed-path symlinks, and only then advertises the
 recursive cleanup command.
 
-## Automated clean-room proof
-
-Run the offline product smoke with:
-
-```sh
-npm --prefix packages/tui run smoke:runner-preferences
-```
-
-It builds the local package, launches the real npm shim and Go TUI inside a
-temporary root, and then drives the real Settings model, Clarify Job launcher,
-and TypeScript methodology bridge with fake Codex CLI and Claude Code
-executables. It verifies independent OpenAI and Claude model preferences,
-OpenAI and Claude Thinking effort, restart persistence, native runtime arguments and
-configuration-home environment, run logs, generated artifacts, and filesystem
-containment. The build and smoke-test compile enforce `GOPROXY=off`; the run
-requires no credentials and makes no provider or network calls.
-Before/after metadata checks prove the normal Liner config and Project library
-were not created or modified. Evidence is retained under the printed root.
-
-This is distinct from the installed-package release smoke:
+## Installed-package release smoke
 
 ```sh
 npm --prefix packages/tui run acceptance:go -- release-smoke
 ```
 
-The release smoke packs and installs a clean consumer package. The runner
-preferences smoke proves repository development isolation and AI invocation
-behavior.
-
-## Provider preference contract
-
-OpenAI is the provider and Codex CLI is its runtime. Claude is the provider and
-Claude Code is its runtime. Backward-compatible configuration keys continue to
-use the internal runtime identifiers:
-
-```yaml
-provider_preferences:
-  codex:
-    model: gpt-6.1-sol
-    reasoning_effort: max
-  claude:
-    model: claude-opus-5-5
-    reasoning_effort: high
-```
-
-Missing fields mean built-in defaults: OpenAI Auto runs Sol 6.1 at Medium, and
-Claude runs Sonnet 5.5 (`claude-sonnet-5-5`) at Medium. Model precedence is
-explicit per-phase override, provider preference, built-in default, then
-runtime default. Thinking effort has no per-phase layer: an explicit provider
-preference wins, otherwise the built-in Medium applies (OpenAI default leaves
-it to Codex CLI). Claude effort is passed as `--effort`. Saved Claude aliases
-from earlier versions (`sonnet`, `opus`) read as Sonnet 5.5 and Opus 5.5; a
-saved GPT-5.6 model keeps working as a custom model ID.
-
-Curated model choices have known capability metadata. A custom model ID is
-preserved as entered after whitespace trimming. A custom OpenAI model resets
-Thinking effort to Model default; choosing an explicit effort afterward is
-allowed but compatibility is marked unverified and OpenAI remains
-authoritative. Unknown configuration fields and legacy per-phase model maps are
-preserved by Settings writes.
-
-Model and Thinking effort overrides apply only to fresh runs. Resumed Codex CLI
-or Claude Code sessions retain the model and effort they started with. An
-explicit provider rejection is shown as the primary failure and is never
-silently replaced with another model or effort. Full private runner logs remain
-under the Project's `.liner-runs/` directory for diagnosis.
+It packs and installs a clean consumer package, then checks that the launcher opens
+the navigator and forwards Core commands.

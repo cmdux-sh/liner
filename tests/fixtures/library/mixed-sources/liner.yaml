@@ -1,0 +1,9 @@
+artifact: liner
+id: id-mixed-sources
+project_skill: {status: active, name: mixed-sources, path: SKILL.md}
+status:
+  milestone: project_complete
+  stale: false
+  updated: '2999-01-01T00:00:00Z'
+  corpus: {state: ready, evidence: mixtape/MIXTAPE.md}
+  operating_layer: {state: ready, evidence: LINER.md}
