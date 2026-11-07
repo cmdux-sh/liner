@@ -769,7 +769,7 @@ func (m Model) render() string {
 	case pageLiner:
 		header = []string{m.spread(style(styles.Muted).Render("library > ")+style(styles.Ink).Render(page.slug), m.live()), m.rule()}
 		body = m.renderRows(&page, m.height-4)
-		footer = hints("enter", "read", "↑↓", "move", "y", "prompt for your agent", "o", "open in editor", "esc", "library")
+		footer = hints("enter", "read", "↑↓", "move", "y", "prompt for your agent", "o", "open", "esc", "library")
 	case pageReader:
 		header, body, footer = m.renderReader(&page)
 	case pageSettings:
@@ -1074,14 +1074,16 @@ func (m Model) renderHandoff(page *page) ([]string, []string, string) {
 
 func (m Model) renderKeys() ([]string, []string, string) {
 	keys := [][2]string{
-		{"1-4", "All, Attention, Sources, Connections"}, {"enter", "open or read"}, {"space", "peek below the table"},
-		{"/", "search your library"}, {"y", "copy a prompt for your agent"}, {"tab", "next citation, in the reader"},
-		{"t k s", "filter by type or kind, sort, in Sources"}, {"o", "open in your editor or browser"},
-		{"g", "settings"}, {"esc", "back"}, {"q", "quit"},
+		{"1-4", "All, Attention, Sources, Connections"}, {"↑↓ j k", "move"}, {"pgup pgdn", "move by a page"},
+		{"enter", "open or read; in Settings, connect"}, {"space", "peek, or page down in the reader"},
+		{"/", "search your library"}, {"y", "pick a prompt for your agent"},
+		{"tab", "next citation, in the reader"}, {"shift+tab", "previous citation"},
+		{"t k s", "type, kind, sort, in Sources"}, {"o", "open with your default app"},
+		{"g", "settings"}, {"esc", "back"}, {"q", "back; quit from the library"}, {"ctrl+c", "quit"},
 	}
 	body := []string{""}
 	for _, key := range keys {
-		body = append(body, "  "+style(styles.Ink).Render(pad(key[0], 8, false))+style(styles.SoftMuted).Render(key[1]))
+		body = append(body, "  "+style(styles.Ink).Render(pad(key[0], 11, false))+style(styles.SoftMuted).Render(key[1]))
 	}
 	return []string{style(styles.Ink).Bold(true).Render("Keys"), m.rule()}, body, hints("any key", "close")
 }

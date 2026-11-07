@@ -91,7 +91,7 @@ liner setup-js              # installs Playwright's headless Chromium (about 100
 
 `liner setup-js` is opt-in (keeps the base install lean) and idempotent (safe to re-run).
 
-**Platform support (1.2.0):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
+**Platform support (1.2.1):** macOS (arm64 + x64), Linux (arm64 + x64), and Windows (x64). The npm package installs the matching bundled CLI and TUI binaries for your platform.
 
 Requires Node 18+.
 
@@ -296,7 +296,7 @@ Other clients, including Cursor (`~/.cursor/mcp.json`) and Claude Desktop, take 
 
 ## Status
 
-Active solo project. The current source targets **v1.2.0**, the current
+Active solo project. The current source targets **v1.2.1**, the current
 release on npm. Agents build and maintain liners through `liner research`,
 `liner catalog`, `liner search`, and `liner mcp`, and the terminal navigator reads
 the same folders. A public library of liners is planned. The methodology's
@@ -341,10 +341,10 @@ If you cloned the repo and want to clean up your dev environment too, the bundle
 ./scripts/uninstall.sh --yes       # skip prompts
 ./scripts/uninstall.sh --dry-run   # preview only
 ./scripts/uninstall.sh --dev       # also remove the repo's .venv
-./scripts/uninstall.sh --purge-workspace  # also remove ~/liner-workspace and $LINER_DIR
+./scripts/uninstall.sh --purge-library  # also delete your liners
 ```
 
-Without `--purge-workspace`, the script never touches your liners. With it, the script deletes `~/liner-workspace`, an older default, and the folder in `LINER_DIR` if you set one, asking first unless you pass `--yes`. It doesn't look in the current default library, `~/liner/projects`.
+Without `--purge-library`, the script never touches your liners. With it, the script looks in your library folder: `LINER_DIR` if you set it, otherwise `projects_dir` in `~/.liner/config.yaml`, otherwise `~/liner/projects`, and also in `~/liner-workspace`, an older default. It deletes only the folders in them that are liners, lists them first, and asks you to type how many there are, even with `--yes`. Other files, symlinked liners and the folder around them stay; an emptied library folder is removed. If the library setting can't be read safely, it deletes nothing from the library and asks you to set `LINER_DIR` to the full path. `--purge-workspace` still works as an older name.
 
 ## Troubleshooting
 

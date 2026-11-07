@@ -3,7 +3,7 @@ export function matchesCanonicalVersion(expected, actual) {
 }
 
 export function expectedShimVersion(version) {
-  return `liner ${version} (tui)  ·  ${version} (core)`;
+  return `liner ${version} (tui) · ${version} (core)`;
 }
 
 export function expectedGoVersion(version) {

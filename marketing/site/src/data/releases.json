@@ -1,5 +1,28 @@
 [
   {
+    "version": "1.2.1",
+    "intro": "A mistyped command now says so, the navigator lists every key, and the uninstall script can delete your liners safely.",
+    "published": true,
+    "changes": [
+      {
+        "title": "Typos name the closest command",
+        "body": "An unknown command such as liner compil now stops with the closest command instead of opening the navigator. --help works anywhere, and liner --help describes the navigator."
+      },
+      {
+        "title": "Every navigator key on the ? page",
+        "body": "The keys page lists movement, paging, citations, Settings, and when q goes back or quits."
+      },
+      {
+        "title": "Uninstall can delete your liners",
+        "body": "scripts/uninstall.sh --purge-library finds your library the way Liner does and deletes only liner folders, after you type how many."
+      },
+      {
+        "title": "One space around the dot",
+        "body": "liner --version prints liner 1.2.1 (tui) · 1.2.1 (core), matching the docs."
+      }
+    ]
+  },
+  {
     "version": "1.2.0",
     "changes": [
       {

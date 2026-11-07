@@ -37,8 +37,70 @@ describe("liner npm shim", () => {
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).toBe(
-      `liner ${canonicalVersion} (tui)  ·  ${canonicalVersion} (core)`,
+      `liner ${canonicalVersion} (tui) · ${canonicalVersion} (core)`,
     );
+  });
+
+  it("names the closest command for a typo instead of opening the navigator", () => {
+    const dir = mkdtempSync(join(tmpdir(), "liner-unknown-"));
+    const probe = join(dir, "liner-tui-probe");
+    writeFileSync(probe, "#!/bin/sh\necho NAVIGATOR-OPENED\n", "utf8");
+    chmodSync(probe, 0o755);
+
+    const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js"), "compil"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+      env: { ...process.env, LINER_GO_TUI_BIN: probe, LINER_TUI: "" },
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).not.toContain("NAVIGATOR-OPENED");
+    expect(result.stderr).toContain("Unknown command: compil");
+    expect(result.stderr).toContain("Did you mean `liner compile`?");
+  });
+
+  it("offers no guess for an unrelated word", () => {
+    const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js"), "banana"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("Unknown command: banana");
+    expect(result.stderr).not.toContain("Did you mean");
+  });
+
+  it("shows help for help flags anywhere and for `liner help`", () => {
+    for (const args of [["--help", "compile"], ["-h", "status"], ["help"]]) {
+      const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js"), ...args], {
+        cwd: packageRoot,
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("Open the navigator");
+    }
+  });
+
+  it("suggests commands whatever their case, and help flags", () => {
+    for (const [typed, wanted] of [["COMPILE", "compile"], ["--hlep", "--help"]]) {
+      const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js"), typed], {
+        cwd: packageRoot,
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`Did you mean \`liner ${wanted}\`?`);
+    }
+  });
+
+  it("describes the navigator in --help", () => {
+    const result = spawnSync(process.execPath, [join(packageRoot, "bin", "liner.js"), "--help"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Open the navigator");
+    expect(result.stdout).not.toContain("Go TUI");
   });
 
   describe("without a bundled platform package", () => {

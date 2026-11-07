@@ -58,14 +58,14 @@ function inlineMarkdown(value: string) {
       </div>
     </section>
 
-    {releaseIsShipped && releaseVersion === "1.2.0" && (
+    {releaseIsShipped && releaseVersion.startsWith("1.2.") && (
     <section class="current-release-section" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} ${releaseVersion} release spotlight`}>
       <div class="release-focus">
         <div class="release-focus-copy">
           <p class="eyebrow eyebrow--accent">{releaseIsShipped ? "Current release" : "Release candidate"} /// {releaseVersion}</p>
           <h2>Your library, built by your agent and read in your terminal.</h2>
           <p>
-            Version {releaseVersion} makes Liner a personal library of reusable research. Your agent builds and maintains liners, stopping for your approval, and the terminal app becomes a live view of everything they hold.
+            Version 1.2 makes Liner a personal library of reusable research. Your agent builds and maintains liners, stopping for your approval, and the terminal app becomes a live view of everything they hold.
           </p>
           <p>
             The optional Maintenance Adapter continues to route Project changes through the installed CLI. You can review the planned effects, approve changes when required, and inspect the saved Change Receipt.

@@ -1,6 +1,6 @@
 {
   "name": "linersh",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Liner — npm launcher for the terminal navigator and Core CLI.",
   "type": "module",
   "license": "MIT",
@@ -41,11 +41,11 @@
     "test": "vitest run"
   },
   "optionalDependencies": {
-    "linersh-darwin-arm64": "1.2.0",
-    "linersh-darwin-x64": "1.2.0",
-    "linersh-linux-arm64": "1.2.0",
-    "linersh-linux-x64": "1.2.0",
-    "linersh-win32-x64": "1.2.0"
+    "linersh-darwin-arm64": "1.2.1",
+    "linersh-darwin-x64": "1.2.1",
+    "linersh-linux-arm64": "1.2.1",
+    "linersh-linux-x64": "1.2.1",
+    "linersh-win32-x64": "1.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

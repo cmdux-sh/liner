@@ -324,3 +324,11 @@ func TestWrapKeepsEveryWord(t *testing.T) {
 		t.Errorf("got %v", lines)
 	}
 }
+
+func TestTheKeysPageMatchesWhatTheKeysDo(t *testing.T) {
+	model := press(t, loaded(t), "?")
+	expect(t, model, "ctrl+c", "previous citation", "back; quit from the library", "peek, or page down in the reader")
+	if text := screen(model); strings.Contains(text, "peek below the table") || strings.Contains(text, "editor or browser") {
+		t.Fatalf("keys page still has the old wording:\n%s", text)
+	}
+}
