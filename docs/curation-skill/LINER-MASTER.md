@@ -658,8 +658,7 @@ Liner's methodology exists to catch these before compile.
 
 ## Project Status
 
-1.1.3 is the latest published release. The current source is the unreleased
-1.2.0:
+1.2.0 is the current release, published to npm on 2026-11-07:
 
 - The Python CLI is functional.
 - Coding agents build liners through `liner research`, with subagents doing the
@@ -671,7 +670,7 @@ Liner's methodology exists to catch these before compile.
   minimum coverage, and `liner research submit` won't move on without the brief.
 - The npm distribution uses a main `linersh` package plus five optional platform packages (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`).
 - Published releases install through `npx linersh` on Mac, Linux, and Windows
-  x64. 1.2.0 is not shipped until publish succeeds.
+  x64.
 - JavaScript-rendered web support is available through `liner setup-js`. The
   sources approval lists sources that need it, and the agent asks before
   installing.

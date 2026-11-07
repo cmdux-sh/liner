@@ -84,8 +84,7 @@ The bundle is functional and ships inside the bundled CLI, so `liner research` c
 
 The bundle still benefits from more worked examples in the companion files. Current product risk lives more in curation quality and fetcher edge cases than in basic skill availability.
 
-In the `1.2` source tree (1.2.0 is unreleased; 1.1.3 is the latest published
-version), compilation is the Corpus Ready milestone and the finish step, which
+In 1.2.0, the current release, compilation is the Corpus Ready milestone and the finish step, which
 writes the Operating Layer, is the Project Complete milestone. A project can be
 usable when `MIXTAPE.md` is written but some Sources are missing or
 soft-failed after review. Framing must produce a Capability Brief and Required

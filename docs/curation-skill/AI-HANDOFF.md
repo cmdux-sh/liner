@@ -22,7 +22,7 @@ and methodology without the full chat history. For recent decisions, read
 - Liner Core is the sole writer for supported post-creation Project and Source
   maintenance. Don't teach direct edits of `liner.yaml`, `tape.yaml`,
   `LINER.md`, or root `SKILL.md` as a maintenance workflow.
-- 1.1.3 is the latest published version. 1.2.0 is unreleased. Leave version
+- 1.2.0 is the current release, published to npm on 2026-11-07. Leave version
   files to `scripts/release-version.py`.
 
 ## Where the methodology lives

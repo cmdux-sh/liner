@@ -54,6 +54,7 @@ export default defineConfig({
           items: [
             { label: "CLI commands", slug: "docs/cli" },
             { label: "Navigator", slug: "docs/tui" },
+            { label: "Security", slug: "docs/security" },
             { label: "Troubleshooting", slug: "docs/troubleshooting" },
             { label: "Changelog", link: "/changelog/" },
           ],

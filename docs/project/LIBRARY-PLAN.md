@@ -90,9 +90,8 @@ liner research submit <slug>
 - `liner mcp`, a thin stdio wrapper over the same commands, for agents with no
   shell. Done.
 - Rewrite the README and site around the library, then release through the
-  publish checklist. The README is done. The site rewrite and version bump wait
-  on branch `release-1.2.0`, because merging them builds the site, and 1.2.0 now
-  includes the terminal navigator.
+  publish checklist. Done: 1.2.0 was published to npm and the site deployed on
+  2026-11-07.
 
 ## Checked before release
 

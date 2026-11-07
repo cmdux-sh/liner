@@ -501,9 +501,9 @@ mixtape/
       </div>
       <div class="maintenance-steps grid gap-px" style="background: var(--color-line-medium);">
         {[
-          { n: "01", title: "Request a change", body: "Add a source, rename or move a Project, or move an unused Project to Liner Trash." },
+          { n: "01", title: "Request a change", body: "Add or replace a source, rename or move a Project, or revise a finished synthesis." },
           { n: "02", title: "Review the plan", body: "A Project Change Set shows the exact effects. Operations that require approval wait for your decision on that preview." },
-          { n: "03", title: "Keep the record", body: "A Change Receipt records what was applied. Project deletion moves the folder to recoverable Liner Trash and preserves its files." },
+          { n: "03", title: "Keep the record", body: "A Change Receipt records what was applied. A removed source stays in the retention vault until a separately approved purge." },
         ].map((step) => (
           <article class="p-6" style="background: var(--color-bg-workspace);"><p class="mono text-xs" style="color: var(--color-accent);">{step.n}</p><h3 class="mt-4 text-lg leading-snug" style="font-weight: 400; color: var(--color-text-primary);">{step.title}</h3><p class="mt-2 text-sm leading-relaxed" style="color: var(--color-text-muted);">{step.body}</p></article>
         ))}

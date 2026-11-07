@@ -61,7 +61,7 @@ Agents suggest a liner and the person decides, in keeping with the 2026-10-19 de
 
 ## 2026-10-30 - Keep library work off the site until it ships
 
-Development stays in a private repository. New library commands are documented in the README and changelog, not on the marketing site, because a `master` merge that changes `marketing/site` deploys to production and the site must not describe behavior npm does not serve yet. The router skill therefore gets its own `liner agent-skill` command group, since every `liner adapters` option must appear on the site's CLI page. Public mirroring, npm publication, and site deployment still need their own approval.
+Development stays on a private repository. New library commands are documented in the README and changelog, not on the marketing site, because a `master` merge that changes `marketing/site` deploys to production and the site must not describe behavior npm does not serve yet. The router skill therefore gets its own `liner agent-skill` command group, since every `liner adapters` option must appear on the site's CLI page. Public mirroring, npm publication, and site deployment still need their own approval.
 
 ## 2026-10-30 - Agents need the person's approval; the login fix waits for Stage 4
 
@@ -206,3 +206,15 @@ Stage 3 rebuilt the two App Store liners with three mixes and scored 30 blind an
 ## 2026-11-07 - Local checks stand in for GitHub Actions, and the platform packages build on the public mirror
 
 GitHub Actions has no credits left on the private repository, so the hosted "Verify release truth and public site" job no longer starts. Arturo chose to count a local run of the same five steps as passing: `release-version.py --check`, `validate-public-commands.py`, `validate-public-surfaces.py`, then `npm ci` and `npm run build` in `marketing/site`. The output is recorded in each PR before merging. Local Python and Node versions may differ from the workflow's 3.11 and 22, so note them. For the Linux and Windows packages, Actions is free on public repositories, so 1.2.0's Platform Bundles workflow runs on the public mirror `cmdux-sh/liner` after Arturo approves the mirror push, and before npm publication and the site deploy, which keep their own approvals.
+
+## 2026-11-07 - Mirror 1.2.0 publicly
+
+Arturo approved mirroring the 1.2.0 release commit (PR 43's head) to the public `cmdux-sh/liner` repository through a public PR, as with 1.1.2 and 1.1.3, leaving internal docs out. The Platform Bundles workflow then builds the packages there. npm publication and the site deploy (merging PR 43) still need their own approval.
+
+## 2026-11-07 - Publish 1.2.0 to npm after the six builds pass
+
+Arturo approved publishing 1.2.0 to npm once all six packages build on the public repository's Platform Bundles workflow and pass their checks, including the new `liner search` check on each platform package. The five platform packages go first, then `linersh`, then a clean `npx` install check. If a build or check fails, the release stops for Arturo. The site deploy (merging PR 43) still needs its own approval.
+
+## 2026-11-07 - Deploy the 1.2.0 site while linux-x64 is still processing
+
+npm accepted all six 1.2.0 packages, but `linersh-linux-x64` has been stuck in npm's processing for about an hour; republishing it returns "Cannot publish over previously staged version". `linersh` 1.2.0 is already `latest`, so the live site described an older version than people install. Arturo approved deploying the 1.2.0 site now by merging PR 43, after the docs were checked against the code (PR 109) and a Sonnet review. The linux-x64 package is tracked separately.

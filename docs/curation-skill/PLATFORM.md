@@ -52,11 +52,11 @@ Most curators won't practice the methodology in detail. They want a tool that pr
 
 Liner supports both through two modes that share the same architecture and produce the same artifact shape.
 
-**Quick mode** (default). The AI does maximum work. The curator confirms or lightly edits at each gate. Defaults are accept-all. A complete mixtape takes 15–30 minutes. Quality is "good enough for personal use."
+**Quick mode** (the default outside `liner research`). The AI does maximum work. The curator confirms or lightly edits at each gate. Defaults are accept-all. A complete mixtape takes 15–30 minutes. Quality is "good enough for personal use."
 
 **Methodology mode**. The curator engages substantively. Writes their own synthesis if they want. Reviews evaluation rationales. Adds and rejects sources deliberately. A complete mixtape takes several hours. Quality is library-eligible.
 
-`liner research` has no mode setting; a tape's `mode` field is only a label. The methodology defaults to quick mode and includes instructions for methodology mode. Library contributions require methodology mode.
+`liner research` has no mode setting. `liner research start` labels the tape `mode: methodology`, but the `mode` field is only a label and changes nothing. Inside `liner research`, each step's prompt and the three approvals replace both modes' gates. Outside it, the methodology defaults to quick mode and includes instructions for methodology mode. Library contributions require methodology mode.
 
 ---
 
@@ -109,8 +109,6 @@ mobile-design-foundations/
 ├── liner.yaml            # v2 project marker and metadata
 ├── LINER.md              # operating instructions for future agents
 ├── SKILL.md              # default Project Skill entrypoint
-├── skills/               # reusable project capabilities
-├── working/              # audits, external-use evidence, composition drafts
 └── mixtape/
     ├── MIXTAPE.md        # the consumable corpus artifact
     ├── tape.yaml         # the recipe — kept sources, sections, notes
@@ -120,6 +118,8 @@ mobile-design-foundations/
     ├── .liner-runs/      # phase run logs
     └── working/          # methodology working files
 ```
+
+Older projects may also have a root `skills/` folder or a root `working/` folder. Liner still reads them, but new liners don't write them.
 
 Three concepts to distinguish:
 
@@ -164,7 +164,7 @@ The Liner library is planned as a curated collection of public mixtapes at [line
 The planned library will accept pull requests for methodology-mode mixtapes only.
 
 1. Build the mixtape in methodology mode, applying [CURATION.md](./CURATION.md) substantively
-2. Run the empirical test — compile the mixtape, compare AI output with and without it on a real question. Document the result in `mixtape/working/06-empirical-test.md`. This is methodology guidance, not a `liner research` step; `liner test` can record the result.
+2. Run the empirical test — compile the mixtape, compare AI output with and without it on a real question, and record the result with `liner test start` and `liner test judge` for a blind comparison, or `liner test add`. This is methodology guidance, not a `liner research` step.
 3. Submit a PR with the full project folder — exported via `liner share --no-personal`, and with no `local_file` sources in `mixtape/tape.yaml`
 4. A maintainer reviews. Submissions can be accepted, returned with feedback, or declined
 

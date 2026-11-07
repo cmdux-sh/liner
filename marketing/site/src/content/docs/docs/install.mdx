@@ -56,6 +56,8 @@ For a global install, run this command.
 
 The browser download is about 100 MB and takes about 220 MB on disk. You can run setup again when needed.
 
+During a guided build, the source list you approve names any sources that need JavaScript rendering, and your agent asks before it runs `liner setup-js --yes`.
+
 ## Optional agent maintenance
 
 A global install lets Codex or Claude Code call the same CLI to update an existing Project. The optional Maintenance Adapter routes those requests through Liner's reviewed change workflow.
@@ -87,6 +89,10 @@ For one-shot use, this command asks for confirmation before removal.
 For a global install, this command asks for confirmation before removal.
 
 <CommandSnippet command="liner uninstall" />
+
+To skip the prompt, for example in a script, add `--yes` or `-y`.
+
+<CommandSnippet command="liner uninstall --yes" />
 
 Then remove the globally installed npm package if applicable.
 

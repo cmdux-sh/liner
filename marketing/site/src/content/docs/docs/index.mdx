@@ -7,7 +7,7 @@ import CommandSnippet from "../../../components/CommandSnippet.astro";
 
 Liner is a personal library of reusable research that any AI agent can find, use, and maintain. Each liner is a local folder for one narrow job. See [Use Liner from an Agent](/docs/library/) to connect yours.
 
-Bring URLs, YouTube videos, GitHub repositories, PDFs, EPUBs, local files, or pasted text. Your agent does the research, using your account's limits or charges. You choose the evidence and approve a research summary called a synthesis, and Liner compiles it into Markdown with AI instructions. Files are saved locally; material your agent reads is processed under your provider's terms. Liner itself makes no model calls.
+Bring URLs, YouTube videos, GitHub repositories, PDFs, EPUBs, local files, skills, or other liners. To use text you copied, save it as a local file. Your agent does the research, using your account's limits or charges. You choose the evidence and approve a research summary called a synthesis, and Liner compiles it into Markdown with AI instructions. Files are saved locally; material your agent reads is processed under your provider's terms. Liner itself makes no model calls.
 
 The saved folder is a **Liner Project**, or a liner for short. Its research packet is called a **Mixtape**. The packet lives under `mixtape/`; the Project's instruction and status files live at the root.
 
@@ -31,7 +31,7 @@ Use Liner to do the following.
 
 1. Ask your agent for lasting research, and describe the job in the prompted Job Story form.
 2. It asks you **Clarify Job** questions to make the situation, desired outcome, and boundaries explicit.
-3. It finds and evaluates sources with its own tools, and Liner checks each step.
+3. It checks your library for sources you already have with `liner find-sources`, then finds and evaluates new ones on the web with its own tools. Liner checks each step.
 4. It stops for your approval of the synthesis, your summary of the accepted evidence.
 5. It stops for your approval of the final source list.
 6. Liner compiles the Mixtape, with no model calls.
@@ -48,7 +48,7 @@ For optional agent-assisted updates, see [Maintain with an Agent](/docs/maintena
 | Mixtape | The research packet inside the Project. It lives under `mixtape/` and contains the tape, synthesis, extracted sources, working notes, and compiled output. |
 | Liner Project | The full working folder. It contains the Mixtape plus AI instructions, a root skill file, status, and maintenance metadata. |
 | Synthesis | Your summary and interpretation of the selected evidence. It appears at the top of `MIXTAPE.md`. The interface calls the person choosing and approving the research the curator. |
-| Sources | Selected web pages, YouTube transcripts, local files, pasted text, or skill references. Liner extracts their content into Markdown. |
+| Sources | Selected web pages, YouTube transcripts, local files, skill references, GitHub repository documentation, or other liners. Liner extracts their content into Markdown. |
 | Project and Source IDs | Immutable identifiers assigned by Liner. Renaming or moving a Project keeps its Project ID. Editing Source metadata or its locator keeps its Source ID. Replacing the meaning of a Source creates a successor ID and records lineage. |
 | Instruction files | `LINER.md`, root `SKILL.md`, and `liner.yaml` tell future AI sessions how to use the saved research and what state to trust. They're called the Operating Layer. |
 | Optional Maintenance Adapter | A Codex or Claude skill that routes Project and Source changes through the installed CLI. It previews a Project Change Set, waits for Curator approval when required, and leaves a Change Receipt after apply. It works alongside the Project Skill. |

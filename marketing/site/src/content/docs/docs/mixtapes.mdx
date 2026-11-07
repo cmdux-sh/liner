@@ -13,7 +13,6 @@ Each task has a local working folder called a Liner Project. Its research packet
     { name: "liner.yaml", kind: "file" },
     { name: "LINER.md", kind: "file" },
     { name: "SKILL.md", kind: "file" },
-    { name: "working/", kind: "dir" },
     { name: "mixtape/", kind: "dir" },
     { name: "MIXTAPE.md", kind: "file", depth: 1, accent: true },
     { name: "tape.yaml", kind: "file", depth: 1 },
@@ -57,7 +56,7 @@ At the Project root, these files guide future AI sessions.
 - `LINER.md` tells an AI how to use the saved research.
 - Root `SKILL.md` is the Project entry point for compatible local AI assistants.
 - `liner.yaml` records status, evidence pointers, and instruction-file state.
-- `working/` is for audits and maintenance notes.
+- Older Projects may also have a root `working/` folder for audits. Liner still reads it, but new liners don't write it.
 
 ## Mixtape
 
@@ -72,6 +71,13 @@ The Mixtape is the research packet. It lives under `mixtape/` and includes the t
 Your agent writes `LINER.md`, root `SKILL.md`, and `liner.yaml` through `liner research`, after you approve them.
 
 The instruction files help a new AI session load the folder, follow the method from the research, and check its status before reading the working notes.
+
+`LINER.md` includes an Answer Style section that shapes how the AI answers.
+
+- It leads with the answer: the advice, draft, or critique comes first.
+- It asks at most three questions, and only ones that block the answer.
+- In a draft, it marks each gap where it sits, then lists follow-up questions separately.
+- It puts sources in a short note at the end.
 
 ## Curator notes
 

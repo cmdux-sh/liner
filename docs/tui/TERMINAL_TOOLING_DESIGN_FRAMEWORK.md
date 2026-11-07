@@ -1,12 +1,16 @@
 # Terminal Tooling Design Framework
 
+> **Historical.** This is the design for the old terminal app, which built
+> liners and was removed in 1.2.0. The current terminal app is a read-only
+> navigator: agents build liners through `liner research`. Keep this file as
+> background, not as a description of current behavior.
+
 This document captures the design framework behind Liner's terminal UI and CLI
 work. It turns the recent feedback, corrections, and design decisions into a
 shared reference for future agents.
 
 Use this together with:
 
-- [GO_TUI_SCREEN_PATTERNS.md](GO_TUI_SCREEN_PATTERNS.md)
 - [../project/PRODUCT.md](../project/PRODUCT.md)
 - [../project/CONTEXT.md](../project/CONTEXT.md)
 
@@ -503,7 +507,7 @@ end with one highlighted install action. Avoid stacking separate "missing",
 "install", "retry", and "press key" messages for the same state.
 
 Published package contents are user-facing surfaces. The curation skill bundle
-copied into `packages/tui/cli-update-docs/`, the npm README, and the website docs
+in `src/liner/bundled/research/`, the npm README, and the website docs
 shape the installed experience just as much as the TUI screens. Stale handoffs,
 unfinished placeholders, old Ink instructions, or archived release notes inside
 a package are product bugs, not harmless internal clutter.
@@ -606,7 +610,7 @@ These are the main decisions that shaped the current framework:
 Before adding or reshaping a screen:
 
 1. Identify the screen's job.
-2. Choose an existing pattern from `GO_TUI_SCREEN_PATTERNS.md`.
+2. Choose an existing pattern already used in the navigator.
 3. Check this framework for IA, copy, visual hierarchy, and action semantics.
 4. Add or update tests if the work affects wrapping, spacing, color, keyboard
    behavior, or write safety.

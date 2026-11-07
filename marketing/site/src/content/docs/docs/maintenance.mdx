@@ -74,7 +74,10 @@ The installed adapter can route these supported requests.
 - remove a Source into the Retention Vault or separately approve a destructive purge
 - rename or move a Project without changing Project identity
 - refresh stale research and AI instructions through the required review steps
+- revise a finished liner's synthesis or AI instructions without a source change, through a reviewed patch
 - update managed Project guidance or pointer blocks without overwriting user content
+
+A revision patch needs a finished, current Project with nothing else waiting for review. Liner refuses it when its files changed outside Liner since the last approved change. A synthesis patch starts a refresh: compile again, then review the AI instructions against the new synthesis.
 
 ## Three skill surfaces
 

@@ -46,12 +46,20 @@ machine. Each platform package contains both native binaries:
 4. Download each tarball immediately, then delete the GitHub Actions artifact
    before building the next target.
 5. Publish every `linersh-<platform>-<arch>` package for the release version.
-6. Publish the main `linersh` package after the platform packages exist.
+   npm may answer "Your package is being processed" and show a large package
+   minutes or more later.
+6. Publish the main `linersh` package only after every platform package shows
+   up in `npm view linersh-<platform>-<arch>@<version> version`. Publishing it
+   makes the release `latest`, so a missing platform package breaks installs on
+   that platform.
 7. Smoke a clean consumer install with `npx linersh --version` and `npx linersh`
    on at least macOS arm64, Linux x64, and Windows x64.
 8. Run clean-user smoke tests with temporary `HOME`, `npm_config_cache`, and
    `LINER_DIR` values. Remove the temp directory when done so the verification
    leaves no npm cache, Liner config, Playwright cache, or test project behind.
+
+Before deploying the site, update the "Current release" box in
+`marketing/site/src/pages/changelog.astro`, which is keyed to one version.
 
 Minimum checks before publishing:
 

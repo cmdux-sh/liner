@@ -11,13 +11,13 @@ excluded from the public repository.
 - [Design System](project/DESIGN.md)
 - [Liner Master Overview](curation-skill/LINER-MASTER.md)
 - [AI Maintainer Orientation](curation-skill/AI-HANDOFF.md)
-- [Terminal Tooling Design Framework](tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md)
+- [Terminal Tooling Design Framework](tui/TERMINAL_TOOLING_DESIGN_FRAMEWORK.md): historical design notes for the old terminal app
 - [Terminal Navigator Plan](project/TUI-NAVIGATOR-PLAN.md)
 - [Curation Methodology](curation-skill/CURATION.md)
 - [Mixtape Format](curation-skill/MIXTAPE-FORMAT.md)
 
 These are the current source-of-truth docs for the 1.2 source tree. Version
-`1.2.0` is unreleased; `1.1.3` is the latest published version. Your coding
+`1.2.0` is the current release, published to npm on 2026-11-07. Your coding
 agent builds a liner through `liner research` steps, and you approve the
 synthesis, the sources, and the instructions in chat. After the last approval,
 `liner research` writes `LINER.md`, root `SKILL.md`, and `liner.yaml`. The
@@ -35,7 +35,8 @@ reference and task guide live under `marketing/site/src/content/docs/docs/`.
   researching live in `src/liner/bundled/research/methodology/`.
 - `examples/`: small committed example projects and fixtures.
 - `project/`: product language, design system, and changelog.
-- `tui/`: current Go TUI design references.
+- `tui/`: historical design notes for the old terminal app that built liners. The
+  current navigator is read-only.
 
 ## Archived History
 

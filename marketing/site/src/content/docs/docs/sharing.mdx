@@ -12,7 +12,7 @@ Export a Project as a `.mixtape` archive to move it between machines or share it
 
 <CommandSnippet command="liner share mobile-design-foundations" />
 
-This writes an archive in the current directory.
+This writes the archive next to the Project folder. Use `--out` to choose another path.
 
 <FileTree
   root="."
@@ -24,6 +24,8 @@ This writes an archive in the current directory.
 
 The archive is a zip file with the saved folder contents.
 
+If the liner reuses sources that were local files in other liners, `liner share` warns before you send it, because their saved text goes into the archive. Add `--no-source-content` to leave that text out.
+
 ## Import
 
 <CommandSnippet command="liner import mobile-design-foundations.mixtape" />
@@ -33,6 +35,12 @@ The CLI extracts the archive and refetches uncached web and YouTube sources. To 
 <CommandSnippet command="liner import mobile-design-foundations.mixtape --no-refetch" />
 
 After importing, compile the folder to produce or update extracted source files.
+
+An archive can come from anyone, so import checks it first.
+
+- It refuses archives with unsafe paths, too many files, or too much data.
+- It won't replace a folder that already exists. Add `--overwrite` to replace its matching files.
+- It drops agent transcripts, build prompts, and review drafts.
 
 ## Export options
 
@@ -60,13 +68,13 @@ Choose a destination for a full export.
 
 ## Private material
 
-The archive includes local source files by default, along with hidden files and run logs. In current Projects, local sources live under `mixtape/local-sources/`; legacy `personal/` folders can be included too.
+The archive includes local source files by default, along with hidden files such as fetched pages and refresh reports. It leaves out agent transcripts (`.jsonl` files), build prompts and review drafts under `.liner-runs/`, and the blind-test answer key. In current Projects, local sources live under `mixtape/local-sources/`; legacy `personal/` folders can be included too.
 
 The export flags filter specific directories. They do not remove private material from every saved artifact.
 
-- `--no-personal` excludes raw `local-sources/` and legacy `personal/` directories. It can leave copies in extracted sources, synthesis, compiled output, and logs.
+- `--no-personal` excludes raw `local-sources/` and legacy `personal/` directories. It can leave copies in extracted sources, synthesis, compiled output, and saved pages.
 - `--no-source-content` excludes `sources/`. It can leave raw local files and derived content elsewhere.
-- `--no-working-notes` excludes `working/`. It can leave hidden run logs and other saved files.
+- `--no-working-notes` excludes `working/`. It can leave hidden run files and other saved files.
 - `--minimal` includes only the tape recipe, which can still contain private URLs, notes, and metadata.
 
-Inspect the full archive before sharing it, including derived files, hidden files, and raw runner logs. Choose only material you are allowed to share.
+Inspect the full archive before sharing it, including derived files and hidden files. Choose only material you are allowed to share.

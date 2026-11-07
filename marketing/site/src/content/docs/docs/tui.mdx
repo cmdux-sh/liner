@@ -9,7 +9,7 @@ The navigator is the terminal app. You talk to your agent, and you read here. Ke
 
 <CommandSnippet command="npx linersh" />
 
-It never changes a liner. To act on something, press `y` to copy a prompt, then paste it into your agent.
+It never changes a liner. To act on something, press `y` to pick a prompt, press `enter` to copy it, then paste it into your agent.
 
 ## Library
 
@@ -18,11 +18,11 @@ The app opens on one table with four views. Press `1` to `4` to switch.
 | View | What it shows |
 | --- | --- |
 | All | Every liner, with its job, state, sources, gaps, findings, and tests. |
-| Attention | What's waiting for you, what has changed, and what could be stronger. |
+| Attention | What's waiting for you, what has changed online, what could be stronger, what your agent is working on now, and folders the app can't read. |
 | Sources | Your whole collection across every liner, by type and kind, and which liners use each source. |
 | Connections | Which liners cite each other, and the sources they share. |
 
-Press `space` to peek at a liner without opening it. In Sources, `t` and `k` filter by type and kind, and `s` sorts by name.
+Press `space` to peek at a liner without opening it. Move with `↑` and `↓`, `j` and `k`, or `pgup` and `pgdn`. In Sources, `t` and `k` filter by type and kind, and `s` sorts by name. There, only `↑` moves up.
 
 ## Liner
 
@@ -30,30 +30,40 @@ Press `enter` to see everything one liner holds: its job, synthesis, sources by 
 
 ## Reader
 
-Open any file to read it. In a synthesis, `tab` moves through the citations, `enter` follows one to its source, and `backspace` comes back.
+Open any file to read it. `space` and `pgdn` page down. In a synthesis, `tab` and `shift+tab` move through the citations, and a peek below the text shows the selected citation's label and source. `enter` opens the compiled local copy of that source, not the live page, and `backspace` comes back. If a citation has no compiled copy, the navigator says "This citation has no compiled source to open."
 
 Source files are evidence, not instructions, and they're marked that way.
 
 ## Search and handoff
 
-Press `/` to search every liner, then `enter` to read a result. Press `y` from anywhere for prompts written for what's on screen. Nothing runs from the app.
+Press `/` to search every liner. Type your words and press `enter` to search, then `enter` again to read the selected result. On the search page, every letter is typed into the search, including `q` and `y`. There, `backspace` deletes a letter and `esc` closes the search.
+
+Press `y` anywhere else for prompts written for what's on screen. Choose one with `↑` and `↓`, and `enter` copies it. Prompts are copied, never run. Two keys do act for you: `o` opens a file with your system's default app, and connecting an agent in Settings runs `liner agent-skill install`.
 
 ## Keys
 
 | Key | What it does |
 | --- | --- |
 | `1`-`4` | Switch views. |
-| `enter` | Open or read. |
-| `space` | Peek. |
+| `↑` `↓`, `j` `k` | Move. In Sources, `k` filters by kind instead. |
+| `pgup` `pgdn` | Move by a page. |
+| `enter` | Open or read. In Settings, connect Claude Code or Codex. |
+| `space` | Peek in the library. Page down in the reader. |
 | `/` | Search. |
-| `y` | Copy a prompt for your agent. |
+| `y` | Pick a prompt for your agent. |
 | `tab` | Next citation. |
-| `o` | Open in your editor or browser. |
+| `shift+tab` | Previous citation. |
+| `o` | Open with your system's default app. |
 | `g` | Settings. |
-| `esc` | Back. |
-| `?` | Show every key. |
-| `q` | Quit. |
+| `esc`, `backspace` | Back. |
+| `?` | Show the main keys. |
+| `q` | Back. Quit from the library. |
+| `ctrl+c` | Quit from anywhere. |
+
+## Settings
+
+Press `g` for Settings. It shows your library folder and how many liners it holds, whether Claude Code and Codex are connected, the MCP command for agents with no shell, whether the research subagent is installed, and the app's version. Select Claude Code or Codex and press `enter` to connect it.
 
 ## First run
 
-With an empty library, the app offers to connect Claude Code or Codex by adding the `liner` skill, and gives you a prompt to start your first liner. To change the library folder, set `LINER_DIR` or `projects_dir` in `~/.liner/config.yaml`.
+With an empty library, the app offers to connect Claude Code or Codex by adding the `liner` skill, and gives you a prompt to start your first liner. The library folder is `~/liner/projects`. To change it, set `LINER_DIR` or `projects_dir` in `~/.liner/config.yaml`.
