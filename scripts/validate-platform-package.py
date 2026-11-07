@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +89,14 @@ def validate_package(package_dir: Path, *, pack_dry_run: bool) -> None:
             f"expected 'liner {CANONICAL_VERSION}'"
         )
     subprocess.run([str(exe), "setup-js", "--help"], cwd=package_dir, check=True)
+    # `liner search` needs SQLite's FTS5, which some bundled Python builds lack.
+    with tempfile.TemporaryDirectory() as library:
+        subprocess.run(
+            [str(exe), "search", "smoke", "--root", library, "--json"],
+            cwd=package_dir,
+            check=True,
+            capture_output=True,
+        )
     tui_version = subprocess.run(
         [str(tui), "--version"],
         cwd=package_dir,
