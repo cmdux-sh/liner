@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Entry shim for `npx linersh` / `liner`.
 //
-// No args: launch the selected TUI.
-//   unset         -> launch the Charm Go TUI
-//   LINER_TUI=go  -> launch the Charm Go TUI explicitly
-// CLI args: forward to the bundled Python core (or LINER_BIN/dev fallback).
+// No args: open the navigator (the Charm Go TUI).
+//   unset         -> open the navigator
+//   LINER_TUI=go  -> open the navigator explicitly
+// A known command: forward to the bundled Python core (or LINER_BIN/dev fallback).
+// Anything else: print an error instead of opening the navigator.
 //
 // This lets the npm package expose one binary name while still supporting
 // mechanical commands like `liner setup-js`, `liner compile`, and `liner status`.
@@ -106,7 +107,11 @@ const CLI_COMMANDS = new Set(
   ),
 );
 
-if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
+// Help wins anywhere unless a command owns the arguments
+// (`liner compile --help` and `liner uninstall --help` print their own help).
+const HELP_ARGS = new Set(["--help", "-h", "help"]);
+const ownsHelp = CLI_COMMANDS.has(argv[0]) || argv[0] === "uninstall";
+if (argv.length > 0 && !ownsHelp && argv.some((arg) => HELP_ARGS.has(arg))) {
   printHelp();
   process.exit(0);
 }
@@ -145,6 +150,9 @@ if (wantsCli(argv)) {
     }
     process.exit(code ?? 1);
   });
+} else if (argv.length > 0) {
+  printUnknownCommand(argv[0]);
+  process.exit(2);
 } else {
   const tui = (process.env.LINER_TUI || "go").toLowerCase();
   if (tui !== "go") {
@@ -454,13 +462,13 @@ function readTuiVersion() {
 
 function printHelp() {
   const lines = [
-    "Liner — build and use source-grounded Liner Projects.",
+    "Liner — a personal library of reusable research.",
     "",
     "Usage:",
-    "  liner                         Open the Go TUI",
+    "  liner                         Open the navigator",
     "  liner <command> [options]     Run a command",
     "",
-    "liner with no arguments opens the Go TUI.",
+    "liner with no arguments opens the navigator.",
     "Run `liner <command> --help` for detailed command help.",
     "",
   ];
@@ -477,6 +485,34 @@ function printHelp() {
     "  -v, --version  Show version information",
   );
   console.log(lines.join("\n"));
+}
+
+// A typo such as `liner compil` used to open the navigator silently. Name the
+// closest command instead, when one is a likely match.
+function printUnknownCommand(name) {
+  const known = [...COMMAND_GROUPS.flatMap((group) => group.commands.map((command) => command.name)), "--help"];
+  const typed = name.toLowerCase();
+  const suggestion = known
+    .map((command) => ({ command, distance: editDistance(typed, command) }))
+    .filter(({ command, distance }) => distance <= Math.max(1, Math.floor(command.length / 3)))
+    .sort((a, b) => a.distance - b.distance)[0];
+  const lines = [`Unknown command: ${name}`];
+  if (suggestion) lines.push(`Did you mean \`liner ${suggestion.command}\`?`);
+  lines.push("Run `liner --help` for the commands, or `liner` alone to open the navigator.");
+  console.error(lines.join("\n"));
+}
+
+function editDistance(a, b) {
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current.push(Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost));
+    }
+    previous = current;
+  }
+  return previous[b.length];
 }
 
 // Like resolveCliBinary() but non-fatal: returns null instead of exiting when
@@ -498,5 +534,5 @@ function printVersion() {
       coreVer = r.stdout.trim().replace(/^liner\s+/i, "") || null;
     }
   }
-  console.log(coreVer ? `liner ${tui} (tui)  ·  ${coreVer} (core)` : `liner ${tui} (tui)`);
+  console.log(coreVer ? `liner ${tui} (tui) · ${coreVer} (core)` : `liner ${tui} (tui)`);
 }

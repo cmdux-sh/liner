@@ -24,7 +24,7 @@ describe("release version contract", () => {
     expect(
       matchesCanonicalVersion(
         expectedShimVersion(version),
-        "liner 1.2.3 (tui)  ·  1.2.4 (core)",
+        "liner 1.2.3 (tui) · 1.2.4 (core)",
       ),
     ).toBe(false);
     expect(matchesCanonicalVersion(expectedGoVersion(version), "liner-tui 1.2.4")).toBe(false);

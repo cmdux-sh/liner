@@ -17,7 +17,7 @@ excluded from the public repository.
 - [Mixtape Format](curation-skill/MIXTAPE-FORMAT.md)
 
 These are the current source-of-truth docs for the 1.2 source tree. Version
-`1.2.0` is the current release, published to npm on 2026-11-07. Your coding
+`1.2.1` is the current release. Your coding
 agent builds a liner through `liner research` steps, and you approve the
 synthesis, the sources, and the instructions in chat. After the last approval,
 `liner research` writes `LINER.md`, root `SKILL.md`, and `liner.yaml`. The

@@ -218,3 +218,19 @@ Arturo approved publishing 1.2.0 to npm once all six packages build on the publi
 ## 2026-11-07 - Deploy the 1.2.0 site while linux-x64 is still processing
 
 npm accepted all six 1.2.0 packages, but `linersh-linux-x64` has been stuck in npm's processing for about an hour; republishing it returns "Cannot publish over previously staged version". `linersh` 1.2.0 is already `latest`, so the live site described an older version than people install. Arturo approved deploying the 1.2.0 site now by merging PR 43, after the docs were checked against the code (PR 109) and a Sonnet review. The linux-x64 package is tracked separately.
+
+## 2026-11-07 - Print the version line with one space around the dot
+
+The launcher printed `liner 1.2.0 (tui)  ·  1.2.0 (core)` with two spaces on each side of the dot, while the docs and `release-version.py` expect one. Arturo chose to change the launcher to one space, so the docs, the release check and the output agree without loosening the check.
+
+## 2026-11-07 - Reject unknown commands instead of opening the navigator
+
+The npm launcher opened the navigator for any argument it didn't recognize, so a typo such as `liner compil` silently opened the app. As part of the 1.2.1 follow-ups Arturo started, an unknown first argument now exits 2 with the closest command when one is close, case-insensitively, and points to `liner --help`. `--help`, `-h` and `help` anywhere show the launcher's help, unless a command that has its own help comes first. Plain `liner` still opens the navigator. The launcher never passed arguments to the navigator, so nothing that worked before stops working.
+
+## 2026-11-07 - Point the uninstall purge at the real library
+
+`scripts/uninstall.sh --purge-workspace` deleted `~/liner-workspace` and `$LINER_DIR`, but never the default library `~/liner/projects` where liners now live. Arturo chose to make it target the real library: the flag is now `--purge-library` (`--purge-workspace` stays as an alias). It resolves the folder the way Liner does (`LINER_DIR`, then `projects_dir` in `~/.liner/config.yaml`, then `~/liner/projects`) and also looks in the old `~/liner-workspace`. After a Sonnet review showed that deleting the whole folder would also delete a mistaken setting such as `~/Documents`, it deletes only the liner folders inside (those holding `mixtape/tape.yaml` or `tape.yaml`), lists them, and asks you to type how many, even with `--yes`. It refuses settings it can't read safely or that aren't absolute paths, and it skips when there's no terminal to ask in.
+
+## 2026-11-07 - Release 1.2.1
+
+Arturo approved releasing the three merged fixes (PRs 110 to 112) as 1.2.1 by the 1.2.0 path: mirror the release commit to the public repository, build the six packages there, publish the five platform packages, publish `linersh` only after all five show up on npm, check a clean install, then deploy the site by merging the release PR. This one approval covers the mirror, npm, and the site deploy.

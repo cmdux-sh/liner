@@ -62,7 +62,7 @@ A curator who learns the methodology can apply it with or without Liner's tools.
 
 ## Project status
 
-Active development. Published releases are available on npm; the current source targets v1.2.0, with macOS, Linux, and Windows x64 packages.
+Active development. Published releases are available on npm; the current source targets v1.2.1, with macOS, Linux, and Windows x64 packages.
 Liner supports `youtube`, `web`, `local_file`, `repository`,
 `liner`, and inert `skill` Sources, plus opt-in Playwright rendering. Your
 coding agent builds a liner through `liner research`, with the methodology in

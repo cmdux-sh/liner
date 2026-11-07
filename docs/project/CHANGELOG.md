@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.1
+
+- **A mistyped command says so.** An unknown first argument, such as
+  `liner compil`, used to open the navigator. It now exits 2 with the closest
+  command, and `--help`, `-h` or `help` anywhere shows the launcher's help.
+  `liner --help` describes the navigator.
+- **The navigator's `?` page lists every key**, including movement, paging,
+  `shift+tab`, `ctrl+c`, and when `q` goes back or quits.
+- **`scripts/uninstall.sh --purge-library` deletes your liners safely.** It
+  finds the library the way Liner does, deletes only liner folders, and asks you
+  to type how many first. `--purge-workspace` still works as an older name.
+- **The version line uses one space around the dot**, matching the docs.
+
 ## 1.2.0
 
 - **Pages with non-ASCII response headers load.** A site that sent an emoji in a

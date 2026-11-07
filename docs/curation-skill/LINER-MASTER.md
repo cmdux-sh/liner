@@ -658,7 +658,7 @@ Liner's methodology exists to catch these before compile.
 
 ## Project Status
 
-1.2.0 is the current release, published to npm on 2026-11-07:
+1.2.1 is the current release:
 
 - The Python CLI is functional.
 - Coding agents build liners through `liner research`, with subagents doing the
