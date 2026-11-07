@@ -18,9 +18,11 @@ shim. The temporary root contains:
 The root is retained when Liner exits so failures can be inspected. The launch
 prints the platform-appropriate cleanup command. It sets `HOME`, Windows
 `USERPROFILE`, XDG and Windows application/cache directories, the temporary
-directory, npm cache, Playwright browser path, and `LINER_DIR`, so Project
-creation and writable runtime state cannot fall through to the normal user
-profile. Ambient provider credential variables are removed.
+directory, npm cache, Playwright browser path, and `LINER_DIR`, so writable
+runtime state cannot fall through to the normal user profile. The navigator
+doesn't create Projects: your agent's `liner research` writes them under
+`LINER_DIR`, so point the agent at the same `LINER_DIR` to keep test liners in
+the temporary root. Ambient provider credential variables are removed.
 That includes alternate cloud-backend selectors and AWS, Azure, and Google
 credential variables. Ambient `LINER_*` overrides are also removed; the launch
 lets the local shim

@@ -58,7 +58,7 @@ function inlineMarkdown(value: string) {
       </div>
     </section>
 
-    {releaseIsShipped && releaseVersion === "1.1.1" && (
+    {releaseIsShipped && releaseVersion === "1.2.0" && (
     <section class="current-release-section" aria-label={`${releaseIsShipped ? "Current" : "Candidate"} ${releaseVersion} release spotlight`}>
       <div class="release-focus">
         <div class="release-focus-copy">
@@ -73,15 +73,15 @@ function inlineMarkdown(value: string) {
           <ul class="release-highlights">
             <li>
               <span>01</span>
-              <p>Sources you already approved keep their IDs when Assembly adds evaluation details.</p>
+              <p>Your agent builds each liner with <code>liner research</code> and stops for your approval of the synthesis, the sources, and the instructions.</p>
             </li>
             <li>
               <span>02</span>
-              <p>Interrupted research returns to the last saved review or build step.</p>
+              <p><code>liner find-sources</code> finds sources your library already holds, so a new liner can reuse their saved copies.</p>
             </li>
             <li>
               <span>03</span>
-              <p>Improve Corpus decisions survive restarts, with applied recommendations recorded in audit history.</p>
+              <p>The navigator shows what needs you and follows each citation to its compiled source.</p>
             </li>
           </ul>
         </div>

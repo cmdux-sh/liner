@@ -66,10 +66,10 @@ HOME="$home" npm_config_cache="$cache" LINER_DIR="$projects" npx --yes linersh@l
 rm -rf "$tmp"
 ```
 
-The second command opens the Go TUI. Create a test Liner Project, build the
-corpus with your agent,
-then run Create Operating Layer. Because `HOME`, the npm cache, and `LINER_DIR`
-all point inside `$tmp`, cleanup is just `rm -rf "$tmp"`.
+The second command opens the navigator, which is read-only. Ask your agent to
+build a test liner with `liner research`, using the same `LINER_DIR`, and watch
+it appear in the navigator. Because `HOME`, the npm cache, and `LINER_DIR` all
+point inside `$tmp`, cleanup is just `rm -rf "$tmp"`.
 
 ## Run Locally
 

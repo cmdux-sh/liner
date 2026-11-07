@@ -14,7 +14,7 @@ Install the `liner` skill for Claude Code or Codex. It tells the agent how to fi
 <CommandSnippet command={`npm install -g linersh
 liner agent-skill install claude --yes`} />
 
-An agent with no shell can connect over MCP instead. Add a stdio server with the command `liner` and the argument `mcp`. It offers the catalog, search, file reading, gaps, findings, fetching, refresh, and the research steps, and it has no tool for approving anything, so you approve from a terminal.
+An agent with no shell can connect over MCP instead. Add a stdio server with the command `liner` and the argument `mcp`. It offers a subset of the commands: the catalog, search, file reading, citations, the gaps and findings lists, adding a gap or a finding, the tests list, fetching, refresh, and four research steps (start, next, improve, and submit). None of its tools approve research, accept or reject findings, judge tests, or apply changes, so you do those from a terminal.
 
 <CommandSnippet command="liner mcp" />
 
@@ -25,14 +25,26 @@ Ask your agent for lasting research on a subject. It starts a liner from a job s
 | Command | What it does |
 | --- | --- |
 | `liner research start <job>` | Start a new liner from a job story. |
-| `liner research next <slug>` | Show the step to do now. |
+| `liner research next <slug>` | Show the step to do now. Add `--with-prompt` for clients that can't read files. |
+| `liner research plan <slug>` | List the steps ahead and the kind of work each needs. |
 | `liner research submit <slug>` | Check the current step and move on. |
-| `liner research approve <slug> <kind> --token <token>` | Record your approval of what you reviewed. |
-| `liner fetch <slug> <url>` | Save a web page to a file, so its text stays out of the agent's session. |
+| `liner research approve <slug> <kind> --token <token>` | Record your approval of what you reviewed. The kind is `synthesis`, `sources`, or `operating_layer`. |
+| `liner research improve <slug>` | Show how to strengthen a finished liner. |
+| `liner fetch <slug> <url>` | Save a web page or a YouTube video's transcript to a file, so its text stays out of the agent's session. It also takes a `liner://<slug>/<source-id>` address. |
+| `liner citations <slug>` | List the citations in a liner's synthesis and the source file each one opens. |
 | `liner find-sources <query>` | Find sources already in your library, with earlier verdicts, so a new liner can reuse them. |
 | `liner research subagent install --yes` | Add an optional Claude Code subagent with no shell, network, or write tools for reading saved pages. |
 
-The subagent reduces exposure to hostile pages but does not isolate them: it can still read local files, and its report goes to the main agent. Liner can't tell who ran `approve`. On Claude Code, `liner agent-skill install claude` also adds a guard that makes Claude Code ask you directly before an agent approves. It's a guardrail, not a lock.
+When a page saves fewer than 500 characters, `liner fetch` warns: "Only N characters were saved, so the page's content may be missing." A full page also goes into Liner's cache, so a later fetch or compile reuses it instead of downloading it again.
+
+Before a build compiles, its synthesis must pass these citation checks:
+
+- Every footnote it cites is defined, and every footnote it defines is cited.
+- Each footnote points to a kept source.
+- It cites at least three sources, or every kept source when there are fewer.
+- After compile, each footnote opens a compiled source file.
+
+The subagent reduces exposure to hostile pages but does not isolate them: it can still read local files, and its report goes to the main agent. Liner can't tell who ran `approve`. On Claude Code, `liner agent-skill install claude` also adds a guard that makes Claude Code ask you directly before an agent runs `liner research approve`, `liner findings accept`, `liner findings reject`, `liner test add`, `liner test judge`, or `liner project apply` with `--approve`. It's a guardrail, not a lock.
 
 ## Use your liners
 
@@ -48,14 +60,23 @@ The subagent reduces exposure to hostile pages but does not isolate them: it can
 | --- | --- |
 | `liner gaps add <slug> <question>` | Record a question a liner couldn't answer. The next research pass targets it. |
 | `liner findings add <slug> <finding>` | Put what real work learned in an inbox. Nothing reaches the liner until you accept it. |
-| `liner refresh <slug>` | Refetch online sources and report what changed. The liner itself doesn't change. |
-| `liner test start <slug> <question>` | Set up a blind comparison: two answers, one written with the liner, in random order. |
+| `liner findings list <slug>` | List the findings waiting for review. Add `--all` to include reviewed ones. |
+| `liner findings accept <slug> <id> --yes` | Add the finding to the liner as an optional local-file Source. It also closes the gap the finding answers. |
+| `liner findings reject <slug> <id> --yes` | Decline the finding and keep the record. |
+| `liner refresh <slug>` | Refetch online sources and compare them with the compiled copies. The liner's sources and synthesis don't change. |
+| `liner test start <slug> <question> --without-file <file> --with-file <file>` | Set up a blind comparison: two answers, one written with the liner, in random order. |
 | `liner test judge <slug> <id> --preferred <a\|b\|same>` | Record which blind answer you preferred. The catalog shows the results. |
-| `liner test add <slug> <question>` | Record a comparison you judged yourself, with both answers and your verdict. |
+| `liner test add <slug> <question> --without-file <file> --with-file <file> --verdict <better\|same\|worse>` | Record a comparison you judged yourself, with both answers and your verdict. |
+| `liner test list <slug>` | Show a liner's with-and-without tests. |
+
+`liner refresh` writes its report to `mixtape/.liner-runs/refresh/report.json`, with a diff file for each changed source, and the navigator's Attention view shows the changes. It exits with code 2 when some sources can't be reached, and 3 when none can.
+
+`liner test start` refuses answers that would show which one used the liner: links, footnotes, a source list, or the words liner or mixtape. Remove them from both answers and start again.
 
 ## Source types
 
 Liners can use web pages, YouTube transcripts, local files including PDF and EPUB, skills, and two library-specific types.
 
 - A `repository` Source reads the documentation files of a public GitHub repository at one commit. It doesn't read code files or private repositories.
-- A `liner` Source, written `liner://<slug>`, compiles another finished liner's synthesis. Citations use the folder name, so moving a liner breaks them.
+- A `repository` Source reads the README first, then other files ending in `.md`, `.mdx`, `.markdown`, `.rst`, `.txt`, or `.adoc`. It reads at most 60 files, up to 512 KiB each and 2 MiB in total.
+- A `liner` Source, written `liner://<slug>`, compiles another finished liner's synthesis. Written `liner://<slug>/<source-id>`, it copies one of that liner's sources, with its original address. `liner find-sources` gives each source's address. Citations use the folder name, so moving a liner breaks them.

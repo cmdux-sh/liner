@@ -24,7 +24,7 @@
       },
       {
         "title": "Reach agents with no shell",
-        "body": "liner mcp offers the same commands to MCP clients. It has no tool for approving anything."
+        "body": "liner mcp offers a subset of the commands to MCP clients. It has no tool for approving anything."
       },
       {
         "title": "Liners improve with use",

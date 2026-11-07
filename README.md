@@ -43,8 +43,8 @@ the navigator never changes a liner.
 A *tape file* (`tape.yaml`) is a liner's source recipe. A *Mixtape* is the
 compiled corpus Liner builds from that recipe: `synthesis.md`, `sources/`,
 `working/`, and `MIXTAPE.md`. A *Liner Project*, a liner for short, is the local
-folder around that corpus. After the corpus is ready, Create Operating Layer
-writes `LINER.md`, a root `SKILL.md`, and `liner.yaml` so future AI sessions know
+folder around that corpus. After the corpus is ready and you approve the
+instructions, the finish step of `liner research` writes `LINER.md`, a root `SKILL.md`, and `liner.yaml` so future AI sessions know
 what the resource is for, how to use the evidence, and where its boundaries are.
 Tape != Mixtape != Liner Project.
 
@@ -121,9 +121,9 @@ liner share mobile-design-foundations            # → mobile-design-foundations
 liner import mobile-design-foundations.mixtape   # → unzip + refetch sources locally
 ```
 
-To add sources by hand, drop `.md`, `.txt`, `.html`, `.htm`, `.pdf`, or `.epub` files into the project's `local-sources/` folder and add them with `liner sources add`.
+To add sources by hand, drop `.md`, `.txt`, `.html`, `.htm`, `.pdf`, or `.epub` files into the liner's `mixtape/local-sources/` folder and add them with `liner sources add`. Older liners that keep `tape.yaml` at the root use a root `local-sources/` folder instead.
 
-For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then save it under `local-sources/` and add it as a `local_file` source. A browser extension that captures rendered page text/HTML from your already-authenticated browser session is planned for the next version; Liner should not read browser cookies directly.
+For authenticated or paid sources, use "capture yourself" for now: open the page in your browser, copy the useful rendered article/body text, then save it under `mixtape/local-sources/` and add it as a `local_file` source. A browser extension that captures rendered page text/HTML from your already-authenticated browser session is planned for the next version; Liner should not read browser cookies directly.
 
 ## Commands
 
@@ -131,19 +131,19 @@ For authenticated or paid sources, use "capture yourself" for now: open the page
 |---|---|
 | `liner init <folder>` | Scaffold a project folder: starter `mixtape/tape.yaml`, `mixtape/synthesis.md` placeholder, `mixtape/working/01..04` stubs. |
 | `liner compile <folder>` | Fetch every source and write `mixtape/MIXTAPE.md` + `mixtape/sources/NN-<slug>.md` into the folder. Requires `mixtape/synthesis.md`. |
-| `liner share <folder>` | Zip the folder into `<folder>.mixtape`. Flags: `--no-working-notes`, `--no-source-content`, `--minimal`, `--out`. |
+| `liner share <folder>` | Zip the folder into `<folder>.mixtape`. Flags: `--no-working-notes`, `--no-source-content`, `--no-personal`, `--minimal`, `--out`. |
 | `liner import <archive> [dest]` | Unzip a `.mixtape` archive into `dest` and refetch any uncached sources. `--no-refetch` skips the refetch step, and `--overwrite` replaces an existing folder's matching files. |
 | `liner clone <url-or-path> [dest]` | Fetch a remote tape file (raw URL) or copy a local one. Does not compile. |
 | `liner list` | List mixtape project folders in the current directory. `--json` for programmatic use, `--recursive` to descend one level. |
 | `liner catalog` | List every liner in your library with its job, readiness, and source count. Reads `LINER_DIR`, then `projects_dir` in `~/.liner/config.yaml`, then `~/liner/projects`. `--json` for agents, `--root` to read another folder. |
 | `liner search <query>` | Find cited passages in your liners' syntheses and sources. `--liner <slug>` narrows the search; repeat it for more than one. `--limit`, `--root`, and `--json` are available. |
 | `liner use <slug>` | Add a pointer to a liner in this repo's `CLAUDE.md` or `AGENTS.md`. Previews first; `--yes` writes, `--remove` takes it out, and `--repo` and `--agent` choose the target. |
-| `liner gaps add <slug> <question>` | Record what a liner could not answer. `liner gaps list` and `liner gaps close` manage them, and Improve Corpus targets the open ones. |
-| `liner test start <slug> <question>` | Save a with-and-without comparison as unlabeled answers A and B, in random order, for the person to judge. |
+| `liner gaps add <slug> <question>` | Record what a liner could not answer. `liner gaps list` and `liner gaps close` manage them, and `liner research improve` targets the open ones. |
+| `liner test start <slug> <question> --without-file <file> --with-file <file>` | Save a with-and-without comparison as unlabeled answers A and B, in random order, for the person to judge. It refuses answers that show which one used the liner: links, footnotes, a source list, or the words liner or mixtape. |
 | `liner test judge <slug> <id> --preferred <a\|b\|same>` | Record the person's choice as a verdict and reveal which answer used the liner. |
-| `liner test add <slug> <question>` | Record a comparison the person judged with the labels showing. `liner catalog` shows all results and how many were blind. |
+| `liner test add <slug> <question> --without-file <file> --with-file <file> --verdict <better\|same\|worse>` | Record a comparison the person judged with the labels showing. `liner test list <slug>` shows a liner's tests, and `liner catalog` shows all results and how many were blind. |
 | `liner mcp` | Serve your liners to an agent with no shell over MCP. Add it to a client with the command `liner` and the argument `mcp`. It can't approve anything. |
-| `liner refresh <slug>` | Refetch a liner's online sources and report what changed. It changes nothing in the liner. |
+| `liner refresh <slug>` | Refetch a liner's online sources and report what changed. It writes `mixtape/.liner-runs/refresh/report.json` and a diff for each changed source, which the navigator's Attention view shows, but it doesn't change the liner's sources or synthesis. It exits with 2 when some sources can't be reached and 3 when none can. |
 | `liner findings add <slug> <finding>` | Put what real work learned in the inbox. `list` shows it; `accept --yes` adds it as a Source and `reject --yes` declines it. |
 | `liner research start <job>` | Start a liner that your own agent builds. `liner research next <slug> --json` gives the current step with its prompt in a file, `liner research plan <slug>` lists the steps ahead and the kind of work each needs, `submit` checks a step, and `approve` records the person's approval. |
 | `liner research check <project> <phase>` | Check a research phase's artifact without moving on. |
@@ -186,7 +186,7 @@ For the package layout and developer commands see [packages/tui/README.md](packa
 
 ## Tape format (v1)
 
-Required: `title`, `description`, `version: 1`, `curator`, `sources` (≥1).
+Required: `title`, `description`, `version: 1`, `curator`, `sources` (a list, which may be empty while a liner is being built).
 Optional: `tags`, `created`, `updated`, `license`, `homepage`, `jtbd`, `methodology_version`. Tapes may also carry `mode`, a label that changes nothing.
 Source types: `youtube`, `web`, `local_file` (including EPUB), `skill`, `repository` (the documentation files of a public GitHub repository, at the commit it was compiled from; folder URLs need a branch or tag name without a slash), `liner` (`liner://<slug>`, the reviewed synthesis of another finished liner in the same library, or `liner://<slug>/<source-id>`, one of its sources' saved text, including a local file, with its original address; `liner find-sources` gives each source's address).
 
@@ -230,7 +230,7 @@ sources:
     section: craft
 ```
 
-`local_file` paths resolve under `<project>/local-sources/` or the legacy `<project>/personal/` folder. Supported formats: `.md`, `.txt`, `.html`, `.htm`, `.pdf`. Max 10MB per file.
+`local_file` paths resolve under `<project>/mixtape/local-sources/` or the legacy `personal/` folder beside `tape.yaml`. Older liners with `tape.yaml` at the root resolve them under `<project>/local-sources/`. Supported formats: `.md`, `.txt`, `.html`, `.htm`, `.pdf`, `.epub`. Max 10MB per file.
 
 `skill` sources are read as reference artifacts. Liner never installs or executes them. A skill source can point to an installed skill name discovered by `liner skills list`, a project-relative snapshot under `local-sources/skills/`, or a GitHub `tree`/`blob` URL. Local skill folders must sit inside the liner, in an installed skills folder, or in a folder you list in `LINER_SKILL_PATHS`, because a tape can come from someone else. Compiled skill sources are labeled as reference material so downstream AI treats them as evidence and examples, not active system instructions.
 
@@ -255,7 +255,7 @@ liner compile mobile-design-foundations --cookies ~/cookies.txt
 or set `cookies_file = "/path/to/cookies.txt"` under `[fetch]` in `~/.liner/config.toml`.
 
 When a YouTube transcript or web page is unavailable, save the text under
-`local-sources/` and add it as a `local_file` Source, then ask your agent to take it
+`mixtape/local-sources/` and add it as a `local_file` Source, then ask your agent to take it
 into the liner.
 
 ## Private addresses and size limits
@@ -296,8 +296,8 @@ Other clients, including Cursor (`~/.cursor/mcp.json`) and Claude Desktop, take 
 
 ## Status
 
-Active solo project. The current source targets **v1.2.0** for the npm
-release. Agents build and maintain liners through `liner research`,
+Active solo project. The current source targets **v1.2.0**, the current
+release on npm. Agents build and maintain liners through `liner research`,
 `liner catalog`, `liner search`, and `liner mcp`, and the terminal navigator reads
 the same folders. A public library of liners is planned. The methodology's
 place in the stack is described in
@@ -341,10 +341,10 @@ If you cloned the repo and want to clean up your dev environment too, the bundle
 ./scripts/uninstall.sh --yes       # skip prompts
 ./scripts/uninstall.sh --dry-run   # preview only
 ./scripts/uninstall.sh --dev       # also remove the repo's .venv
-./scripts/uninstall.sh --purge-workspace  # also remove ~/liner-workspace
+./scripts/uninstall.sh --purge-workspace  # also remove ~/liner-workspace and $LINER_DIR
 ```
 
-Your mixtape project folders are never touched unless you pass `--purge-workspace`.
+Without `--purge-workspace`, the script never touches your liners. With it, the script deletes `~/liner-workspace`, an older default, and the folder in `LINER_DIR` if you set one, asking first unless you pass `--yes`. It doesn't look in the current default library, `~/liner/projects`.
 
 ## Troubleshooting
 
@@ -356,7 +356,7 @@ Your mixtape project folders are never touched unless you pass `--purge-workspac
 chflags -R nohidden .venv
 ```
 
-**The navigator can't find `liner`** — it tries `LINER_BIN`, the bundled npm binary, the repo-local `.venv/bin/liner`, then `liner` on PATH. If none of those work, activate the venv (`source .venv/bin/activate`) or set `LINER_BIN=$(pwd)/.venv/bin/liner`.
+**The navigator can't find `liner`** — it tries `LINER_BIN`, the repo-local `.venv/bin/liner`, the bundled npm binary, then `liner` on PATH. If none of those work, activate the venv (`source .venv/bin/activate`) or set `LINER_BIN=$(pwd)/.venv/bin/liner`.
 
 ## License
 

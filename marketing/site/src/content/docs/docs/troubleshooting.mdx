@@ -19,7 +19,7 @@ If the platform core binary cannot be resolved, the version command prints only 
 
 ## Enable JavaScript rendering
 
-If compile says a page needs headless Chromium, choose the command for your installation.
+If compile says a page is JavaScript-rendered or looks like a JavaScript app shell, and ends with "Install JS-rendering support: liner setup-js", the page needs headless Chromium. If it says "Playwright Chromium isn't installed yet", the browser download is missing. Either way, choose the command for your installation.
 
 For one-shot use, run this command.
 
@@ -29,6 +29,14 @@ For a global install, run this command.
 
 <CommandSnippet command="liner setup-js" />
 
+## Fetch limits
+
+Liner refuses to fetch an address on this machine, your local network, or a cloud metadata service, and it checks every redirect too. The error names the address and says how to allow it. Web pages and PDFs stop at 50 MB. If your sources live on an intranet or a Tailscale network, add this to `~/.liner/config.toml`.
+
+```toml
+[fetch]
+allow_private_network = true
+```
 
 ## Recover YouTube transcripts
 

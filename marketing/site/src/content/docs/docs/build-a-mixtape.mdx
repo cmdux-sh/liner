@@ -29,6 +29,8 @@ The default workspace is `~/liner/projects`. Set `LINER_DIR` to use another loca
 6. **Compile** fetches the sources and writes the Mixtape.
 7. **Approve the instructions.** Your agent shows `LINER.md` and `SKILL.md` before they're written.
 
+The build checks its work before it moves on. Before the synthesis approval, every footnote must be defined and used, each must point to a kept source, and the synthesis must cite at least three sources, or every kept source when there are fewer. During compile, one failed source stops the build, and so does a citation that opens no compiled source.
+
 Watch it happen and read the result in the [navigator](/docs/tui/).
 
 ## Use the CLI
@@ -53,7 +55,7 @@ After reviewing the recipe and synthesis, run a scriptable compile.
 
 <CommandSnippet command="liner compile mobile-design-foundations" />
 
-The compile step writes the research packet.
+The compile step writes the research packet. Unlike a guided build, plain `liner compile` keeps going when a source fails. It writes what it could, warns about citations that match no compiled source, and exits with code 2 when some sources failed or 3 when all of them did.
 
 <FileTree
   root="mobile-design-foundations/"

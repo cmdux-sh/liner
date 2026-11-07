@@ -68,7 +68,10 @@ replaces the Project Skill. Managed operations preserve user-authored content.
 | Command | What it does |
 | --- | --- |
 | `liner manifest <folder>` | Aggregate `.liner-runs/` into `process.json`. |
-| `liner status <folder>` | Show a summary of runs, tokens, tool calls, and fetched URLs. |
+| `liner status <folder>` | Show a summary of runs, tokens, tool calls, and fetched URLs. For a liner your agent built, it shows the research funnel: searches, candidates, pages read, evaluated, kept, and final sources. |
+| `liner citations <slug>` | List the citations in a liner's synthesis and the source file each one opens. |
+
+The navigator uses two more commands. `liner library` reports everything in your library as its data feed, and `liner handoff <context>` writes the prompts that `y` shows.
 
 Use `liner status <folder> --no-write --json` for a read-only status consumer. Use `--status-only` only when you intend to refresh the Status Snapshot in `liner.yaml` without writing `process.json`.
 
@@ -94,7 +97,7 @@ Use `liner status <folder> --no-write --json` for a read-only status consumer. U
 | Command | What it does |
 | --- | --- |
 | `liner setup-js` | Download Playwright Chromium for JavaScript-rendered pages. |
-| `liner uninstall` | Remove Liner configuration and source cache, shared Playwright browsers, and npm's npx execution cache after confirmation. Use `--dry-run` to inspect the paths. |
+| `liner uninstall` | Remove Liner configuration and source cache, shared Playwright browsers, and npm's npx execution cache after confirmation. Use `--dry-run` to inspect the paths, or `--yes` (`-y`) to skip the prompt. |
 
 ## Useful flags
 
