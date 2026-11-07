@@ -111,15 +111,19 @@ class YouTubeHandler:
             ) from e
 
 
+def is_video_url(url: str) -> bool:
+    return _extract_video_id(url) is not None
+
+
 def _extract_video_id(url: str) -> str | None:
     parsed = urlparse(url)
     host = (parsed.netloc or "").lower()
 
-    if host.endswith("youtu.be"):
+    if host == "youtu.be":
         candidate = parsed.path.lstrip("/")
         return candidate if VIDEO_ID_RE.match(candidate) else None
 
-    if "youtube.com" in host:
+    if host == "youtube.com" or host.endswith(".youtube.com"):
         path = parsed.path
         if path == "/watch":
             vals = parse_qs(parsed.query).get("v")

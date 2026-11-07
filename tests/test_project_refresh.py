@@ -381,3 +381,141 @@ def test_real_cli_plans_explicit_still_current_review(tmp_path: Path) -> None:
     assert change_set["risk"] == "semantic"
     assert change_set["operations"][0]["disposition"] == "still_current"
     assert "content" not in change_set["operations"][0]
+
+
+def _current_project(tmp_path: Path) -> object:
+    """A finished project whose status is newer than its files, as after a real build."""
+    project = _completed_project(tmp_path)
+    metadata = read_liner_metadata(project)
+    metadata["status"]["updated"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    project.liner_metadata_path.write_text(
+        yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8"
+    )
+    return project
+
+
+def test_finished_project_instructions_can_be_revised_without_a_source_change(
+    tmp_path: Path,
+) -> None:
+    project = _current_project(tmp_path)
+    mixtape_before = project.mixtape_path.read_bytes()
+
+    plan = plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+    assert plan.risk == "semantic"
+    assert plan.approval_required is True
+    assert plan.operations[0]["standalone"] is True
+    with pytest.raises(ProjectApplyError):
+        apply_change_set(project.path, plan, approved=False)
+
+    apply_change_set(project.path, plan, approved=True)
+
+    assert project.liner_path.read_text(encoding="utf-8") == "# Revised rules\n"
+    assert project.mixtape_path.read_bytes() == mixtape_before
+    lifecycle = inspect_project(project.path).lifecycle
+    assert lifecycle["milestone"] == "project_complete"
+    assert lifecycle["stale"] is False
+    assert "refresh" not in lifecycle
+
+
+def test_standalone_instructions_review_must_be_a_patch(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+
+    with pytest.raises(ProjectInspectionError, match="must be a patch"):
+        plan_operating_layer_review(project.path, "still_current")
+
+
+def test_standalone_instructions_review_waits_for_a_pending_refresh(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+    plan = plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+    _add_source(project)
+
+    with pytest.raises(ProjectInspectionError, match="synthesis review"):
+        plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+    with pytest.raises(ProjectApplyError, match="synthesis review first"):
+        apply_change_set(project.path, plan, approved=True)
+    assert project.liner_path.read_text(encoding="utf-8") == "# Verified Operating Layer\n"
+
+
+def test_standalone_revision_works_after_a_completed_refresh(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+    _add_source(project)
+    apply_change_set(
+        project.path, plan_synthesis_review(project.path, "still_current"), approved=True
+    )
+    mark_corpus_ready(project)
+    apply_change_set(
+        project.path, plan_operating_layer_review(project.path, "still_current"), approved=True
+    )
+    assert inspect_project(project.path).lifecycle["refresh"]["state"] == "current"
+
+    plan = plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+    first = apply_change_set(project.path, plan, approved=True)
+    again = apply_change_set(project.path, plan, approved=True)
+
+    assert plan.operations[0]["standalone"] is True
+    assert first.replayed is False
+    assert again.replayed is True
+    lifecycle = inspect_project(project.path).lifecycle
+    assert lifecycle["stale"] is False
+    assert lifecycle["refresh"]["state"] == "current"
+
+
+def test_standalone_revision_refuses_hand_edited_files(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+    project.liner_path.write_text("# Edited by hand\n", encoding="utf-8")
+    with pytest.raises(ProjectInspectionError, match="finished, current Project"):
+        plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+
+    project = _current_project(tmp_path / "second")
+    project.synthesis_path.write_text("# Edited synthesis\n", encoding="utf-8")
+    with pytest.raises(ProjectInspectionError, match="mixtape/synthesis.md"):
+        plan_operating_layer_review(project.path, "patch", liner_content="# Revised rules\n")
+
+
+def test_finished_project_synthesis_can_be_revised_without_a_source_change(
+    tmp_path: Path,
+) -> None:
+    project = _current_project(tmp_path)
+
+    plan = plan_synthesis_review(project.path, "patch", content="# Revised synthesis\n")
+    assert plan.approval_required is True
+    assert plan.operations[0]["standalone"] is True
+    with pytest.raises(ProjectApplyError):
+        apply_change_set(project.path, plan, approved=False)
+
+    first = apply_change_set(project.path, plan, approved=True)
+    again = apply_change_set(project.path, plan, approved=True)
+    assert first.replayed is False
+    assert again.replayed is True
+
+    assert project.synthesis_path.read_text(encoding="utf-8") == "# Revised synthesis\n"
+    lifecycle = inspect_project(project.path).lifecycle
+    # MIXTAPE.md and the instructions still reflect the old synthesis.
+    assert lifecycle["stale"] is True
+    refresh = lifecycle["refresh"]
+    assert refresh["synthesis"]["state"] == "approved"
+    assert refresh["corpus"]["state"] == "compile_required"
+    assert refresh["operating_layer"]["state"] == "review_required"
+
+    mark_corpus_ready(project)
+    apply_change_set(
+        project.path, plan_operating_layer_review(project.path, "still_current"), approved=True
+    )
+    lifecycle = inspect_project(project.path).lifecycle
+    assert lifecycle["stale"] is False
+    assert lifecycle["refresh"]["state"] == "current"
+
+
+def test_standalone_synthesis_review_must_be_a_patch(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+
+    with pytest.raises(ProjectInspectionError, match="must be a patch"):
+        plan_synthesis_review(project.path, "still_current")
+
+
+def test_standalone_synthesis_review_refuses_hand_edits(tmp_path: Path) -> None:
+    project = _current_project(tmp_path)
+    project.synthesis_path.write_text("# Edited by hand\n", encoding="utf-8")
+
+    with pytest.raises(ProjectInspectionError, match="mixtape/synthesis.md"):
+        plan_synthesis_review(project.path, "patch", content="# Revised synthesis\n")

@@ -5,7 +5,7 @@ description: Create, compile, inspect, and maintain local research Projects and 
 
 import CommandSnippet from "../../../components/CommandSnippet.astro";
 
-Run `liner` with no arguments to open the terminal UI. Use subcommands when you want a scriptable workflow.
+Run `liner` with no arguments to open the [navigator](/docs/tui/). Use subcommands when you want a scriptable workflow. The commands agents use are in [Use Liner from an Agent](/docs/library/).
 
 For one-shot npm use, replace `liner <command>` with `npx --yes linersh@latest <command>`.
 
@@ -128,8 +128,7 @@ Inspect uninstall paths without removing them.
 
 To clear saved source content, use `liner cache clear` as a separate operation. It asks for confirmation before clearing the cache.
 
-The CLI creates folders, compiles research, and handles supported Project and Source changes. The terminal UI also creates AI instruction files through **Create Operating Layer** after compile. Both interfaces use Liner Core for maintenance.
+The CLI creates folders, compiles research, and handles supported Project and Source changes. Your agent creates AI instruction files through `liner research`.
 
-The terminal UI uses `--emit-events` to stream compile progress from the Python core.
 
 `liner list --recursive` searches one level below the directory you pass with `--dir`.

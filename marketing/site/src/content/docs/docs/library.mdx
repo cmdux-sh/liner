@@ -1,0 +1,61 @@
+---
+title: Use Liner from an Agent
+description: Let your own AI agent find your liners, build new ones, and keep them current, with you approving what goes in.
+---
+
+import CommandSnippet from "../../../components/CommandSnippet.astro";
+
+Liner is a personal library of reusable research. Each liner is one local folder for one narrow job. Your agent can find a liner, read it, and build new ones with its own tools, and you approve the sources and the synthesis. Liner checks each step and makes no AI calls.
+
+## Connect your agent
+
+Install the `liner` skill for Claude Code or Codex. It tells the agent how to find your liners, and to ask you before loading one.
+
+<CommandSnippet command={`npm install -g linersh
+liner agent-skill install claude --yes`} />
+
+An agent with no shell can connect over MCP instead. Add a stdio server with the command `liner` and the argument `mcp`. It offers the catalog, search, file reading, gaps, findings, fetching, refresh, and the research steps, and it has no tool for approving anything, so you approve from a terminal.
+
+<CommandSnippet command="liner mcp" />
+
+## Build a liner
+
+Ask your agent for lasting research on a subject. It starts a liner from a job story, then follows `liner research next` until the liner is done.
+
+| Command | What it does |
+| --- | --- |
+| `liner research start <job>` | Start a new liner from a job story. |
+| `liner research next <slug>` | Show the step to do now. |
+| `liner research submit <slug>` | Check the current step and move on. |
+| `liner research approve <slug> <kind> --token <token>` | Record your approval of what you reviewed. |
+| `liner fetch <slug> <url>` | Save a web page to a file, so its text stays out of the agent's session. |
+| `liner find-sources <query>` | Find sources already in your library, with earlier verdicts, so a new liner can reuse them. |
+| `liner research subagent install --yes` | Add an optional Claude Code subagent with no shell, network, or write tools for reading saved pages. |
+
+The subagent reduces exposure to hostile pages but does not isolate them: it can still read local files, and its report goes to the main agent. Liner can't tell who ran `approve`. On Claude Code, `liner agent-skill install claude` also adds a guard that makes Claude Code ask you directly before an agent approves. It's a guardrail, not a lock.
+
+## Use your liners
+
+| Command | What it does |
+| --- | --- |
+| `liner catalog` | List every liner with its job, readiness, and results. |
+| `liner search <query>` | Search the syntheses and sources across your liners. |
+| `liner use <slug>` | Point a repository's `CLAUDE.md` or `AGENTS.md` at a liner. |
+
+## Keep them current
+
+| Command | What it does |
+| --- | --- |
+| `liner gaps add <slug> <question>` | Record a question a liner couldn't answer. The next research pass targets it. |
+| `liner findings add <slug> <finding>` | Put what real work learned in an inbox. Nothing reaches the liner until you accept it. |
+| `liner refresh <slug>` | Refetch online sources and report what changed. The liner itself doesn't change. |
+| `liner test start <slug> <question>` | Set up a blind comparison: two answers, one written with the liner, in random order. |
+| `liner test judge <slug> <id> --preferred <a\|b\|same>` | Record which blind answer you preferred. The catalog shows the results. |
+| `liner test add <slug> <question>` | Record a comparison you judged yourself, with both answers and your verdict. |
+
+## Source types
+
+Liners can use web pages, YouTube transcripts, local files including PDF and EPUB, skills, and two library-specific types.
+
+- A `repository` Source reads the documentation files of a public GitHub repository at one commit. It doesn't read code files or private repositories.
+- A `liner` Source, written `liner://<slug>`, compiles another finished liner's synthesis. Citations use the folder name, so moving a liner breaks them.

@@ -16,7 +16,7 @@ Docs users are a little further along. They need exact install commands, truthfu
 
 ## Product Purpose
 
-Liner is an open-source toolkit for building local, source-grounded AI projects. A Liner Project is a folder with a Mixtape corpus inside it plus an Operating Layer: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
+Liner is an open-source personal library of reusable research that any AI agent can find, use, and maintain. Each liner, formally a Liner Project, is a folder for one job with a Mixtape corpus inside it plus an Operating Layer: `LINER.md`, root `SKILL.md`, and `liner.yaml`.
 
 The landing page should make one thing feel obvious: source choice is part of the work, and future AI sessions need more than source files. The tool gives that work a shape, a local workflow, and a reusable project artifact. Success means the visitor understands the project model, trusts that the output is local and inspectable, and feels confident enough to run `npx linersh`.
 

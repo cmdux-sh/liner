@@ -9,6 +9,7 @@ from liner.cache import SourceCache
 from liner.compile import MissingSynthesisError, compile_project, compile_tape
 from liner.config import Config
 from liner.handlers.base import HandlerHardFailure, HandlerSoftFailure, JsRenderingRequired
+from liner.handlers.html_extraction import EXTRACTOR_VERSION
 from liner.project import init_project
 from liner.types import SourceContent, SourceSpec, Tape
 
@@ -118,7 +119,7 @@ def test_compile_omits_untrusted_legacy_web_metadata_from_cache(tmp_path: Path) 
             fetched_at="2026-07-18T12:00:00Z",
             author="Authorization Server Discovery",
             published_at="1997-03-18",
-            metadata={"extraction": "trafilatura"},
+            metadata={"extraction": "trafilatura", "extractor_version": EXTRACTOR_VERSION},
         ),
         source_type="web",
         ttl_days=30,
@@ -594,3 +595,63 @@ def test_summary_fallback_handles_unregistered_handler() -> None:
 def _no_real_filesystem(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Belt and suspenders: keep tests from writing to ~/.liner."""
     monkeypatch.setenv("HOME", str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("version", "refetched"),
+    [(None, True), (1, True), (EXTRACTOR_VERSION - 1, True), (EXTRACTOR_VERSION, False)],
+)
+def test_pages_saved_by_an_older_extractor_are_refetched(
+    tmp_path: Path, version: int | None, refetched: bool
+) -> None:
+    url = "https://developer.apple.com/help/platform-version-information/"
+    tape = _tape([SourceSpec(type="web", url=url)])
+    cache = SourceCache(tmp_path / "c.db")
+    metadata: dict[str, object] = {"extraction": "trafilatura"}
+    if version is not None:
+        metadata["extractor_version"] = version
+    saved = SourceContent(
+        title="Platform version information",
+        url=url,
+        body="Platform version information refers to the set of properties. " * 20,
+        fetched_at="2026-11-04T00:00:00+00:00",
+        metadata=metadata,
+    )
+    cache.put(saved, source_type="web", ttl_days=30)
+
+    handler = StubHandler(body="the full property table")
+    compile_tape(tape, cache=cache, handlers={"web": handler}, config=Config())
+
+    assert handler.calls == ([url] if refetched else [])
+
+
+def test_an_older_copy_is_used_when_the_refetch_fails(tmp_path: Path) -> None:
+    from liner.handlers.base import HandlerHardFailure
+
+    url = "https://developer.apple.com/help/platform-version-information/"
+    cache = SourceCache(tmp_path / "c.db")
+    older = SourceContent(
+        title="Platform version information",
+        url=url,
+        body="Platform version information refers to the set of properties. " * 20,
+        fetched_at="2026-11-04T00:00:00+00:00",
+        metadata={"extraction": "trafilatura", "metadata_source": "declared_html"},
+    )
+    cache.put(older, source_type="web", ttl_days=30)
+
+    class Offline:
+        def fetch(self, spec: SourceSpec) -> SourceContent:
+            raise HandlerHardFailure("network down", spec.url)
+
+    result = compile_tape(
+        _tape([SourceSpec(type="web", url=url)]),
+        cache=cache,
+        handlers={"web": Offline()},
+        config=Config(),
+    )
+
+    content = result.sources[0].content
+    assert content is not None
+    assert content.body == older.body
+    assert any("older extractor" in warning.message for warning in result.warnings)
+

@@ -11,12 +11,14 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote, urlparse
 
 import httpx
 import yaml
 
 from liner.handlers.base import HandlerHardFailure
+from liner.handlers.fetch_guard import get_bounded, guarded_client
 from liner.project import ProjectFolder
 from liner.types import SourceContent, SourceSpec
 
@@ -53,7 +55,17 @@ class SkillHandler:
     def _fetch_local(self, spec: SourceSpec) -> SourceContent:
         identifier = spec.path or "<skill>"
         root = self._resolve_skill_path(identifier)
+        if not self._may_read(root):
+            raise HandlerHardFailure(
+                f"{root} is outside this liner and your installed skills, so Liner won't read "
+                "it. To allow that folder, add it to LINER_SKILL_PATHS.",
+                identifier,
+            )
         if root.is_file():
+            if root.suffix.lower() not in SUPPORTED_EXTENSIONS or (
+                root.stat().st_size > MAX_SKILL_BYTES
+            ):
+                raise HandlerHardFailure(f"{root} is not a readable skill file.", identifier)
             files = [root]
             skill_root = root.parent
         else:
@@ -88,6 +100,13 @@ class SkillHandler:
                 "description": description,
             },
         )
+
+    def _may_read(self, path: Path) -> bool:
+        """A tape can come from a stranger, so it can't point at any file on this machine."""
+        roots = _installed_roots()
+        if self._project is not None:
+            roots.append(self._project.path.resolve())
+        return any(path.is_relative_to(root) for root in roots)
 
     def _resolve_skill_path(self, value: str) -> Path:
         raw = Path(os.path.expanduser(value))
@@ -185,6 +204,16 @@ def skill_search_roots() -> list[Path]:
     return roots
 
 
+def _installed_roots() -> list[Path]:
+    """Skill folders, plus where their entries lead: installed skills are often symlinks."""
+    folders = [*skill_search_roots(), Path.home() / ".claude" / "skills"]
+    roots = [folder.resolve() for folder in folders]
+    for folder in folders:
+        if folder.is_dir():
+            roots.extend(entry.resolve() for entry in folder.iterdir() if entry.is_symlink())
+    return roots
+
+
 def _walk_skill_markers(root: Path) -> list[Path]:
     out: list[Path] = []
     for current, dirs, files in os.walk(root):
@@ -261,8 +290,7 @@ def _render_skill_body(*, origin: str, files: list[tuple[str, str]]) -> str:
 def fetch_github_skill_files(url: str) -> tuple[list[tuple[str, str]], str]:
     parsed = urlparse(url)
     if parsed.netloc == "raw.githubusercontent.com":
-        response = httpx.get(url, follow_redirects=True, timeout=20.0)
-        response.raise_for_status()
+        response = _get(url)
         return [(Path(parsed.path).name or "SKILL.md", response.text)], Path(parsed.path).stem
 
     if parsed.netloc.lower() != "github.com":
@@ -282,8 +310,7 @@ def fetch_github_skill_files(url: str) -> tuple[list[tuple[str, str]], str]:
 
     if parsed.path.endswith("/SKILL.md") or parts[2:3] == ["blob"]:
         raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{quote(subpath)}"
-        response = httpx.get(raw_url, follow_redirects=True, timeout=20.0)
-        response.raise_for_status()
+        response = _get(raw_url)
         return [(Path(subpath).name or "SKILL.md", response.text)], Path(subpath).parent.name or repo
 
     api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{quote(subpath)}"
@@ -291,9 +318,15 @@ def fetch_github_skill_files(url: str) -> tuple[list[tuple[str, str]], str]:
     return files, Path(subpath).name or repo
 
 
-def _fetch_github_tree(api_url: str, *, ref: str, prefix: str) -> list[tuple[str, str]]:
-    response = httpx.get(api_url, params={"ref": ref}, timeout=20.0)
+def _get(url: str, **options: Any) -> httpx.Response:
+    with guarded_client(follow_redirects=True, timeout=20.0) as client:
+        response = get_bounded(client, url, max_bytes=MAX_SKILL_BYTES, **options)
     response.raise_for_status()
+    return response
+
+
+def _fetch_github_tree(api_url: str, *, ref: str, prefix: str) -> list[tuple[str, str]]:
+    response = _get(api_url, params={"ref": ref})
     raw = response.json()
     if isinstance(raw, dict) and raw.get("type") == "file":
         name = str(raw.get("name") or "SKILL.md")
@@ -302,9 +335,7 @@ def _fetch_github_tree(api_url: str, *, ref: str, prefix: str) -> list[tuple[str
             return []
         if Path(name).suffix.lower() not in SUPPORTED_EXTENSIONS:
             return []
-        file_response = httpx.get(download_url, timeout=20.0)
-        file_response.raise_for_status()
-        return [(prefix + name, file_response.text)]
+        return [(prefix + name, _get(download_url).text)]
 
     if not isinstance(raw, list):
         return []
@@ -320,9 +351,7 @@ def _fetch_github_tree(api_url: str, *, ref: str, prefix: str) -> list[tuple[str
         if item_type == "file" and Path(name).suffix.lower() in SUPPORTED_EXTENSIONS:
             download_url = item.get("download_url")
             if isinstance(download_url, str):
-                file_response = httpx.get(download_url, timeout=20.0)
-                file_response.raise_for_status()
-                out.append((prefix + name, file_response.text))
+                out.append((prefix + name, _get(download_url).text))
         elif item_type == "dir" and len(out) < MAX_FILES:
             child_url = item.get("url")
             if isinstance(child_url, str):

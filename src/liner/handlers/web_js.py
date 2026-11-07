@@ -13,9 +13,18 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+import httpx
+
 from liner.config import FetchConfig
 from liner.handlers.base import HandlerHardFailure
+from liner.handlers.fetch_guard import (
+    MAX_RESPONSE_BYTES,
+    BlockedAddressError,
+    blocked_reason,
+    guarded_client,
+)
 from liner.handlers.html_extraction import (
+    EXTRACTOR_VERSION,
     MIN_USEFUL_BODY_CHARS,
     extract_html_text,
     looks_like_bot_challenge,
@@ -80,6 +89,46 @@ class WebJsHandler:
         self._config = config
         self._playwright: Any | None = None
         self._browser: Any | None = None
+        self._host_checks: dict[str, str | None] = {}
+
+    def _blocked(self, url: str) -> str | None:
+        if self._config.allow_private_network:
+            return None
+        host = urlparse(url).netloc
+        if host not in self._host_checks:
+            self._host_checks[host] = blocked_reason(url)
+        return self._host_checks[host]
+
+    def _blocked_redirect(self, url: str) -> str | None:
+        """Walk the redirects first, because browser routes don't see them."""
+        if self._config.allow_private_network:
+            return None
+        try:
+            with (
+                guarded_client(
+                    follow_redirects=True,
+                    timeout=self._config.timeout_seconds,
+                    headers={"User-Agent": self._config.user_agent},
+                ) as client,
+                client.stream("GET", url),
+            ):
+                return None
+        except BlockedAddressError as error:
+            return str(error)
+        except httpx.HTTPError:
+            return None  # The browser reports its own failure, or gets past a bot wall.
+
+    def _guard_route(self, route: Any) -> None:
+        if self._blocked(route.request.url):
+            route.abort("blockedbyclient")
+        else:
+            route.continue_()
+
+    def _guard_web_socket(self, socket: Any) -> None:
+        if self._blocked(socket.url):
+            socket.close()
+        else:
+            socket.connect_to_server()
 
     def _ensure_browser(self) -> Any:
         if self._browser is not None:
@@ -110,8 +159,14 @@ class WebJsHandler:
 
     def fetch(self, spec: SourceSpec) -> SourceContent:
         url = spec.url
+        reason = self._blocked(url) or self._blocked_redirect(url)
+        if reason:
+            raise HandlerHardFailure(reason, url)
         browser = self._ensure_browser()
-        context = browser.new_context(user_agent=self._config.user_agent)
+        # Service workers would make requests the route below can't see.
+        context = browser.new_context(user_agent=self._config.user_agent, service_workers="block")
+        context.route("**/*", self._guard_route)
+        context.route_web_socket("**/*", self._guard_web_socket)
         # Best-effort cookie loading. Format conversion from Netscape is left
         # for a follow-up — Playwright wants explicit `name/value/domain/path`
         # entries and we'd need a small parser. For now, if cookies_file is
@@ -141,9 +196,15 @@ class WebJsHandler:
                     f"Failed to load {url} via headless browser: {e}", url
                 ) from e
 
+            reason = self._blocked(page.url)
+            if reason:
+                raise HandlerHardFailure(reason, url)
             html = page.content()
         finally:
             context.close()
+
+        if len(html.encode("utf-8", errors="replace")) > MAX_RESPONSE_BYTES:
+            raise HandlerHardFailure(f"{url} is too large to read.", url)
 
         extraction = extract_html_text(html)
         body = extraction.body
@@ -193,6 +254,7 @@ class WebJsHandler:
                     updated_at=str(extraction.updated_at) if extraction.updated_at else None,
                     metadata={
                         "extraction": "playwright-fallback",
+                        "extractor_version": EXTRACTOR_VERSION,
                         **(
                             {"metadata_source": extraction.metadata_source}
                             if extraction.metadata_source
@@ -219,6 +281,7 @@ class WebJsHandler:
             updated_at=str(extraction.updated_at) if extraction.updated_at else None,
             metadata={
                 "extraction": "playwright",
+                "extractor_version": EXTRACTOR_VERSION,
                 **(
                     {"metadata_source": extraction.metadata_source}
                     if extraction.metadata_source
@@ -247,6 +310,8 @@ class WebJsHandler:
 def _content_from_pdf_download(spec: SourceSpec, download: Any) -> SourceContent:
     url = spec.url
     download_path = Path(download.path())
+    if download_path.stat().st_size > MAX_RESPONSE_BYTES:
+        raise HandlerHardFailure(f"{url} is too large to read.", url)
     body = extract_pdf_text(download_path, url)
     title = _pdf_download_title(url, download)
     content = SourceContent(

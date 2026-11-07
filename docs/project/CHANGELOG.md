@@ -1,5 +1,223 @@
 # Changelog
 
+## 1.2.0
+
+- **Pages with non-ASCII response headers load.** A site that sent an emoji in a
+  header, such as WordPress's developer blog, failed every fetch with an encoding
+  error.
+- **Pages with a Markdown copy are read from it.** A page that declares
+  `<link rel="alternate" type="text/markdown">` on the same site, as Apple's Human
+  Interface Guidelines do, is read from that copy instead of needing a browser.
+  Markdown and plain-text responses are kept as text.
+- **Near-empty pages are checked before a browser is suggested.** When a saved copy
+  holds only a page's intro, the evaluation step checks the page's HTML for the
+  missing text and suggests JavaScript rendering only when it isn't there.
+- **Blind tests stay blind.** `liner test start` refuses answers that hold links,
+  footnotes, a source list, or a mention of the liner, since only the answer written
+  with the liner would have them. The `liner` skill tells the agent to leave them out.
+- **Evaluation reads a reused source's saved copy.** `liner fetch <slug>
+  liner://<other-liner>/<source-id>` saves the copy compile will use, and
+  `liner find-sources` lists reusable copies first.
+- **Extraction fixes reach cached pages.** Pages in the shared cache record which
+  extractor saved them, and ones saved by an older extractor are fetched again.
+- **Icon-only table cells keep their label.** A cell holding only a check-mark icon,
+  such as in Apple's App Store Connect tables, now reads as its label.
+- **Pages that stop at their intro are read again.** When the looser setting also
+  keeps only a page's intro, Liner tries trafilatura's fallback extractors on their
+  own. Apple's product page guide used to save 385
+  characters; it now saves 10,464, including the promotional text section.
+- **A new liner's agent drafts first by default.** When a build asks what the agent
+  should do with a request that's missing details, it now recommends drafting with
+  the gaps marked and asking after, instead of asking first.
+- **Builds keep the chat small.** `liner research next` and `submit` save each step's
+  prompt to a file and return its path, and approval reviews point to files too, so
+  long instructions and drafts stay out of the chat. Add `--with-prompt` if your
+  client can't read files; the MCP server does this for you.
+- **A build plans its subagents.** `liner research plan <slug>` lists the steps ahead
+  and the kind of work each needs, such as `find`, `judge`, or `synthesize`. The
+  `liner` skill shows it as a plan of subagents with suggested models, lets you change
+  it, and runs the research in subagents while approvals stay in your chat.
+- **You can see what research went through.** The sources step now keeps a search
+  log, and a finished build and `liner status` show the funnel: searches and results
+  as the agent reported them, then candidates, pages read, evaluated, kept, and final
+  sources.
+- **Reuse one source from another liner.** A `liner` source can now be
+  `liner://<slug>/<source-id>`, which copies that source's saved text, even a local
+  file, with its original address, so a citation of the original opens it.
+  `liner find-sources` gives each source's address. It still goes through evaluation
+  and your source approval, `liner share` warns before packing one that was a local
+  file, and `liner refresh` says where its live page gets checked.
+- **A new liner no longer says it's a starter tape.** `liner research start` used to keep
+  the sample tape's description, "A starter tape with one YouTube video and one
+  article", and its `example` and `starter` tags, and `MIXTAPE.md` opened with that line.
+  New liners drop them, and compiling leaves a stand-in description out of `MIXTAPE.md`,
+  so recompiling an older liner fixes it too.
+- **Wrapped approvals still ask you.** `liner research guard install` also adds a
+  Claude Code hook that reads the whole command, so an approval run inside `bash -c`,
+  after `env`, through `npx`, or with a full path to `liner` asks you too. Run it again
+  to add the hook to an existing install.
+- **Builds ask about Playwright before they need it.** When a source renders with
+  JavaScript and Playwright isn't installed, the sources approval lists it and tells the
+  agent to ask, as its own question, whether to run `liner setup-js --yes`. The build
+  step stops with that command instead of failing partway through the compile.
+- **A finished build updates the `liner` skill's subject list.** Agents that have the
+  skill installed list the new liner right away, without `liner agent-skill update`.
+- **The research plan names the approvals in plain words:** the synthesis, the source
+  list, and the instructions, in the order they come.
+- **Reference pages save their full text.** When the page extractor keeps under a
+  quarter of a page's visible words, Liner tries again with a looser setting. Apple's
+  App Review Guidelines used to save 91 words of about 15,000; they now save 12,320.
+- **A finished liner's synthesis can be revised on its own too.** A `synthesis.review`
+  patch on a finished liner needs your approval, then starts a refresh: `liner compile`
+  rebuilds `MIXTAPE.md`, and you review the instructions against the new synthesis.
+- **Approvals point out rules that ask before drafting.** The synthesis and instructions
+  approvals list any line that holds a draft back for questions, such as "ask before
+  drafting", so you can fix it or keep it on purpose. New builds stop writing those
+  rules unless a runtime boundary needs one.
+- **A finished liner's instructions can be revised on their own.** An
+  `operating_layer.review` patch no longer needs a source change first. It still
+  needs your approval, and it's refused while a refresh is waiting for review.
+- **Drafts come with their follow-up questions.** New liners tell agents to draft
+  from what you gave, mark each gap, and then ask a short set of questions that say
+  which gap each one fills.
+- **Research checks your library first.** `liner find-sources` lists sources across
+  your liners with earlier verdicts, including rejected ones, so agents don't repeat
+  work. The output is capped, so it stays small as the library grows.
+- **A build can't finish with sources missing.** `liner research submit` now stops
+  and names any source that didn't compile, instead of reporting success.
+- **Saved pages are reused.** `liner fetch` keeps a full page or transcript in the
+  shared cache, so another fetch or compile, in any liner, doesn't download it again.
+- **`liner fetch` reads YouTube transcripts.** It used to save only the video page's
+  footer, which made good videos look empty during research. It now also warns
+  when any page saves almost nothing, instead of reporting a plain success.
+- **Building a liner starts faster.** `liner agent-skill install claude --yes` now
+  also adds the page-reading subagent and the approval rules, so a build never stops
+  for setup. Add `--no-subagent` or `--no-guard` to leave either out. Asking your
+  agent for a liner counts as the go-ahead, and it asks for the job in plain words.
+- **`liner test` can be blind.** `liner test start` saves both answers as A and B in
+  random order, and `liner test judge` records your choice and then reveals which
+  used the liner. `liner catalog` shows how many tests were blind.
+- **Unused options are gone.** The `[output] include_preamble` setting never did
+  anything and has been removed. `mode` remains on tapes as a label that changes
+  nothing, and `--mode` is hidden.
+- **`SECURITY.md` says what Liner does and doesn't protect against**, and the
+  README shows how to connect an agent to `liner mcp`.
+- **Claude Code can ask you before an agent approves anything.**
+  `liner research guard install --yes` makes Claude Code prompt you directly before
+  it runs `liner research approve` and the other commands that need your say-so.
+  Approving stays in chat. It's a guardrail, not a lock: bypass mode skips it, and
+  so does the same command written another way. Codex has no equivalent yet.
+- **Finishing a liner can't get stuck on an existing `LINER.md`.** A build that
+  stopped just after writing the Operating Layer now finishes on the next try. A
+  different `LINER.md` stops with a clear message instead of asking for approval
+  again and again, and the approval now always covers `LINER.md` and `SKILL.md`.
+- **Imported liners are handled as someone else's work.** `liner import` no longer
+  overwrites an existing folder unless you pass `--overwrite`, refuses unsafe paths
+  and oversized archives, and drops agent transcripts, which `liner share` also
+  stops packing. Local `skill` sources must now sit inside the liner, in an
+  installed skills folder, or in a folder listed in `LINER_SKILL_PATHS`. A skill
+  path anywhere else used to work, and now stops with a message saying how to allow it.
+  A source only an agent could read, such as a bot-walled page, needs its text saved
+  as a `local_file` before someone else can recompile the liner.
+- **Fetching stays on the public internet.** A tape can come from a stranger, so
+  Liner now refuses URLs that lead to this machine, your local network, or a cloud
+  metadata address, including through redirects. To fetch from an intranet, set
+  `allow_private_network = true` under `[fetch]` in `~/.liner/config.toml`. Web
+  pages and PDFs now stop at 50 MB, and remote skill files at 2 MB.
+- **Building moved to your agent.** The app's build, review, source, and
+  maintenance screens are gone, along with its AI runner. `liner research improve`
+  now shows an agent how to strengthen a finished liner and its open gaps.
+- **The terminal app is now a navigator for your library.** It shows every liner,
+  what needs you, your whole source collection, and how liners connect, and it
+  updates by itself as your agent works. You can read any file and follow a
+  citation to its source, and `y` copies a prompt for your agent. Building and
+  approving now happen through your agent.
+- **New commands work through npm.** The launcher opened the terminal app for
+  `liner catalog`, `research`, `search`, and the other library commands, so an
+  agent would hang. It now passes them to Core, and a test keeps the list complete.
+- **`liner refresh` keeps its last report, and `liner library` shows it all.**
+  `liner library` reports every liner, what needs attention, your whole source
+  collection, and how liners connect, for the terminal app to read.
+- **Syntheses cite their sources.** New syntheses mark claims with Markdown
+  footnotes, and the synthesis check confirms each one points to a kept source.
+  `liner citations` lists them and their source files. Older liners keep working.
+- **`liner mcp` reaches agents with no shell.** It offers your catalog, search,
+  file reading, gaps, findings, `liner fetch`, `liner refresh`, and the research
+  steps over standard input and output. It runs the same commands as the shell.
+  Approving anything stays with you in a terminal: it has no tool for approving
+  research, accepting findings, recording a test verdict, or applying a change.
+- **`liner test` records whether a liner earned its place.** An agent answers a
+  real question with and without the liner, you judge the two, and
+  `liner test add` keeps the result. `liner catalog` shows how many tests came
+  out better and whether the liner has changed since. As with
+  `liner research approve`, Liner trusts the agent to report your verdict.
+- **Liners can cite each other.** A `liner` Source, `liner://<slug>`, compiles
+  another finished liner's reviewed synthesis into this one. `liner catalog`
+  shows `cites` and `cited_by`, and `liner refresh` reports when a cited liner's
+  synthesis has changed. Citations go by folder name, so moving a liner breaks
+  them, and a shared liner can't recompile them outside your library.
+- **Books and repositories can be Sources.** A `local_file` can now be an EPUB,
+  read in chapter order. A `repository` Source takes a public GitHub URL and
+  compiles its documentation files at one commit, or just one folder with a
+  `/tree/<ref>/<folder>` URL. Code files and private repositories aren't read.
+- **`liner refresh` shows what changed online.** It refetches a liner's web pages,
+  videos, and remote skills, compares them with the compiled copies, and saves a
+  diff for each change. It changes nothing in the liner, and it reports pages it
+  couldn't read instead of treating them as changed.
+- **Findings from real work wait for your review.** `liner findings add` puts
+  what an agent learned in a liner's inbox. Accepting one adds it as a Source,
+  which starts the usual synthesis, compile, and Operating Layer review. It never
+  edits `LINER.md` directly. `liner catalog` counts what's waiting. As with
+  `liner research approve`, Liner trusts the agent to ask you before `--yes`.
+- **Liners remember what they couldn't answer.** `liner gaps add` records a
+  question a liner failed on, `liner catalog` counts the open ones, and the next
+  Improve Corpus pass is told to look for sources that answer them.
+- **`liner use` points a repository at a liner.** It adds a short block to
+  `CLAUDE.md` or `AGENTS.md` naming the liner and how to search it, previews it
+  first, and can remove it. The block names the liner by slug, so nothing from
+  your machine lands in a committed file.
+- **Read web pages in a restricted session.** `liner research subagent install`
+  adds an optional Claude Code subagent with no shell, network, or write tools,
+  which reads pages saved by `liner fetch` and reports what they say. This
+  reduces exposure but is not isolation: it can still read local files, and its
+  report goes to the main agent.
+- **Creating the Operating Layer now leaves a receipt.** The terminal app used to
+  write `LINER.md`, `SKILL.md`, and `liner.yaml` one at a time. Core now writes
+  them together after you confirm, and an older project gets its missing IDs in
+  the same change.
+- **`liner fetch` keeps web pages out of the agent's session.** It saves a page
+  to a file in the liner and returns the path, so an agent opens only what it
+  needs.
+- **Any agent can build a liner.** `liner research start`, `next`, `submit`, and
+  `approve` walk an agent through every step with its own tools, without the
+  terminal app. Liner checks each result, and the person approves the synthesis,
+  the sources, and the Operating Layer through their agent. Liner trusts the
+  agent to ask: it cannot tell who ran `liner research approve`. An edit during
+  the build reopens that approval. After a liner is finished, changes go through
+  maintenance.
+- **Liner no longer reads a logged-in Claude as logged out on macOS.** Liner set
+  `CLAUDE_CONFIG_DIR` even to the default `~/.claude`, and Claude Code then
+  couldn't find a claude.ai login, so every Claude phase stopped before it
+  started. Liner now leaves the variable unset for the default home.
+- **Claude can search the web while finding sources.** The candidates and
+  improvement phases told the agent to search, but the Claude runner blocked
+  `WebSearch`, so discovery was limited to URLs the model already knew. Both
+  phases can now search. Every other phase still cannot.
+- **A folder with no `SKILL.md` is refused when you add it.** The source inbox
+  used to accept any local folder as a skill, and the compile failed later. It
+  now skips the folder and says why.
+- **`liner catalog` lists your whole library.** It reads every liner in your
+  Project library, wherever your agent is working, and reports each job,
+  readiness, staleness, and source count. A liner it cannot read is reported,
+  not dropped.
+- **A `liner` skill lets your agent find your research.** `liner agent-skill
+  install claude --yes` adds an optional skill that names your usable liners, so
+  your agent can suggest one that fits the task and ask before loading it.
+  `liner agent-skill update` refreshes the list after your library changes.
+- **`liner search` finds passages across your liners.** It searches syntheses
+  and compiled sources with SQLite full-text search and returns the file, line,
+  heading, and source URL. It writes nothing and needs no embeddings.
+
 ## 1.1.3
 
 - **`liner` no longer starts itself in a loop when its platform package is

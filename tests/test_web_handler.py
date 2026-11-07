@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -469,3 +471,395 @@ def test_web_handler_network_errors_are_categorized() -> None:
     assert "category: tls" in message
     assert "ConnectError" in message
     handler.close()
+
+
+def _reference_page(paragraphs: int) -> str:
+    body = "".join(
+        f"<p>Guideline {n}: apps must describe what changed in each update clearly.</p>"
+        for n in range(paragraphs)
+    )
+    padding = "<div>" + "x" * 20000 + "</div>"
+    return f"<html><head><title>Guidelines</title></head><body>{body}{padding}</body></html>"
+
+
+def _fake_extract(precise: str, recall: str, calls: list[bool]) -> object:
+    def extract(html: str, **options: object) -> str:
+        calls.append(bool(options.get("favor_recall")))
+        return recall if options.get("favor_recall") else precise
+
+    return extract
+
+
+def test_extraction_retries_when_it_keeps_too_little_of_the_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+    recall = "Guideline 1:\tapps must describe\n\n  what changed.  \n" * 200
+    monkeypatch.setattr(
+        html_extraction.trafilatura, "extract", _fake_extract("Introduction only.", recall, calls)
+    )
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == [False, True]
+    assert result.body is not None
+    assert result.body.startswith("Guideline 1: apps must describe\nwhat changed.\n")
+
+
+def test_extraction_keeps_a_body_that_covers_the_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[bool] = []
+    precise = "Guideline: apps must describe what changed in each update clearly. " * 40
+    monkeypatch.setattr(html_extraction.trafilatura, "extract", _fake_extract(precise, "", calls))
+
+    html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == [False]
+
+
+def test_extraction_keeps_a_stub_so_the_handler_can_detect_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+    stub = "You need to enable JavaScript to run this app."
+    monkeypatch.setattr(
+        html_extraction.trafilatura, "extract", _fake_extract(stub, "Menu link " * 500, calls)
+    )
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == [False]
+    assert result.body == stub
+
+
+def test_extraction_keeps_the_precise_body_when_recall_is_not_clearly_longer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+    precise = "Introduction to the guidelines for every app."
+    monkeypatch.setattr(
+        html_extraction.trafilatura,
+        "extract",
+        _fake_extract(precise, precise + " Footer.", calls),
+    )
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == [False, True, False]
+    assert result.body == precise
+
+
+def _fake_reads(precise: str, recall: str, fallbacks: str, calls: list[str]) -> object:
+    def extract(html: str, **options: object) -> str:
+        if options.get("no_fallback"):
+            calls.append("precise")
+            return precise
+        calls.append("recall" if options.get("favor_recall") else "fallbacks")
+        return recall if options.get("favor_recall") else fallbacks
+
+    return extract
+
+
+def test_extraction_reads_with_the_fallbacks_alone_when_recall_stops_at_the_intro(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    intro = "Every element of your product page drives downloads."
+    full = "Promotional text appears at the top and is up to 170 characters long.\n" * 200
+    monkeypatch.setattr(
+        html_extraction.trafilatura, "extract", _fake_reads(intro, intro, full, calls)
+    )
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == ["precise", "recall", "fallbacks"]
+    assert result.body is not None
+    assert result.body.startswith("Promotional text appears at the top")
+
+
+def test_extraction_keeps_a_recall_read_that_covers_the_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    recall = "Guideline 1: apps must describe what changed.\n" * 400
+    monkeypatch.setattr(
+        html_extraction.trafilatura,
+        "extract",
+        _fake_reads("Introduction only.", recall, recall + "Menu link\n" * 400, calls),
+    )
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == ["precise", "recall"]
+    assert result.body is not None
+    assert "Menu link" not in result.body
+
+
+def test_extraction_keeps_the_precise_body_when_neither_retry_reads_anything(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    precise = "Introduction to the guidelines for every app."
+    monkeypatch.setattr(html_extraction.trafilatura, "extract", _fake_reads(precise, "", "", calls))
+
+    result = html_extraction.extract_html_text(_reference_page(60))
+
+    assert calls == ["precise", "recall", "fallbacks"]
+    assert result.body == precise
+
+
+def test_icon_tables_are_read_again_in_recall_mode_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    precise = "Property list for each language. " * 20
+    monkeypatch.setattr(
+        html_extraction.trafilatura,
+        "extract",
+        _fake_reads(precise, precise + "Subtitle | Localized", "", calls),
+    )
+    html = (
+        "<html><body><p>Property list</p><table><tr><td>Subtitle</td>"
+        '<td><figure alt="Localized"></figure></td></tr></table></body></html>'
+    )
+
+    result = html_extraction.extract_html_text(html)
+
+    assert calls == ["precise", "recall"]
+    assert result.body is not None
+    assert result.body.endswith("Subtitle | Localized")
+
+
+def test_js_rendering_needs_a_chromium_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from liner import playwright_env
+
+    monkeypatch.setattr(playwright_env, "find_spec", lambda name: object())
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+    assert playwright_env.js_rendering_ready() is False
+
+    (tmp_path / "chromium_headless_shell-1248").mkdir()
+    assert playwright_env.js_rendering_ready() is True
+
+    monkeypatch.setattr(playwright_env, "find_spec", lambda name: None)
+    assert playwright_env.js_rendering_ready() is False
+
+
+def test_a_cell_that_holds_only_an_icon_keeps_its_label() -> None:
+    html = (
+        "<table><tr><td><p>Subtitle</p></td><td></td>"
+        '<td><figure class="icon icon-checkcircle" alt="Localized"></figure></td>'
+        '<td><svg aria-label="Editable"><path d=""/></svg></td>'
+        '<td>Notes <img alt="info"></td></tr></table>'
+    )
+
+    labeled = html_extraction._label_icon_cells(html)
+
+    assert "<td>Localized</td>" in labeled
+    assert "<td>Editable</td>" in labeled
+    assert "<td></td>" in labeled  # An empty cell stays empty.
+    assert 'Notes <img alt="info">' in labeled  # A cell with text keeps it.
+
+
+def test_a_table_of_check_marks_survives_extraction() -> None:
+    names = [f"Property {index}" for index in range(60)]
+    rows = "".join(
+        f"<tr><td><p>{name}</p></td>"
+        f'<td><figure class="icon icon-checkcircle" alt="Localized"></figure></td></tr>'
+        for name in names
+    )
+    html = (
+        "<html><body><main><h1>Localizable properties</h1>"
+        "<p>The table shows which properties can be localized for each language.</p>"
+        f"<table><tr><th>Property</th><th>Localized</th></tr>{rows}</table>"
+        "</main></body></html>"
+    )
+
+    body = html_extraction.extract_html_text(html).body or ""
+
+    row = next(line for line in body.splitlines() if "Property 7 " in line + " ")
+    assert "Localized" in row
+
+
+
+_MARKDOWN = (
+    '<!--\n{"documentType": "article"}\n-->\n\n# Materials\n\n'
+    + "Liquid Glass forms a distinct functional layer for controls. " * 20
+)
+_STUB_WITH_MARKDOWN = (
+    "<html><head><title>Materials</title>"
+    '<link rel="alternate" type="text/markdown" href="{href}"></head>'
+    "<body><noscript>This page requires JavaScript.</noscript></body></html>"
+)
+
+
+def _handler(routes: dict[str, httpx.Response]) -> WebHandler:
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: routes.get(str(request.url), httpx.Response(404, text="missing"))
+        )
+    )
+    return handler
+
+
+def test_a_markdown_response_is_kept_as_text() -> None:
+    url = "https://developer.apple.com/design/materials.md"
+    handler = _handler(
+        {url: httpx.Response(200, text=_MARKDOWN, headers={"content-type": "text/markdown"})}
+    )
+
+    content = handler.fetch(SourceSpec(type="web", url=url))
+
+    assert content.body.startswith("# Materials")
+    assert content.title == "Materials"
+    assert content.metadata["extraction"] == "markdown"
+
+
+def test_a_page_that_declares_a_markdown_copy_is_read_from_it() -> None:
+    url = "https://developer.apple.com/design/materials"
+    handler = _handler(
+        {
+            url: httpx.Response(
+                200,
+                text=_STUB_WITH_MARKDOWN.format(href="/design/materials.md"),
+                headers={"content-type": "text/html"},
+            ),
+            url + ".md": httpx.Response(
+                200, text=_MARKDOWN, headers={"content-type": "text/markdown; charset=utf-8"}
+            ),
+        }
+    )
+
+    content = handler.fetch(SourceSpec(type="web", url=url))
+
+    assert "functional layer" in content.body
+    assert content.url == url
+    assert content.metadata["extraction"] == "markdown-alternate"
+    assert content.metadata["markdown_url"] == url + ".md"
+
+
+def test_a_markdown_copy_on_another_site_is_ignored() -> None:
+    url = "https://developer.apple.com/design/materials"
+    elsewhere = "https://example.com/materials.md"
+    handler = _handler(
+        {
+            url: httpx.Response(
+                200,
+                text=_STUB_WITH_MARKDOWN.format(href=elsewhere),
+                headers={"content-type": "text/html"},
+            ),
+            elsewhere: httpx.Response(
+                200, text=_MARKDOWN, headers={"content-type": "text/markdown"}
+            ),
+        }
+    )
+
+    with pytest.raises(JsRenderingRequired):
+        handler.fetch(SourceSpec(type="web", url=url))
+
+
+def test_a_missing_markdown_copy_falls_back_to_the_page() -> None:
+    url = "https://developer.apple.com/design/materials"
+    handler = _handler(
+        {
+            url: httpx.Response(
+                200,
+                text=_STUB_WITH_MARKDOWN.format(href="/design/materials.md"),
+                headers={"content-type": "text/html"},
+            )
+        }
+    )
+
+    with pytest.raises(JsRenderingRequired):
+        handler.fetch(SourceSpec(type="web", url=url))
+
+
+def test_a_readable_page_keeps_its_html_even_with_a_markdown_copy() -> None:
+    url = "https://example.com/article"
+    page = (
+        '<html><head><title>Article</title><link rel="alternate" type="text/markdown"'
+        ' href="/article.md"></head><body><article><p>'
+        + "A substantive paragraph of server-rendered content. " * 20
+        + "</p></article></body></html>"
+    )
+    seen: list[str] = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200, text=page, headers={"content-type": "text/html"})
+
+    handler = WebHandler(FetchConfig())
+    handler._client = httpx.Client(transport=httpx.MockTransport(transport))
+
+    content = handler.fetch(SourceSpec(type="web", url=url))
+
+    assert content.metadata["extraction"] == "trafilatura"
+    assert seen == [url]
+
+
+def test_a_markdown_copy_that_redirects_off_site_is_ignored() -> None:
+    url = "https://developer.apple.com/design/materials"
+    handler = WebHandler(FetchConfig())
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == url:
+            return httpx.Response(
+                200,
+                text=_STUB_WITH_MARKDOWN.format(href="/design/materials.md"),
+                headers={"content-type": "text/html"},
+            )
+        if str(request.url) == url + ".md":
+            return httpx.Response(302, headers={"location": "https://example.com/x.md"})
+        return httpx.Response(200, text=_MARKDOWN, headers={"content-type": "text/markdown"})
+
+    handler._client = httpx.Client(transport=httpx.MockTransport(transport), follow_redirects=True)
+
+    with pytest.raises(JsRenderingRequired):
+        handler.fetch(SourceSpec(type="web", url=url))
+
+
+@pytest.mark.parametrize(
+    ("link", "used"),
+    [
+        ('<link rel="alternate nofollow" type="text/markdown; charset=utf-8" href="{h}">', True),
+        ('<!-- <link rel="alternate" type="text/markdown" href="{h}"> -->', False),
+        (
+            '<link rel="alternate" type="text/markdown" href="http://developer.apple.com:8080{h}">',
+            False,
+        ),
+    ],
+)
+def test_only_a_real_same_origin_markdown_link_counts(link: str, used: bool) -> None:
+    url = "https://developer.apple.com/design/materials"
+    page = (
+        "<html><head><title>Materials</title>"
+        + link.format(h="/design/materials.md")
+        + "</head><body><noscript>This page requires JavaScript.</noscript></body></html>"
+    )
+    handler = _handler(
+        {
+            url: httpx.Response(200, text=page, headers={"content-type": "text/html"}),
+            url + ".md": httpx.Response(
+                200, text=_MARKDOWN, headers={"content-type": "text/markdown"}
+            ),
+        }
+    )
+
+    if used:
+        assert handler.fetch(SourceSpec(type="web", url=url)).metadata["markdown_url"]
+    else:
+        with pytest.raises(JsRenderingRequired):
+            handler.fetch(SourceSpec(type="web", url=url))
+
+
+def test_a_short_plain_text_page_is_kept_with_a_warning() -> None:
+    url = "https://example.com/humans.txt"
+    handler = _handler(
+        {url: httpx.Response(200, text="Team: two people.", headers={"content-type": "text/plain"})}
+    )
+
+    with pytest.raises(HandlerSoftFailure) as failure:
+        handler.fetch(SourceSpec(type="web", url=url))
+
+    assert failure.value.content.body == "Team: two people."

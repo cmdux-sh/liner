@@ -1,0 +1,166 @@
+{
+ "attention": [
+  {
+   "context": "liner",
+   "group": "stronger",
+   "slug": "mixed-sources",
+   "title": "Never tested"
+  }
+ ],
+ "connections": {
+  "citations": [],
+  "uncited": [
+   "mixed-sources"
+  ]
+ },
+ "contract": "liner.library_view",
+ "liners": [
+  {
+   "build_step": null,
+   "build_steps": 6,
+   "changed_at": 1793719258.6844988,
+   "cited_by": [],
+   "cites": [],
+   "description": "One source of each kind, so citation lookups are tested against all of them.",
+   "files": [
+    "FIXTURE/mixed-sources/LINER.md",
+    "FIXTURE/mixed-sources/SKILL.md",
+    "FIXTURE/mixed-sources/mixtape/MIXTAPE.md",
+    "FIXTURE/mixed-sources/mixtape/synthesis.md"
+   ],
+   "findings": [],
+   "gaps": [],
+   "id": "id-mixed-sources",
+   "job": "When I check citations, I want every kind of source to open.",
+   "liner_path": "FIXTURE/mixed-sources/LINER.md",
+   "milestone": "project_complete",
+   "mixtape_path": "FIXTURE/mixed-sources/mixtape/MIXTAPE.md",
+   "mode": null,
+   "name": "mixed-sources",
+   "open_gaps": 0,
+   "path": "FIXTURE/mixed-sources",
+   "pending_findings": 0,
+   "refreshed_at": null,
+   "sections": [
+    {
+     "name": "Other",
+     "sources": 3
+    }
+   ],
+   "skill_path": "FIXTURE/mixed-sources/SKILL.md",
+   "slug": "mixed-sources",
+   "source_count": 3,
+   "sources": [
+    {
+     "changed": false,
+     "fetched_at": "2026-11-03T00:00:00+00:00",
+     "file": "FIXTURE/mixed-sources/mixtape/sources/01-guide.md",
+     "kind": null,
+     "locator": "https://example.com/guide",
+     "note": "A web page.",
+     "section": "Other",
+     "title": "Guide",
+     "type": "web"
+    },
+    {
+     "changed": false,
+     "fetched_at": "2026-11-03T00:00:00+00:00",
+     "file": "FIXTURE/mixed-sources/mixtape/sources/02-talk.md",
+     "kind": null,
+     "locator": "local-sources/talk.md",
+     "note": "A saved video transcript.",
+     "section": "Other",
+     "title": "A talk. YouTube transcript. https://www.youtube.com/watch?v=abc123",
+     "type": "local"
+    },
+    {
+     "changed": false,
+     "fetched_at": "2026-11-03T00:00:00+00:00",
+     "file": "FIXTURE/mixed-sources/mixtape/sources/03-review.md",
+     "kind": null,
+     "locator": "skills/review",
+     "note": "An installed skill.",
+     "section": "Other",
+     "title": "Review skill",
+     "type": "skill"
+    }
+   ],
+   "stale": false,
+   "state": "ready",
+   "synthesis": {
+    "citations": 3,
+    "files": {
+     "https://example.com/guide": "FIXTURE/mixed-sources/mixtape/sources/01-guide.md",
+     "https://www.youtube.com/watch?v=abc123": "FIXTURE/mixed-sources/mixtape/sources/02-talk.md",
+     "skills/review": "FIXTURE/mixed-sources/mixtape/sources/03-review.md"
+    },
+    "lines": 7,
+    "path": "FIXTURE/mixed-sources/mixtape/synthesis.md",
+    "sections": 0
+   },
+   "tags": [],
+   "test": {
+    "better": 0,
+    "blind": 0,
+    "current": false,
+    "last_tested": null,
+    "runs": 0,
+    "same": 0,
+    "worse": 0
+   },
+   "tests": [],
+   "title": "Mixed sources",
+   "updated": "2999-01-01T00:00:00Z",
+   "usable": true,
+   "waiting_on": null
+  }
+ ],
+ "root": "FIXTURE",
+ "root_exists": true,
+ "sources": [
+  {
+   "changed": false,
+   "fetched_at": "2026-11-03T00:00:00+00:00",
+   "file": "FIXTURE/mixed-sources/mixtape/sources/02-talk.md",
+   "kind": null,
+   "liners": [
+    "mixed-sources"
+   ],
+   "locator": "local-sources/talk.md",
+   "note": "A saved video transcript.",
+   "section": "Other",
+   "title": "A talk. YouTube transcript. https://www.youtube.com/watch?v=abc123",
+   "type": "local"
+  },
+  {
+   "changed": false,
+   "fetched_at": "2026-11-03T00:00:00+00:00",
+   "file": "FIXTURE/mixed-sources/mixtape/sources/01-guide.md",
+   "kind": null,
+   "liners": [
+    "mixed-sources"
+   ],
+   "locator": "https://example.com/guide",
+   "note": "A web page.",
+   "section": "Other",
+   "title": "Guide",
+   "type": "web"
+  },
+  {
+   "changed": false,
+   "fetched_at": "2026-11-03T00:00:00+00:00",
+   "file": "FIXTURE/mixed-sources/mixtape/sources/03-review.md",
+   "kind": null,
+   "liners": [
+    "mixed-sources"
+   ],
+   "locator": "skills/review",
+   "note": "An installed skill.",
+   "section": "Other",
+   "title": "Review skill",
+   "type": "skill"
+  }
+ ],
+ "unreadable": [],
+ "version": 1
+}

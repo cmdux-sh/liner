@@ -10,23 +10,25 @@ This document assumes the reader has read [ABOUT.md](./ABOUT.md) (what Liner is)
 
 Liner is several tools sharing a methodology and a file format. Each surface exists for a specific moment in the workflow.
 
-**CLI** (bundled Python core behind the npm `liner` binary). Atomic creation,
-compilation, sharing, inspection, and maintenance operations. In addition to
-`init`, `compile`, `share`, `import`, `list`, `clone`, cache, and `setup-js`, it
-owns `project inspect|guidance|plan|pointer|rename|move|apply`, Source lifecycle
-commands, and optional adapter management. The right tool for scripting,
-automation, and one-shot operations.
+**CLI** (bundled Python core behind the npm `liner` binary). Building,
+compilation, sharing, search, inspection, and maintenance operations. `liner
+research` runs the steps your coding agent follows to build a liner. The full
+list is the command table in the [README](../../README.md#commands). The right
+tool for agents, scripting, and one-shot operations.
 
-**Go TUI** (Charm Bubble Tea, launched with `npx linersh`). Interactive
-multi-step lifecycle and Project-management surface. It drives the methodology,
-calls Core for setup, compilation, and supported maintenance, and invokes the
-configured AI runner for research phases. `Maintain project` renders
-Core-issued Change Sets and Change Receipts rather than writing canonical files
-itself.
+**Go TUI** (Charm Bubble Tea, opened by running `liner` with no arguments). A
+read-only navigator for your library. It shows every liner, what needs you,
+your sources, and how liners connect, and it copies prompts for your agent. It
+never changes a liner.
 
-**Curation skill** (`curating-mixtapes`). A portable initial-authoring
-methodology that Claude or Codex reads when invoked. It produces corpus inputs
-for compile; it does not maintain an existing Project.
+**`liner` skill** (installed with `liner agent-skill install claude` or
+`codex`). Lets the agent find your liners, suggest one, and build a new one
+through `liner research`.
+
+**Curation methodology** (`curating-mixtapes`, in
+`src/liner/bundled/research/methodology/`). The methodology the agent reads at
+each `liner research` step. It produces corpus inputs for compile; it does not
+maintain an existing Project.
 
 **Project Skill** (root `SKILL.md`). The canonical entrypoint created by the
 Operating Layer so future AI sessions can load one completed Project.
@@ -36,7 +38,7 @@ to the installed CLI's current `liner project guidance`. It is explicit,
 managed, removable, and never a second writer. A `type: skill` Source is a
 fourth, inert use of skill text as evidence and is never installed.
 
-**MCP server** (planned). Will expose Liner's functions as tools any MCP-compatible host can call (Claude Code, Codex, Cursor, others). Local install, stdio transport. The right tool for agent-driven workflows.
+**MCP server** (`liner mcp`). Serves your liners as tools to any MCP host, for agents with no shell. Local, stdio transport. It can't approve anything.
 
 **Web builder** (planned). Stateless form on `liner.sh` that produces a `tape.yaml` for download. The right tool for casual users who don't want to install anything.
 
@@ -54,26 +56,32 @@ Liner supports both through two modes that share the same architecture and produ
 
 **Methodology mode**. The curator engages substantively. Writes their own synthesis if they want. Reviews evaluation rationales. Adds and rejects sources deliberately. A complete mixtape takes several hours. Quality is library-eligible.
 
-The TUI runs quick mode by default with methodology mode available as a slower path. The skill defaults to quick mode and includes instructions for methodology mode. Library contributions require methodology mode.
+`liner research` has no mode setting; a tape's `mode` field is only a label. The methodology defaults to quick mode and includes instructions for methodology mode. Library contributions require methodology mode.
 
 ---
 
 ## The lifecycle
 
-Every mixtape moves through the same phases regardless of mode. Quick mode runs through them with AI doing the work and the curator confirming. Methodology mode runs through them with the curator doing substantive work alongside the AI.
+Every liner moves through the same `liner research` steps regardless of mode. The agent does the work for each step, often in a subagent, and runs `liner research submit` when it's done.
 
-1. **Framing** — JTBD statement, capability brief, knowledge map, required source roles
-2. **Candidate discovery** — long-list of URLs based on the knowledge map and source roles, no fetching yet
-3. **Fetching** — pull content for candidates into the shared cache
-4. **Evaluation** — AI reads fetched content, proposes keep/trim/drop with ratings against the JTBD
-5. **Quality checks** — redundancy, coverage, disagreement, framing-gap, source-kind, and source-role tests
-6. **Synthesis** — AI drafts the synthesis; curator may edit (synthesis is required, not optional)
-7. **Final assembly** — `liner compile` writes `mixtape/MIXTAPE.md` and populates `mixtape/sources/` in v2 projects
-8. **Empirical test** (optional methodology validation) — compile, paste into AI conversation, compare with/without. This is not a driven TUI phase.
+1. **Clarify** — the person answers a few questions that sharpen the job
+2. **Framing** — capability brief, knowledge map, required source roles
+3. **Candidates** — long-list of sources based on the knowledge map and source roles, ending in a search log
+4. **Evaluation** — the agent reads pages with `liner fetch` and proposes keep/trim/drop with ratings against the JTBD
+5. **Quality** — redundancy, coverage, disagreement, framing-gap, source-kind, and source-role tests
+6. **Synthesis** — the agent drafts the synthesis (required, not optional)
+7. **Approve synthesis** — the person reviews and approves it
+8. **Assembly** — the agent drafts the source list
+9. **Approve sources** — the person reviews and approves it
+10. **Build** — Liner adds the sources and compiles `mixtape/MIXTAPE.md` and `mixtape/sources/`
+11. **Approve instructions** — the person reviews the drafts of `LINER.md` and the Project Skill
+12. **Finish** — Liner writes `LINER.md`, root `SKILL.md`, and `liner.yaml`
 
-Three natural human-in-the-loop gates: framing confirmation before source search, candidate confirmation before fetching (saves wasted network calls), and evaluation review before synthesis (catches the AI's misjudgments). Quick mode can auto-accept gates while preserving progress state; methodology mode pauses for real review.
+The empirical test is separate. `liner test` records whether a liner improved an answer.
 
-The TUI also enforces a Phase 1 artifact contract. Framing is not complete until `working/01-jtbd-and-knowledge-map.md` contains a capability brief and required source roles with why/evidence/minimum coverage. If the agent exits cleanly but misses the contract, the TUI keeps the project on Phase 1 and resumes the agent with the validation issue.
+Three approvals keep the person in charge: the synthesis, the sources, and the instructions. The agent asks for each one in chat and never approves for the person. An approval covers the exact content reviewed; if it changes, it has to be reviewed again.
+
+Liner Core checks each step's files when the agent runs `liner research submit`, and `liner research check` runs the same check without moving on. Framing is not complete until `working/01-jtbd-and-knowledge-map.md` contains a capability brief and required source roles with why/evidence/minimum coverage. Until it does, submit refuses the step and says what is missing.
 
 After initial creation, supported maintenance follows a separate safety
 contract:
@@ -156,7 +164,7 @@ The Liner library is planned as a curated collection of public mixtapes at [line
 The planned library will accept pull requests for methodology-mode mixtapes only.
 
 1. Build the mixtape in methodology mode, applying [CURATION.md](./CURATION.md) substantively
-2. Run the empirical test — compile the mixtape, compare AI output with and without it on a real question. Document the result in `mixtape/working/06-empirical-test.md`. This is methodology guidance, not a driven TUI phase.
+2. Run the empirical test — compile the mixtape, compare AI output with and without it on a real question. Document the result in `mixtape/working/06-empirical-test.md`. This is methodology guidance, not a `liner research` step; `liner test` can record the result.
 3. Submit a PR with the full project folder — exported via `liner share --no-personal`, and with no `local_file` sources in `mixtape/tape.yaml`
 4. A maintainer reviews. Submissions can be accepted, returned with feedback, or declined
 
@@ -172,7 +180,7 @@ Mixtapes are folders. To share a mixtape as a single file, use `liner share <pro
 
 The exported `.mixtape` includes everything in the project folder: root project files such as `liner.yaml`, `LINER.md`, and `SKILL.md`, plus `mixtape/tape.yaml`, `mixtape/synthesis.md`, `mixtape/MIXTAPE.md`, `mixtape/sources/`, `mixtape/working/`, and `mixtape/local-sources/` when present. Legacy root-level `sources/`, `working/`, and `personal/` folders are still supported. The archive does not include anything from the shared content cache.
 
-On `liner import <file.mixtape>`, the receiving Liner unzips the folder, then refetches any sources that aren't already in the receiving curator's cache unless import is run with `--no-refetch`. Sources already cached are reused. `local_file` sources read from archived `local-sources/` or legacy `personal/` files directly — no refetch. The TUI import flow extracts the archive and leaves refetching to a later compile.
+On `liner import <file.mixtape>`, the receiving Liner unzips the folder, then refetches any sources that aren't already in the receiving curator's cache unless import is run with `--no-refetch`. Sources already cached are reused. `local_file` sources read from archived `local-sources/` or legacy `personal/` files directly — no refetch.
 
 **Flags worth knowing about:**
 
@@ -190,7 +198,7 @@ Boundaries that shape the project's scope:
 - **No hosted compilation.** All compilation happens on the curator's machine. Liner does not run a server that fetches sources for users.
 - **No accounts in v1.** The CLI, TUI, planned library, and website all work without authentication. A future community index will use GitHub OAuth only.
 - **No paywall bypass.** Liner does not help users access content they don't already have. Source handlers for gated content require the user to provide content from their existing access.
-- **No LLM calls in the core CLI.** The CLI does not call AI models. The TUI invokes the user's configured local runner for methodology phases. All AI work happens through the user's own subscription or local toolchain. Liner doesn't pay for inference.
+- **No LLM calls in the core CLI.** The CLI does not call AI models. The user's own coding agent does the research with its own tools. All AI work happens through the user's own subscription or local toolchain. Liner doesn't pay for inference.
 - **No headless browser by default.** Plain `npx linersh` works without downloading Chromium. JavaScript-rendered sites (Apple HIG, Notion, many SPAs) require the opt-in `liner setup-js` step, which installs Playwright browser support locally. There is no hosted rendering service.
 - **No telemetry.** The tools don't phone home. Usage is the user's own business.
 - **No curator-required compression decisions.** Sources are stored at full extracted length. In-context efficiency comes from the master file pattern — `MIXTAPE.md` is small and always-loaded, sources are referenced and loaded on demand by the consuming AI.
@@ -235,7 +243,7 @@ Liner versions three things independently:
 
 - **Tape format** has its own version field. Breaking format changes increment the format version; older tapes either continue to work or get a clear migration path. See [MIXTAPE-FORMAT.md](./MIXTAPE-FORMAT.md) for the versioning policy.
 - **Methodology** is versioned in [CURATION.md](./CURATION.md). Substantive changes increment the methodology version.
-- **Tools** (CLI, Go TUI, skill, and planned MCP server) follow semver. Major versions can break compatibility; minor and patch versions don't.
+- **Tools** (CLI, Go TUI navigator, skills, and MCP server) follow semver. Major versions can break compatibility; minor and patch versions don't.
 
 The methodology, the format, and the tools are versioned independently. Updates to one don't force updates to the others unless there's a real dependency.
 

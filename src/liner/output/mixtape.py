@@ -4,7 +4,8 @@ import re
 from typing import Any
 
 from liner.project import ProjectFolder, slugify
-from liner.types import CompiledSource, CompileResult
+from liner.tape import is_stand_in_description
+from liner.types import CompiledSource, CompileResult, SourceSpec
 
 # Files in sources/ that look like compile output. We only consider deleting
 # files matching this — anything the curator dropped into sources/ by hand
@@ -18,6 +19,7 @@ SourcePlanEntry = dict[str, Any]
 SourceManifestEntry = dict[str, Any]
 
 UNGROUPED_LABEL = "Ungrouped"
+TRUNCATION_MARKER = "[…truncated]"
 
 HOW_TO_USE = """## How to use this mixtape
 
@@ -135,7 +137,9 @@ def _render_master_file(
 
     parts: list[str] = []
     parts.append(f"# {tape.title}\n")
-    parts.append(f"> {tape.description}\n")
+    # A starter or placeholder description would tell the reader something untrue.
+    if not is_stand_in_description(tape.description, tape.title, tape.title):
+        parts.append(f"> {tape.description}\n")
 
     meta_lines = [
         f"**Curator:** {tape.curator}",
@@ -262,6 +266,15 @@ def _render_source_file(item: CompiledSource) -> str:
         lines.append(f"**URL:** {spec.url}  ")
         if spec.render == "js":
             lines.append("**Render:** js  ")
+    if content is not None and content.metadata.get("extraction") == "liner_source":
+        origin = content.metadata
+        lines.append(f"**Reused from:** liner `{origin.get('origin_liner')}`  ")
+        if origin.get("local_origin"):
+            # Kept here so `liner share` can warn even if the other liner moves.
+            lines.append("**Local origin:** yes  ")
+        if origin.get("origin_citation"):
+            # The original address, so a citation of it opens this file.
+            lines.append(f"**Citation:** {origin['origin_citation']}  ")
     if content is not None:
         if content.author:
             lines.append(f"**Author:** {content.author}  ")
@@ -271,6 +284,9 @@ def _render_source_file(item: CompiledSource) -> str:
             lines.append(f"**Updated:** {content.updated_at}  ")
         if spec.type == "youtube" and content.duration_seconds is not None:
             lines.append(f"**Duration:** {_fmt_duration(content.duration_seconds)}  ")
+        if spec.type == "repository" and content.metadata.get("commit"):
+            lines.append(f"**Commit:** {content.metadata['commit']}  ")
+            lines.append(f"**Documents:** {content.metadata.get('documents')}  ")
         lines.append(f"**Fetched:** {content.fetched_at}  ")
         if content.metadata.get("extraction") == "agent-summary":
             lines.append(
@@ -290,6 +306,28 @@ def _render_source_file(item: CompiledSource) -> str:
         lines.append(content.body.rstrip())
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def compiled_source_body(text: str, spec: SourceSpec) -> str | None:
+    """Return the page text in a compiled source file, or None if it has no full text."""
+    lines = text.splitlines()
+    fetched = next((i for i, line in enumerate(lines) if line.startswith("**Fetched:** ")), None)
+    if fetched is None:
+        return None
+    start = fetched + 1
+    while start < len(lines) and lines[start].strip():
+        if lines[start].startswith("**Provenance:** "):
+            return None
+        start += 1
+    body = "\n".join(lines[start:]).strip()
+    note = (
+        "> **Curator note:** " + _render_curator_note(spec.note, spec.kind) if spec.note else None
+    )
+    if note is not None and body.startswith(note):  # A note can span several paragraphs.
+        body = body.removeprefix(note).strip()
+    elif body.startswith("> **Curator note:** "):
+        body = body.partition("\n\n")[2].strip()
+    return None if body.endswith(TRUNCATION_MARKER) else body
 
 
 def _group_sections(

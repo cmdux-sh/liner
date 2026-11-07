@@ -1,0 +1,16 @@
+title: Mixed sources
+description: One source of each kind, so citation lookups are tested against all of them.
+version: 1
+curator: Test
+jtbd: When I check citations, I want every kind of source to open.
+sources:
+- type: web
+  url: https://example.com/guide
+  note: A web page.
+- type: local_file
+  path: local-sources/talk.md
+  citation: A talk. YouTube transcript. https://www.youtube.com/watch?v=abc123
+  note: A saved video transcript.
+- type: skill
+  path: skills/review
+  note: An installed skill.

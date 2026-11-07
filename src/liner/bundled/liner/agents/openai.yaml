@@ -1,0 +1,4 @@
+interface:
+  display_name: "Liner"
+  short_description: "Find and use your local research liners"
+  default_prompt: "Use $liner to check whether one of my liners fits this task."

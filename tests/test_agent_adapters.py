@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from liner import __version__
 from liner.agent_adapters import (
+    ROUTER_SKILL_NAME,
     AdapterError,
     apply_agent_adapter_plan,
     inspect_agent_adapter,
@@ -382,8 +383,7 @@ def test_adapter_corrupt_state_and_duplicate_marker_fail_closed(tmp_path: Path) 
     apply_agent_adapter_plan(other, approved=True)
     skill = other.target / "SKILL.md"
     skill.write_text(
-        skill.read_text(encoding="utf-8")
-        + "\n<!-- liner-maintenance-skill:end -->\n",
+        skill.read_text(encoding="utf-8") + "\n<!-- liner-maintenance-skill:end -->\n",
         encoding="utf-8",
     )
     with pytest.raises(AdapterError, match="managed content changed"):
@@ -402,3 +402,32 @@ def test_pointer_remove_preserves_content_appended_after_managed_block(tmp_path:
     apply_change_set(project.path, remove, approved=True)
 
     assert pointer.read_text(encoding="utf-8") == "BEFORE\nAFTER\n"
+
+
+def test_finished_build_refresh_updates_only_installed_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+
+    from liner.cli import _refresh_liner_skills
+
+    monkeypatch.setenv("LINER_DIR", str(tmp_path / "library"))
+    home = Path(os.environ["HOME"])
+    assert _refresh_liner_skills() == []
+
+    apply_agent_adapter_plan(
+        plan_agent_adapter("install", "claude", home, skill=ROUTER_SKILL_NAME), approved=True
+    )
+    skill = home / ".claude/skills/liner/SKILL.md"
+    current = skill.read_text(encoding="utf-8")
+    assert _refresh_liner_skills() == []
+    assert skill.read_text(encoding="utf-8") == current
+
+    from tests.test_project_refresh import _completed_project
+
+    _completed_project(tmp_path / "library")
+    assert inspect_agent_adapter("claude", home, skill=ROUTER_SKILL_NAME)["status"] == (
+        "update_required"
+    )
+    assert _refresh_liner_skills() == ["claude"]
+    assert inspect_agent_adapter("claude", home, skill=ROUTER_SKILL_NAME)["status"] == "current"

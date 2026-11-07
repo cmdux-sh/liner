@@ -1,18 +1,19 @@
 # Curating Mixtapes — Skill Bundle
 
-This is the Liner methodology made executable by Claude or Codex. The bundle implements CURATION.md v2.0 as instructions to a running AI, drives the mixtape lifecycle from a task description to a project folder ready for `liner compile`, and supports both quick mode (the AI does most of the work, with lightweight gate review) and methodology mode (the curator engages substantively at every phase).
+This is the Liner methodology made executable by Claude or Codex. The bundle implements CURATION.md v2.0 as instructions to a running AI. It describes both quick mode (the AI does most of the work, with lightweight review) and methodology mode (the curator engages substantively at every phase).
 
-It is one of Liner's authoring surfaces, alongside the CLI and TUI. The skill is
-the surface for Claude-Code-native and TUI-subprocess curation. Methodology-mode
-curators can also use it directly when working in a Claude Code session. It is
-not the Project Skill or the optional Maintenance Adapter.
+The bundle is the methodology behind `liner research`. When a coding agent
+builds a liner, each research step's prompt points it at this bundle's
+`SKILL.md` and at the companion file for that step. It is not the `liner`
+skill that finds your liners, the Project Skill, or the optional Maintenance
+Adapter.
 
 ## Bundle contents
 
-Six files in one directory:
+Six files in `src/liner/bundled/research/methodology/`:
 
 ```
-curating-mixtapes/
+methodology/
 ├── SKILL.md                       # the orchestrator
 ├── source-finding-tactics.md       # Phase 2
 ├── source-quality-hierarchy.md     # Phase 4
@@ -25,37 +26,37 @@ curating-mixtapes/
 
 The five companion files are loaded only at the phases that use them. Phases 1, 3, 7, and 8 have no companion file — their guidance fits inside SKILL.md.
 
+Each `liner research` step has its own short prompt next to the bundle: `clarify.md` and `phases/*.md` in `src/liner/bundled/research/`. Those prompts say what to write for the step; the bundle says how to curate well.
+
 The split is deliberate. Every invocation pulls SKILL.md's ~2,300 words into context regardless. Companion files add 1,000–1,500 words each but only at the phase that needs them, so total context cost scales with where the user is in the lifecycle rather than with the bundle's full size.
 
 ## Where the bundle lives
 
-**Local testing.** Drop this directory into `~/.claude/skills/curating-mixtapes/`. Claude Code and Claude Desktop both look there for user-installed skills. The skill fires when the user says something the description matches — "help me make a mixtape on [topic]" is the canonical trigger.
+**Shipping.** The bundle lives at `src/liner/bundled/research/methodology/` and ships inside the bundled CLI in the `linersh` npm package. No separate install is needed.
 
-**Shipping.** The canonical bundle lives at `docs/curation-skill/`. The TUI copies this directory into `packages/tui/cli-update-docs/` during `prepack` and ships it inside the `linersh` npm package, so end users do not need a separate skill install for TUI-driven agent phases.
+**Through `liner research`.** This is the normal path. The `liner` skill, installed with `liner agent-skill install claude` or `codex`, tells the agent to follow `liner research next`. Each step returns a prompt file that names this bundle's files by their installed path. The agent runs the steps, often in subagents, and the person answers Clarify Job and gives the three approvals in chat.
 
-**Direct skill use.** A documented copy/install flow for using the skill outside the TUI is still planned. Until then, direct local use is a developer workflow.
-
-**TUI subprocess.** The Liner TUI bundles the skill internally and invokes it via the local Claude or Codex CLI in quick mode. The user doesn't see the skill directly; they see the TUI's wizard UI. The methodology being applied is this skill's.
+**Local testing.** You can also drop this directory into `~/.claude/skills/curating-mixtapes/` and invoke it directly in Claude Code. That is a developer workflow; it skips the checks and approvals that `liner research` enforces.
 
 The same file contents work in every location. Don't fork between a local-test version and the package-shipped version.
 
 ## Runtime requirements
 
-Filesystem access is required, not optional. The skill reads its own companion files at specific phases and writes mixtape artifacts to a project folder. It is designed for execution inside Claude Code or as a TUI subprocess, both of which have filesystem access by default. It is not designed for pure-chat (claude.ai) use.
+Filesystem access is required, not optional. The skill reads its own companion files at specific phases and writes mixtape artifacts to a project folder. It is designed for a coding agent such as Claude Code or Codex, which has filesystem access by default. It is not designed for pure-chat (claude.ai) use.
 
-No MCP server is required. v1 uses Claude's own web search for candidate discovery and URL verification. When the Liner MCP server ships, a future skill version will use it for fetching and cache operations; v1 doesn't depend on it.
+The agent uses its own web search for candidate discovery. It reads pages with `liner fetch`, which saves each page to a file, and checks the library first with `liner find-sources`. `liner mcp` serves your liners to agents with no shell. It can start a build and run research steps, but it can't approve anything.
 
 ## How invocation works
 
-The user says something the description matches. Claude loads SKILL.md. Claude reads it, identifies which mode applies (quick by default unless the user says otherwise or asks for library contribution), and begins the lifecycle.
+The agent runs `liner research next <slug> --json`. Each step returns a prompt file. For an agent step, the prompt names the methodology `SKILL.md` and the step's companion file: `source-finding-tactics.md` for candidates, `source-quality-hierarchy.md` and `curator-notes.md` for evaluation, `quality-check-tests.md` for quality, and `synthesis-guidance.md` for synthesis. The agent reads them before doing the step's work.
 
-At Phase 2, Claude reads `source-finding-tactics.md`. At Phase 4, Claude reads `source-quality-hierarchy.md` and `curator-notes.md`. At Phase 5, Claude reads `quality-check-tests.md`. At Phase 6, Claude reads `synthesis-guidance.md`. Each companion file is read at the start of its phase, before any work in that phase happens.
+The twelve steps are clarify, framing, candidates, evaluation, quality, synthesis, approve synthesis, assembly, approve sources, build, approve instructions, and finish. When the agent runs `liner research submit`, Liner checks the step's file before moving on. `liner research check` runs the same check without moving on.
 
-The gates pause for user input. In quick mode, defaults can auto-continue while preserving project state. In methodology mode, the AI pauses for substantive review.
+Nothing auto-continues past the person. Clarify Job waits for their answers, and each of the three approvals waits for them in chat. The agent never approves for them.
 
-The skill writes artifacts to a project folder named for the topic (e.g., `mobile-design-foundations/`) as it goes. The working notes are produced phase by phase, so the user can stop at any phase boundary and resume later — the working files are picked up where they were left.
+The working notes are written step by step under the liner's `mixtape/` folder, so a build can stop and resume later. `liner research next` picks up where it left off.
 
-When all phases complete, the user runs `liner compile <project-folder>` themselves. The skill never compiles.
+At the build step, `liner research submit` compiles the corpus. The skill itself never runs `liner compile`. After the instructions approval, the finish step writes `LINER.md`, root `SKILL.md`, and `liner.yaml`.
 
 ## How to test the bundle
 
@@ -79,21 +80,23 @@ When adding a companion, update this README's "Bundle contents" section and the 
 
 ## Current status
 
-The bundle is functional and ships inside the npm TUI package so agent-backed phases can run from `npx linersh` without a separate skill install. The TUI copies this directory into the package during `prepack` and resolves it from the installed package root.
+The bundle is functional and ships inside the bundled CLI, so `liner research` can use it from `npx linersh` or a global install without a separate skill install.
 
-The bundle still benefits from more worked examples in the companion files, but it is no longer blocked by the old "second pass before any shipping" constraint. Current product risk lives more in curation quality and fetcher edge cases than in basic skill availability.
+The bundle still benefits from more worked examples in the companion files. Current product risk lives more in curation quality and fetcher edge cases than in basic skill availability.
 
-In the local `1.1.0` release candidate, compilation is the Corpus Ready
-milestone and Create Operating Layer is the Project Complete milestone. A
-project can be usable when `MIXTAPE.md` is written but some Sources are missing
-or soft-failed after review. The TUI opens the existing compile result and
-requires an explicit retry or rerun. Phase 1 must produce a Capability Brief and
-Required source roles before discovery can proceed.
+In the `1.2` source tree (1.2.0 is unreleased; 1.1.3 is the latest published
+version), compilation is the Corpus Ready milestone and the finish step, which
+writes the Operating Layer, is the Project Complete milestone. A project can be
+usable when `MIXTAPE.md` is written but some Sources are missing or
+soft-failed after review. Framing must produce a Capability Brief and Required
+source roles before discovery can proceed; `liner research submit` refuses the
+step until it does.
 
 ## Three Skill Surfaces
 
-- The **curating-mixtapes skill** authors the initial corpus recipe, synthesis,
-  and working notes. It never performs post-creation maintenance.
+- The **curating-mixtapes skill** guides the agent through the initial corpus
+  recipe, synthesis, and working notes during `liner research`. It never
+  performs post-creation maintenance.
 - The root **Project Skill** is created by the Operating Layer and teaches future
   sessions how to use one completed Project.
 - The optional **Maintenance Adapter** is installed explicitly for Codex or
@@ -116,13 +119,11 @@ The skill is the methodology made executable. It sits alongside Liner's other su
 
 **CURATION.md** is the methodology described to humans. The skill bundle implements it for an AI executor. The two are paired artifacts that update together when the methodology changes substantively.
 
-**The Liner CLI** runs `liner compile` against the project folder this skill
-produces and owns supported post-creation maintenance. The curation skill never
-compiles and never bypasses the Core maintenance contract.
+**The Liner CLI** runs the `liner research` steps, checks each step's files, compiles the corpus at the build step, and owns supported post-creation maintenance. The curation skill never runs `liner compile` itself and never bypasses the Core maintenance contract.
 
-**The Liner TUI** invokes this skill internally for agent-backed authoring via the local Claude or Codex CLI. Same methodology, different UX.
+**The terminal navigator** is read-only. It shows a liner that's being built and what's waiting for the person, but it never runs the skill or changes a liner.
 
-**The Liner MCP server** (planned) will expose mechanical operations — fetch this URL, validate this tape file, query the cache — as tools. A future skill version will use those tools where v1 uses Claude's own web search.
+**The Liner MCP server** (`liner mcp`) serves your liners to agents with no shell. It can start a build and run research steps with this bundle's prompts inline, but it can't approve anything.
 
 **The Liner library** publishes methodology-mode mixtapes. The skill can produce library-eligible output if run in methodology mode and the empirical test passes — but the bar for library contribution is real curator engagement, not the skill's quick-mode default.
 

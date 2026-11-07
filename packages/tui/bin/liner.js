@@ -43,6 +43,21 @@ const COMMAND_GROUPS = [
       { name: "status", description: "Show Liner Project status", owner: "core" },
       { name: "setup-js", description: "Set up JavaScript rendering support", owner: "core" },
       { name: "uninstall", description: "Remove local Liner state and caches", owner: "launcher" },
+      { name: "catalog", description: "List every liner in your library", owner: "core" },
+      { name: "search", description: "Search your liners", owner: "core" },
+      { name: "find-sources", description: "Find sources already in your library", owner: "core" },
+      { name: "library", description: "Report your whole library as JSON", owner: "core" },
+      { name: "handoff", description: "Write prompts for your agent", owner: "core" },
+      { name: "research", description: "Build a liner step by step with an agent", owner: "core" },
+      { name: "fetch", description: "Save a web page to a file in a liner", owner: "core" },
+      { name: "citations", description: "List a synthesis's citations", owner: "core" },
+      { name: "refresh", description: "Report what changed online", owner: "core" },
+      { name: "gaps", description: "Record what a liner couldn't answer", owner: "core" },
+      { name: "findings", description: "Review what real work learned", owner: "core" },
+      { name: "test", description: "Record with-and-without tests", owner: "core" },
+      { name: "use", description: "Point a repository at a liner", owner: "core" },
+      { name: "agent-skill", description: "Manage the liner skill", owner: "core" },
+      { name: "mcp", description: "Serve your liners over MCP", owner: "core" },
       {
         name: "--version",
         description: "Show installed launcher and core versions (-v)",
@@ -145,14 +160,12 @@ if (wantsCli(argv)) {
   }
 
   const resolved = resolveGoTuiBinary();
-  const headlessRunner = tryResolveHeadlessRunnerScript();
   const child = spawn(resolved.command, resolved.args, {
     stdio: "inherit",
     cwd: resolved.cwd || process.cwd(),
     env: {
       ...process.env,
       LINER_BIN: process.env.LINER_BIN || tryResolveCliCommand() || "",
-      LINER_HEADLESS_RUNNER: process.env.LINER_HEADLESS_RUNNER || headlessRunner || "",
     },
   });
   child.on("exit", (code, signal) => {
@@ -473,11 +486,6 @@ function tryResolveCliCommand() {
   const envBin = process.env.LINER_BIN;
   if (envBin && existsSync(envBin)) return envBin;
   return findRepoVenvBinary() || findBundledBinary() || findPathBinary() || null;
-}
-
-function tryResolveHeadlessRunnerScript() {
-  const candidate = join(packageRoot, "dist", "agents", "headless-runner.js");
-  return existsSync(candidate) ? candidate : null;
 }
 
 function printVersion() {

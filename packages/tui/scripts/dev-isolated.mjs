@@ -66,7 +66,6 @@ export function prepareIsolatedLaunch(args, inheritedEnv = process.env) {
     USERPROFILE: home,
     LINER_DIR: projects,
     LINER_TUI: "go",
-    LINER_HEADLESS_RUNNER: join(packageDir, "dist", "agents", "headless-runner.js"),
     LINER_CODEX_HOME: codexHome,
     CODEX_HOME: codexHome,
     LINER_CLAUDE_HOME: claudeHome,

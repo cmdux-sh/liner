@@ -30,19 +30,18 @@ mobile-design-foundations/
 ├── liner.yaml            # v2 project marker
 ├── LINER.md              # project instructions for using the corpus
 ├── SKILL.md              # default Project Skill entrypoint
-├── skills/               # optional reusable Project capabilities
-├── working/              # audits, external-use evidence, composition drafts
-├── children/             # optional child project references
-├── lineage.yaml          # optional composition history
 └── mixtape/
     ├── MIXTAPE.md        # the consumable corpus artifact
     ├── tape.yaml         # the recipe
     ├── synthesis.md      # the curator's distilled understanding
     ├── sources/          # extracted content for kept sources
     ├── local-sources/    # curator/local captured files (optional)
-    ├── .liner-runs/      # phase run logs
+    ├── .liner-research.json  # `liner research` progress and approvals
+    ├── .liner-runs/      # fetched pages, step prompts, review copies, run logs
     └── working/          # methodology working files
 ```
+
+Older projects may also have a root `skills/` folder or a root `working/audits/` folder. Liner still reads them, but new liners don't write them.
 
 The root folder is the canonical unit. Any operation that reads or writes a
 Liner Project works on the Project folder, not on an arbitrary individual file.
@@ -68,7 +67,6 @@ The recipe lists the kept sources with curator notes, organized by section. It i
 | `description` | string | One-sentence description of the mixtape's purpose |
 | `curator` | string | Name of the curator |
 | `version` | integer | Tape format version. Must be `1` for v1 format |
-| `mode` | string | `quick` or `methodology` — how this mixtape was curated |
 | `sources` | list | Source entries. May be empty while drafting; compile/share require usable sources. |
 
 ### Optional top-level fields
@@ -82,17 +80,19 @@ The recipe lists the kept sources with curator notes, organized by section. It i
 | `homepage` | URL | Link to the mixtape's home (e.g., its GitHub page) |
 | `jtbd` | string | The job-to-be-done statement in Job Story form: `When [circumstance], I want [motivation], so I can [outcome].` All three slots required. No solution names (vendor, framework, library, methodology, tool) in any slot. One job per slot — no "and"/comma/slash conjunctions. See [`CURATION.md`](CURATION.md) Phase 1 and [`JTBD-MASTER-PROMPT.md`](JTBD-MASTER-PROMPT.md) for the full rubric. |
 | `methodology_version` | string | Which version of CURATION.md was applied |
+| `mode` | string | `quick` or `methodology`, a label for how this mixtape was curated. It changes nothing in the build. `liner research start` writes `methodology`; a `liner init` starter tape says `quick` |
+| `jtbd_clarifications` | list | The Clarify Job questions and answers, as `{question, answer}` pairs. `liner research` writes them |
 
 ### Source entries
 
-v1 supports four source types: `youtube`, `web`, `local_file`, and `skill`.
+v1 supports six source types: `youtube`, `web`, `local_file`, `skill`, `repository`, and `liner`.
 
 **Required fields per source:**
 
 | Field | Type | Description |
 |---|---|---|
-| `type` | string | One of `youtube`, `web`, `local_file`, `skill` |
-| `url` | URL | Required for `youtube` and `web` source types. Omitted for `local_file` |
+| `type` | string | One of `youtube`, `web`, `local_file`, `skill`, `repository`, `liner` |
+| `url` | URL | Required for `youtube`, `web`, `repository`, and `liner` source types. Omitted for `local_file` |
 | `path` | string | Required for `local_file`; accepted for `skill`. `local_file` paths live under `local-sources/` or legacy `personal/` (e.g., `local-sources/foo.pdf`) |
 | `citation` | string | Required for `local_file`. Human-readable provenance: author, title, publication, date |
 
@@ -100,6 +100,8 @@ v1 supports four source types: `youtube`, `web`, `local_file`, and `skill`.
 
 | Field | Type | Description |
 |---|---|---|
+| `id` | UUID | The Source's immutable identity. Liner Core assigns it when it adds a Source; keep it when editing |
+| `kind` | string | `reference`, `principle`, `prescription`, or `example` — the role the source plays. Shown in `MIXTAPE.md` and the source file |
 | `note` | string | Curator note. Strongly recommended; required for library contributions |
 | `section` | string | Section label for grouping sources in the compiled mixtape |
 | `priority` | string | `required` (default) or `optional`. Optional sources can be excluded with `--skip-optional` |
@@ -116,7 +118,7 @@ v1 supports four source types: `youtube`, `web`, `local_file`, and `skill`.
 |---|---|---|
 | (none yet) | | The required `path` and `citation` cover v1.1 |
 
-`local_file` sources can reference content the curator has on disk — book chapters, gated articles, exported PDFs, Reader-Mode-saved HTML. The `path` must resolve under the project's `local-sources/` subdirectory or the legacy `personal/` subdirectory; absolute paths and `..` traversal are rejected at validation. Supported extensions are `.md`, `.txt`, `.html`, `.htm`, `.pdf`. The maximum file size is 10MB.
+`local_file` sources can reference content the curator has on disk — book chapters, gated articles, exported PDFs, Reader-Mode-saved HTML. The `path` must resolve under the project's `local-sources/` subdirectory or the legacy `personal/` subdirectory; absolute paths and `..` traversal are rejected at validation. Supported extensions are `.md`, `.txt`, `.html`, `.htm`, `.pdf`, `.epub`. The maximum file size is 10MB.
 
 **Fields specific to `skill` sources:**
 
@@ -126,6 +128,18 @@ v1 supports four source types: `youtube`, `web`, `local_file`, and `skill`.
 | `url` | URL | GitHub skill URL. Use instead of `path` |
 
 Skill sources are read as reference artifacts. Liner never installs or executes them.
+
+**Fields specific to `repository` sources:**
+
+| Field | Type | Description |
+|---|---|---|
+| `url` | URL | A public `github.com` repository URL. Liner reads the repository's documentation files at the commit it compiled from. Folder URLs need a branch or tag name without a slash |
+
+**Fields specific to `liner` sources:**
+
+| Field | Type | Description |
+|---|---|---|
+| `url` | string | `liner://<slug>` for the reviewed synthesis of another finished liner in the same library, or `liner://<slug>/<source-id>` for one of its sources' saved text. `liner find-sources` gives each source's address |
 
 ### Example
 
@@ -194,16 +208,19 @@ A `tape.yaml` is valid if and only if:
 1. The YAML parses
 2. All required top-level fields are present
 3. `version` is `1` (v1 parsers reject other values)
-4. `mode` is `quick` or `methodology`
+4. If present, `mode` is `quick` or `methodology`
 5. `sources` is a list. It may be empty while drafting; compile/share require usable sources.
-6. Every source has a `type` in the allowed set: `youtube`, `web`, `local_file`, `skill`
-7. For `youtube` and `web` sources: `url` is present and parses as a valid URL
+6. Every source has a `type` in the allowed set: `youtube`, `web`, `local_file`, `skill`, `repository`, `liner`
+7. For `youtube`, `web`, `repository`, and `liner` sources: `url` is present and parses as a valid URL
 8. For `web` sources: if `render` is present, it is `server` or `js`
 9. For `local_file` sources: `path` and `citation` are present
 10. For `local_file` sources: `path` is a relative POSIX path starting with `local-sources/` or legacy `personal/` and contains no `..` segments
-11. For `local_file` sources: the extension is one of `.md`, `.txt`, `.html`, `.htm`, `.pdf`
+11. For `local_file` sources: the extension is one of `.md`, `.txt`, `.html`, `.htm`, `.pdf`, `.epub`
 12. For `skill` sources: either `path` or a GitHub `url` is present
-13. `youtube` and `web` sources must not declare `path` or `citation`; `local_file` sources must not declare `url`
+13. URL sources must not declare `path` or `citation`; `local_file` sources must not declare `url`
+14. For `repository` sources: `url` is a public `github.com` repository URL
+15. For `liner` sources: `url` is `liner://<slug>` or `liner://<slug>/<source-id>`
+16. If present, `id` is a valid UUID and `kind` is `reference`, `principle`, `prescription`, or `example`
 
 Path existence and file-size limits are checked at compile time, not validation time — a tape can be valid even when the file isn't on disk yet (e.g., shared recipe before the recipient adds their own copy).
 
@@ -224,7 +241,7 @@ The synthesis covers:
 
 Length is typically 800–2000 words. Shorter for narrow topics; longer for broader ones.
 
-In quick mode, the synthesis is AI-drafted during compilation. In methodology mode, the curator writes or substantially edits it. Either way, it lives at `synthesis.md` in the corpus folder (`mixtape/synthesis.md` in v2 projects) and gets included verbatim at the top of `MIXTAPE.md`.
+In `liner research`, the agent drafts the synthesis in the synthesis step, and the person approves it at `approve:synthesis` before assembly. In methodology mode, the curator writes or substantially edits it. Either way, it lives at `synthesis.md` in the corpus folder (`mixtape/synthesis.md` in v2 projects) and gets included verbatim at the top of `MIXTAPE.md`.
 
 ---
 
@@ -241,7 +258,8 @@ Structure:
 
 **Curator:** {curator}
 **Compiled:** {ISO timestamp}
-**Sources:** {n}
+**Sources:** {n} ({videos} videos, {articles} articles, {local files} local files, {skills} skills)
+**Mode:** {mode if present}
 **JTBD:** {jtbd if present}
 
 ---
@@ -269,8 +287,9 @@ be consulted when specific detail is needed.]
 
 #### Source {N}: {source title or citation}
 
-- **Type:** {youtube|web|local_file}
-- **URL:** {source url} *(for youtube/web)*
+- **Type:** {youtube|web|local_file|skill|repository|liner}
+- **Kind:** {kind if present}
+- **URL:** {source url} *(for URL sources)*
 - **Citation:** {citation} *(for local_file)*
 - **Local path:** {path} *(for local_file)*
 - **Render:** {server|js} *(for web sources, only when explicitly set)*
@@ -296,14 +315,19 @@ Each source file contains:
 ```markdown
 # {source title or citation}
 
-**Source type:** {youtube|web|local_file|skill}
-**URL:** {url}             *(for youtube/web or remote skill Sources)*
+**Source type:** {youtube|web|local_file|skill|repository|liner}
+**Kind:** {kind if present}
+**URL:** {url}             *(for URL sources or remote skill Sources)*
 **Citation:** {citation}   *(for local_file)*
 **Local path:** {path}     *(for local_file or local/installed skill Sources)*
+**Reused from:** {liner}   *(for liner Sources)*
+**Commit:** {commit}       *(for repository Sources)*
 **Author:** {author if known}
 **Published:** {date if known}
 **Updated:** {date if known}
 **Fetched:** {ISO timestamp}
+
+> **Curator note:** {note if present}
 
 {extracted content}
 ```
@@ -321,6 +345,9 @@ sources, content is extracted by type: `.md` and `.txt` files are read as-is,
 `.html` uses the web readability pipeline, and `.pdf` is extracted page by page.
 For `skill` Sources, Liner snapshots the referenced `SKILL.md` and related text
 as inert source material; it does not install or execute those instructions.
+For `repository` Sources, it is the repository's documentation files at the
+compiled commit. For `liner` Sources, it is the other liner's reviewed synthesis
+or its saved copy of one source, read without fetching.
 
 Source content is stored at full extracted length. The master file pattern handles in-context efficiency by referencing sources on demand rather than embedding them in `MIXTAPE.md`.
 
@@ -328,7 +355,7 @@ Source content is stored at full extracted length. The master file pattern handl
 
 ## `working/` — the methodology made visible
 
-The `working/` folder contains the curator's research artifacts: the JTBD statement, the knowledge map, the candidate long-list, the evaluation pass with decisions and ratings, and the empirical test result if performed.
+The `working/` folder contains the curator's research artifacts: the JTBD statement, the knowledge map, the candidate long-list, the evaluation pass with decisions and ratings, the source-list draft, and any with-and-without test results.
 
 Files are numbered to indicate phase order:
 
@@ -339,8 +366,13 @@ working/
 ├── 03-evaluation.yaml
 ├── 04-quality-checks.md
 ├── 05-operating-fit-audit.md   # optional improvement recommendation
-└── 06-empirical-test.md        # optional methodology validation
+├── 07-tape-draft.yaml          # the source list drafted at assembly
+├── empirical-tests.yaml        # `liner test` results
+├── empirical-tests-pending.yaml  # blind tests waiting for a verdict
+└── blind-tests/                # the A and B answers for blind tests
 ```
+
+`liner gaps` and `liner findings` also keep their records here, in `gaps.yaml` and `findings.yaml`.
 
 These are not required by the format but are recommended. Library contributions must include them.
 
@@ -404,7 +436,7 @@ A `.mixtape` file is a zip archive of a project folder, produced by `liner share
 
 The archive contains the project folder at its root. For v2 projects that includes root project files such as `liner.yaml`, `LINER.md`, and `SKILL.md`, plus `mixtape/tape.yaml`, `mixtape/synthesis.md`, `mixtape/MIXTAPE.md`, `mixtape/sources/`, `mixtape/working/`, and `mixtape/local-sources/` when present. Legacy root-level projects with `tape.yaml`, `MIXTAPE.md`, `sources/`, `working/`, and `personal/` remain supported. The archive does not contain anything from the shared content cache.
 
-On CLI import, the receiving Liner unzips the folder, then refetches any sources whose URLs aren't already in the receiving curator's cache unless `--no-refetch` is passed. Sources already cached are reused. `local_file` sources are read from archived `local-sources/` or legacy `personal/` files directly — no refetch. TUI import extracts the archive into the workspace and leaves refetching to a later compile.
+On CLI import, the receiving Liner unzips the folder, then refetches any sources whose URLs aren't already in the receiving curator's cache unless `--no-refetch` is passed. Sources already cached are reused. `local_file` sources are read from archived `local-sources/` or legacy `personal/` files directly — no refetch.
 
 Flags affecting the export:
 
@@ -419,10 +451,11 @@ Flags affecting the export:
 
 ## Versioning policy
 
-The mixtape format has its own version number, independent of the CLI/TUI version.
+The mixtape format has its own version number, independent of the CLI and navigator version.
 
 - **v1** is the current format. Stable.
 - **v1.1 additions** (additive, non-breaking): the `local_file` and `skill` source types, the `render` field on `web` sources, and the `local-sources/` subdirectory with legacy `personal/` compatibility. v1 parsers that don't know about these will reject tapes that use them — they're not silently forward-compatible. v1.1-aware parsers accept everything older v1 parsers accept.
+- **Later additive changes:** the `repository` and `liner` source types, the per-source `id` and `kind` fields, `.epub` local files, and an optional `mode`.
 - Breaking changes increment the format version. v1 mixtapes will continue to parse with v1 tools indefinitely. v2 tools will accept both v1 and v2 mixtapes for some transition period, with a documented migration path.
 - Additive, non-breaking changes (new optional fields, new source types) may happen within a major version with a minor version note.
 

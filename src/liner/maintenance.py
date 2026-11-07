@@ -19,12 +19,14 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 import yaml
 
 from liner import __version__
+from liner.operating_layer import render_operating_layer
 from liner.project import (
     LINER_METADATA_FILENAME,
     MIXTAPE_DIR,
     ProjectFolder,
     ensure_compile_review_approved,
     mark_corpus_ready,
+    parse_status_time,
     project_skill_status,
     status_snapshot,
 )
@@ -61,6 +63,7 @@ _SOURCE_FIELDS = {
 }
 _SOURCE_UPDATE_FIELDS = _SOURCE_FIELDS - {"type", "content_hash"}
 _CONTENT_HASH_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+LEGACY_LINER_DRAFT = "working/LINER-draft.md"
 POINTER_ADAPTER_FILES = {"codex": "AGENTS.md", "claude": "CLAUDE.md"}
 POINTER_ADAPTER_START = "<!-- liner-maintenance-pointer:start v1 -->"
 POINTER_ADAPTER_END = "<!-- liner-maintenance-pointer:end -->"
@@ -667,6 +670,13 @@ def maintenance_guidance(path: Path | None = None) -> MaintenanceGuidance:
             "Structural, semantic, and destructive changes require reviewed approval.",
             "A stale revision, incompatible format, unsafe path, or ambiguous root fails closed.",
             "After installing or upgrading Liner, restart from project inspect.",
+            "To revise a finished liner's synthesis or instructions without a source "
+            "change, plan a `synthesis.review` or `operating_layer.review` patch and show "
+            "the person the new text before applying it. A synthesis patch starts a "
+            "refresh: run `liner compile`, then plan an `operating_layer.review` so the "
+            "instructions are checked against the new synthesis.",
+            "A person's preference about how the liner works is a revision, not a finding; "
+            "never record it with `liner findings add`.",
         ],
         "instruction_allowlist": {
             "project_skill": {
@@ -725,26 +735,7 @@ def plan_project_guidance_upgrade(
     skill_path = _project_effect_path(project, skill_relative)
     original = skill_path.read_text(encoding="utf-8")
     upgraded = _upgrade_project_skill_text(original)
-    operations: list[dict[str, Any]] = []
-    documents = _load_documents(project)
-    if snapshot.project_id is None:
-        operations.append({"type": "identity.assign_project", "project_id": project_id})
-    sources = documents.tape.get("sources", [])
-    if not isinstance(sources, list):
-        raise ProjectInspectionError("Invalid Project tape sources; expected a list.")
-    for index, source in enumerate(sources):
-        if not isinstance(source, dict):
-            raise ProjectInspectionError(f"Invalid source at sources[{index}].")
-        if source.get("id") is None:
-            operations.append(
-                {
-                    "type": "identity.assign_source",
-                    "index": index,
-                    "source_id": _stable_uuid(
-                        f"source:{project_id}:{index}:{_payload_hash(_source_identity(source))}"
-                    ),
-                }
-            )
+    operations = _identity_operations(snapshot, project, project_id)
     operation = {
         "type": "project.guidance_upgrade",
         "skill_path": skill_relative,
@@ -760,6 +751,31 @@ def plan_project_guidance_upgrade(
     return _build_guidance_change_set(snapshot, project, project_id, tuple(operations))
 
 
+def _identity_operations(
+    snapshot: ProjectSnapshot, project: ProjectFolder, project_id: str
+) -> list[dict[str, Any]]:
+    operations: list[dict[str, Any]] = []
+    if snapshot.project_id is None:
+        operations.append({"type": "identity.assign_project", "project_id": project_id})
+    sources = _load_documents(project).tape.get("sources", [])
+    if not isinstance(sources, list):
+        raise ProjectInspectionError("Invalid Project tape sources; expected a list.")
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            raise ProjectInspectionError(f"Invalid source at sources[{index}].")
+        if source.get("id") is None:
+            operations.append(
+                {
+                    "type": "identity.assign_source",
+                    "index": index,
+                    "source_id": _stable_uuid(
+                        f"source:{project_id}:{index}:{_payload_hash(_source_identity(source))}"
+                    ),
+                }
+            )
+    return operations
+
+
 def plan_synthesis_review(
     path: Path | None,
     disposition: str,
@@ -770,19 +786,27 @@ def plan_synthesis_review(
     snapshot = inspect_project(path)
     project_id = _require_current_project_identity(snapshot, "synthesis review")
     project = ProjectFolder(snapshot.root)
-    refresh = _required_refresh_state(snapshot, "synthesis")
+    refresh = _review_refresh(snapshot, "synthesis")
     if disposition not in {"patch", "still_current"}:
         raise ProjectInspectionError("synthesis.review disposition must be patch or still_current.")
     if disposition == "patch" and (not isinstance(content, str) or not content.strip()):
         raise ProjectInspectionError("synthesis.review patch requires non-empty content.")
     if disposition == "still_current" and content is not None:
         raise ProjectInspectionError("synthesis.review still_current cannot include content.")
+    if refresh is None and disposition != "patch":
+        raise ProjectInspectionError(
+            "Nothing is waiting for review, so a standalone synthesis review must be a patch."
+        )
     operation: dict[str, Any] = {
         "type": "synthesis.review",
         "disposition": disposition,
         "expected_artifact_hash": _required_file_text_hash(project.synthesis_path, "synthesis.md"),
-        "trigger_change_set_id": refresh.get("trigger_change_set_id"),
+        "trigger_change_set_id": refresh.get("trigger_change_set_id") if refresh else None,
     }
+    if refresh is None:
+        # A revised synthesis changes MIXTAPE.md and may disagree with the
+        # instructions, so applying it starts a refresh: compile, then review them.
+        operation["standalone"] = True
     if disposition == "patch":
         operation["content"] = content
         operation["proposed_artifact_hash"] = _text_hash(str(content))
@@ -800,7 +824,7 @@ def plan_operating_layer_review(
     snapshot = inspect_project(path)
     project_id = _require_current_project_identity(snapshot, "Operating Layer review")
     project = ProjectFolder(snapshot.root)
-    refresh = _required_refresh_state(snapshot, "operating_layer")
+    refresh = _review_refresh(snapshot, "operating_layer")
     if disposition not in {"patch", "still_current"}:
         raise ProjectInspectionError(
             "operating_layer.review disposition must be patch or still_current."
@@ -823,6 +847,10 @@ def plan_operating_layer_review(
         raise ProjectInspectionError(
             "operating_layer.review still_current cannot include replacement content."
         )
+    if refresh is None and disposition != "patch":
+        raise ProjectInspectionError(
+            "Nothing is waiting for review, so a standalone Operating Layer review must be a patch."
+        )
     skill = project_skill_status(_load_documents(project).metadata)
     skill_relative = skill.get("path") if skill.get("status") == "active" else None
     operation: dict[str, Any] = {
@@ -837,8 +865,10 @@ def plan_operating_layer_review(
             if isinstance(skill_relative, str)
             else None
         ),
-        "trigger_change_set_id": refresh.get("trigger_change_set_id"),
+        "trigger_change_set_id": refresh.get("trigger_change_set_id") if refresh else None,
     }
+    if refresh is None:
+        operation["standalone"] = True
     if liner_content is not None:
         operation["liner_content"] = liner_content
         operation["proposed_liner_hash"] = _text_hash(liner_content)
@@ -848,6 +878,53 @@ def plan_operating_layer_review(
         operation["skill_content"] = skill_content
         operation["proposed_skill_hash"] = _text_hash(skill_content)
     return _build_refresh_review_change_set(snapshot, project, project_id, operation)
+
+
+def plan_operating_layer_create(path: Path | None) -> ProjectChangeSet:
+    """Plan the first LINER.md and Project Skill from a finished corpus."""
+    snapshot = inspect_project(path)
+    project_id = snapshot.project_id or str(uuid4())
+    project = ProjectFolder(snapshot.root)
+    _require_operating_layer_creatable(project, snapshot)
+    operation = _operating_layer_create_operation(project)
+    identity = tuple(_identity_operations(snapshot, project, project_id))
+    return _build_refresh_review_change_set(snapshot, project, project_id, operation, identity)
+
+
+def _operating_layer_create_operation(project: ProjectFolder) -> dict[str, Any]:
+    draft = render_operating_layer(project)
+    legacy_paths = [
+        relative
+        for relative in (LEGACY_LINER_DRAFT, f"skills/{draft.skill_name}.md")
+        if (project.path / relative).is_file()
+    ]
+    return {
+        "type": "operating_layer.create",
+        "skill_name": draft.skill_name,
+        "skill_path": draft.skill_path,
+        "expected_skill_hash": _file_text_hash(project.path / draft.skill_path),
+        "liner_content": draft.liner_content,
+        "proposed_liner_hash": _text_hash(draft.liner_content),
+        "skill_content": draft.skill_content,
+        "proposed_skill_hash": _text_hash(draft.skill_content),
+        "legacy_paths": legacy_paths,
+    }
+
+
+def _require_operating_layer_creatable(project: ProjectFolder, snapshot: ProjectSnapshot) -> None:
+    if snapshot.lifecycle.get("milestone") not in {"corpus_ready", "project_complete"}:
+        raise ProjectInspectionError("Operating Layer creation requires a compiled corpus.")
+    if not project.mixtape_path.is_file():
+        raise ProjectInspectionError("MIXTAPE.md is required before creating the Operating Layer.")
+    if os.path.lexists(project.liner_path):
+        raise ProjectInspectionError(
+            "LINER.md already exists; use operating_layer.review to change it."
+        )
+    refresh = snapshot.lifecycle.get("refresh")
+    if isinstance(refresh, dict) and refresh.get("state") == "required":
+        raise ProjectInspectionError(
+            "Finish the pending refresh before creating the Operating Layer."
+        )
 
 
 def plan_pointer_adapter(
@@ -1231,6 +1308,61 @@ def _required_refresh_state(snapshot: ProjectSnapshot, section: str) -> dict[str
     return refresh
 
 
+def _review_refresh(snapshot: ProjectSnapshot, section: str) -> dict[str, Any] | None:
+    """The pending refresh this review answers, or None for a standalone revision.
+
+    A finished liner whose sources haven't changed can still have its synthesis or
+    its instructions revised, as long as nothing else is waiting for review.
+    """
+    lifecycle = snapshot.lifecycle
+    refresh = lifecycle.get("refresh")
+    if isinstance(refresh, dict) and refresh.get("state") != "current":
+        return _required_refresh_state(snapshot, section)
+    label = "Synthesis" if section == "synthesis" else "Operating Layer"
+    operating = lifecycle.get("operating_layer")
+    if (
+        lifecycle.get("milestone") != "project_complete"
+        or lifecycle.get("stale") is not False
+        or not isinstance(operating, dict)
+        or operating.get("state") != "ready"
+    ):
+        raise ProjectInspectionError(
+            f"{label} review needs a finished, current Project or a pending refresh."
+        )
+    edited = _edited_since_status(ProjectFolder(snapshot.root), lifecycle)
+    if edited:
+        raise ProjectInspectionError(
+            "These files changed outside Liner since the last approved change: "
+            + ", ".join(edited)
+            + ". Restore them or route the change through a reviewed plan first."
+        )
+    return None
+
+
+def _edited_since_status(project: ProjectFolder, lifecycle: dict[str, Any]) -> list[str]:
+    """Reviewed files modified after the last recorded status update.
+
+    The status check only watches the corpus and LINER.md, so a standalone revision
+    also checks the skill, synthesis, and tape before it sets a new baseline.
+    """
+    updated_at = parse_status_time(lifecycle.get("updated"))
+    paths = [project.liner_path, project.synthesis_path, project.tape_path]
+    skill = lifecycle.get("project_skill")
+    if isinstance(skill, dict) and skill.get("status") == "active":
+        skill_path = skill.get("path")
+        if isinstance(skill_path, str):
+            paths.append(_project_effect_path(project, skill_path))
+    edited: list[str] = []
+    for path in paths:
+        try:
+            modified = path.stat().st_mtime if path.is_file() else None
+        except OSError:
+            modified = None
+        if modified is not None and (updated_at is None or modified > updated_at.timestamp()):
+            edited.append(path.relative_to(project.path).as_posix())
+    return edited
+
+
 def _file_text_hash(path: Path) -> str:
     if not path.is_file() or path.is_symlink():
         return "missing"
@@ -1256,8 +1388,14 @@ def _build_refresh_review_change_set(
     project: ProjectFolder,
     project_id: str,
     operation: dict[str, Any],
+    identity: tuple[dict[str, Any], ...] = (),
 ) -> ProjectChangeSet:
-    write_effects = [project.liner_metadata_path.relative_to(project.path).as_posix()]
+    metadata_effect = project.liner_metadata_path.relative_to(project.path).as_posix()
+    identity_types = {str(item["type"]) for item in identity}
+    write_effects = [metadata_effect] if "identity.assign_project" in identity_types else []
+    if "identity.assign_source" in identity_types:
+        write_effects.append(project.tape_path.relative_to(project.path).as_posix())
+    write_effects.append(metadata_effect)
     if operation["type"] == "synthesis.review" and operation["disposition"] == "patch":
         write_effects.append(project.synthesis_path.relative_to(project.path).as_posix())
     if operation["type"] == "operating_layer.review" and operation["disposition"] == "patch":
@@ -1265,6 +1403,8 @@ def _build_refresh_review_change_set(
             write_effects.append("LINER.md")
         if "skill_content" in operation:
             write_effects.append(str(operation["skill_path"]))
+    if operation["type"] == "operating_layer.create":
+        write_effects.extend(["LINER.md", str(operation["skill_path"])])
     receipt_effect = (
         f"{project.corpus_path.relative_to(project.path).as_posix()}/"
         ".liner-runs/maintenance/<receipt-id>.json"
@@ -1273,18 +1413,19 @@ def _build_refresh_review_change_set(
         "contract": PROJECT_CHANGE_SET_CONTRACT,
         "version": PROJECT_CHANGE_SET_VERSION,
         "change_set_id": _stable_uuid(
-            f"change-set:{project_id}:{snapshot.revision}:{_payload_hash(operation)}"
+            f"change-set:{project_id}:{snapshot.revision}:"
+            f"{_payload_hash([*identity, operation] if identity else operation)}"
         ),
         "project_id": project_id,
         "expected_revision": snapshot.revision,
         "expected_content_hash": snapshot.content_hash,
-        "risk": "semantic",
+        "risk": "structural" if identity else "semantic",
         "approval_required": True,
-        "operations": [operation],
+        "operations": [*identity, operation],
         "file_effects": {
             "write": write_effects,
             "create": [receipt_effect],
-            "delete": [],
+            "delete": list(operation.get("legacy_paths", [])),
             "retain": [],
             "supersede": [],
             "purge": [],
@@ -2410,6 +2551,8 @@ def _apply_operations(project: ProjectFolder, change_set: ProjectChangeSet) -> N
             metadata_changed = True
             if operation["disposition"] == "patch":
                 _write_text_no_follow(project.synthesis_path, str(operation["content"]))
+            if operation.get("standalone") is True:
+                metadata["status"] = _invalidated_refresh_status(project, metadata, change_set)
             metadata["status"] = _reviewed_refresh_status(
                 project, metadata, section="synthesis", disposition=str(operation["disposition"])
             )
@@ -2422,12 +2565,48 @@ def _apply_operations(project: ProjectFolder, change_set: ProjectChangeSet) -> N
                     _project_effect_path(project, str(operation["skill_path"])),
                     str(operation["skill_content"]),
                 )
-            metadata["status"] = _reviewed_refresh_status(
-                project,
-                metadata,
-                section="operating_layer",
-                disposition=str(operation["disposition"]),
+            if operation.get("standalone") is True:
+                status = metadata.get("status")
+                if isinstance(status, dict):
+                    metadata["status"] = {**status, "updated": _now_iso()}
+            else:
+                metadata["status"] = _reviewed_refresh_status(
+                    project,
+                    metadata,
+                    section="operating_layer",
+                    disposition=str(operation["disposition"]),
+                )
+        elif operation_type == "operating_layer.create":
+            metadata_changed = True
+            _write_text_no_follow(project.liner_path, str(operation["liner_content"]))
+            _write_text_no_follow(
+                _project_effect_path(project, str(operation["skill_path"])),
+                str(operation["skill_content"]),
             )
+            for relative in operation["legacy_paths"]:
+                _project_effect_path(project, str(relative)).unlink()
+            skills_folder = project.path / "skills"
+            if (
+                operation["legacy_paths"]
+                and skills_folder.is_dir()
+                and not any(skills_folder.iterdir())
+            ):
+                skills_folder.rmdir()
+            metadata["project_skill"] = {
+                "status": "active",
+                "name": operation["skill_name"],
+                "path": operation["skill_path"],
+            }
+            metadata["status"] = {
+                "milestone": "project_complete",
+                "stale": False,
+                "updated": _now_iso(),
+                "corpus": {
+                    "state": "ready",
+                    "evidence": project.mixtape_path.relative_to(project.path).as_posix(),
+                },
+                "operating_layer": {"state": "ready", "evidence": "LINER.md"},
+            }
         elif operation_type == "pointer.adapter":
             target = _project_effect_path(project, str(operation["file"]))
             proposed = str(operation["proposed_content"])
@@ -3462,7 +3641,10 @@ def _validate_change_set_operations(change_set: ProjectChangeSet) -> None:
     semantic = "source.replace" in operation_types
     semantic = semantic or "source.remove" in operation_types
     semantic = semantic or "project.guidance_upgrade" in operation_types
-    semantic = semantic or bool(operation_types & {"synthesis.review", "operating_layer.review"})
+    semantic = semantic or bool(
+        operation_types
+        & {"synthesis.review", "operating_layer.review", "operating_layer.create"}
+    )
     semantic = semantic or "pointer.adapter" in operation_types
     destructive = "source.purge" in operation_types
     metadata = "source.update" in operation_types or "project.rename" in operation_types
@@ -3558,6 +3740,29 @@ def _validate_change_set_operations(change_set: ProjectChangeSet) -> None:
                 ):
                     raise ProjectInspectionError(
                         f"operating_layer.review {content_key} proposal is invalid."
+                    )
+        elif operation_type == "operating_layer.create":
+            legacy_paths = operation.get("legacy_paths")
+            if not isinstance(legacy_paths, list) or not all(
+                isinstance(path, str) for path in legacy_paths
+            ):
+                raise ProjectInspectionError("operating_layer.create has invalid legacy paths.")
+            if not isinstance(operation.get("skill_path"), str) or not isinstance(
+                operation.get("skill_name"), str
+            ):
+                raise ProjectInspectionError("operating_layer.create has an invalid Project Skill.")
+            for content_key, hash_key in (
+                ("liner_content", "proposed_liner_hash"),
+                ("skill_content", "proposed_skill_hash"),
+            ):
+                content = operation.get(content_key)
+                if (
+                    not isinstance(content, str)
+                    or not content.strip()
+                    or operation.get(hash_key) != _text_hash(content)
+                ):
+                    raise ProjectInspectionError(
+                        f"operating_layer.create {content_key} proposal is invalid."
                     )
         elif operation_type == "pointer.adapter":
             environment = operation.get("environment")
@@ -3804,6 +4009,7 @@ def _validate_operations_against_project(
             "project.guidance_upgrade",
             "synthesis.review",
             "operating_layer.review",
+            "operating_layer.create",
             "pointer.adapter",
             "pointer.noop",
         }
@@ -3837,8 +4043,9 @@ def _validate_operations_against_project(
         for source in sources
         if isinstance(source, dict) and source.get("id") is not None
     }
-    guidance_change_set = any(
-        operation.get("type") == "project.guidance_upgrade" for operation in change_set.operations
+    operation_types = {operation.get("type") for operation in change_set.operations}
+    guidance_change_set = "project.guidance_upgrade" in operation_types or (
+        "operating_layer.create" in operation_types and len(change_set.operations) > 1
     )
     for operation in change_set.operations:
         operation_type = operation["type"]
@@ -3848,6 +4055,7 @@ def _validate_operations_against_project(
             "project.guidance_upgrade",
             "synthesis.review",
             "operating_layer.review",
+            "operating_layer.create",
             "pointer.adapter",
             "pointer.noop",
         }:
@@ -3890,7 +4098,13 @@ def _validate_operations_against_project(
                     "Project guidance postimage does not match the canonical planner."
                 )
         elif operation_type == "synthesis.review":
-            _required_refresh_state(inspect_project(project.path), "synthesis")
+            standalone = _review_refresh(inspect_project(project.path), "synthesis") is None
+            if standalone is not (operation.get("standalone") is True) or (
+                standalone and operation.get("disposition") != "patch"
+            ):
+                raise ProjectInspectionError(
+                    "Project refresh state changed after planning; create a fresh review plan."
+                )
             if (
                 _required_file_text_hash(project.synthesis_path, "synthesis.md")
                 != operation["expected_artifact_hash"]
@@ -3899,7 +4113,13 @@ def _validate_operations_against_project(
                     "Synthesis changed after planning; create a fresh review plan."
                 )
         elif operation_type == "operating_layer.review":
-            _required_refresh_state(inspect_project(project.path), "operating_layer")
+            standalone = _review_refresh(inspect_project(project.path), "operating_layer") is None
+            if standalone is not (operation.get("standalone") is True) or (
+                standalone and operation.get("disposition") != "patch"
+            ):
+                raise ProjectInspectionError(
+                    "Project refresh state changed after planning; create a fresh review plan."
+                )
             if (
                 _required_file_text_hash(project.liner_path, "LINER.md")
                 != operation["expected_liner_hash"]
@@ -3926,6 +4146,12 @@ def _validate_operations_against_project(
             ) != operation.get("expected_skill_hash"):
                 raise ProjectInspectionError(
                     "The Project Skill changed after planning; create a fresh review plan."
+                )
+        elif operation_type == "operating_layer.create":
+            _require_operating_layer_creatable(project, inspect_project(project.path))
+            if dict(operation) != _operating_layer_create_operation(project):
+                raise ProjectInspectionError(
+                    "The corpus changed after planning; create a fresh plan."
                 )
         elif operation_type in {"pointer.adapter", "pointer.noop"}:
             canonical = plan_pointer_adapter(
@@ -4198,6 +4424,15 @@ def _expected_project_file_effects(
                 effects["write"].append("LINER.md")
             if "skill_content" in operation:
                 effects["write"].append(str(operation["skill_path"]))
+        elif operation.get("type") == "operating_layer.create":
+            effects["write"].extend(
+                [
+                    project.liner_metadata_path.relative_to(project.path).as_posix(),
+                    "LINER.md",
+                    str(operation["skill_path"]),
+                ]
+            )
+            effects["delete"].extend(str(path) for path in operation["legacy_paths"])
         elif operation.get("type") == "pointer.adapter":
             relative = str(operation["file"])
             if operation.get("proposed_content"):
@@ -4315,9 +4550,16 @@ def _validate_replay_effects(project: ProjectFolder, change_set: ProjectChangeSe
             refresh = status.get("refresh") if isinstance(status, dict) else None
             operating = refresh.get("operating_layer") if isinstance(refresh, dict) else None
             effect_exists = (
-                isinstance(operating, dict)
-                and operating.get("state") == "approved"
-                and operating.get("disposition") == operation.get("disposition")
+                (
+                    # A standalone revision leaves no refresh record; the receipt's
+                    # after-revision and the content hashes below prove the effect.
+                    operation.get("standalone") is True
+                    or (
+                        isinstance(operating, dict)
+                        and operating.get("state") == "approved"
+                        and operating.get("disposition") == operation.get("disposition")
+                    )
+                )
                 and (
                     "liner_content" not in operation
                     or _file_text_hash(project.liner_path) == operation.get("proposed_liner_hash")
@@ -4329,6 +4571,12 @@ def _validate_replay_effects(project: ProjectFolder, change_set: ProjectChangeSe
                     )
                     == operation.get("proposed_skill_hash")
                 )
+            )
+        elif operation_type == "operating_layer.create":
+            effect_exists = _file_text_hash(project.liner_path) == operation.get(
+                "proposed_liner_hash"
+            ) and _file_text_hash(project.path / str(operation.get("skill_path"))) == operation.get(
+                "proposed_skill_hash"
             )
         elif operation_type == "project.move":
             effect_exists = (

@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from urllib.parse import unquote, urlparse
+from html import unescape
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 
 from liner.config import FetchConfig
 from liner.handlers.base import HandlerHardFailure, HandlerSoftFailure, JsRenderingRequired
+from liner.handlers.fetch_guard import get_bounded, guarded_client
 from liner.handlers.html_extraction import (
+    EXTRACTOR_VERSION,
     MIN_USEFUL_BODY_CHARS,
     extract_html_text,
     looks_like_bot_challenge,
@@ -27,16 +30,32 @@ FAILURE_BODY_PREVIEW_BYTES = 500
 class WebHandler:
     def __init__(self, config: FetchConfig) -> None:
         self._config = config
-        self._client = httpx.Client(
+        self._client = guarded_client(
+            allow_private_network=config.allow_private_network,
             headers={"User-Agent": config.user_agent},
             timeout=config.timeout_seconds,
             follow_redirects=True,
         )
 
+    def _fetch_markdown_alternate(self, url: str, alternate: str) -> SourceContent | None:
+        try:
+            response = get_bounded(self._client, alternate)
+        except httpx.HTTPError:
+            return None
+        if response.status_code >= 400 or not _looks_like_text_response(response):
+            return None
+        if _origin(str(response.url)) != _origin(url):  # A redirect left the site.
+            return None
+        if len(response.text.strip()) < MIN_USEFUL_BODY_CHARS:
+            return None
+        return _content_from_text(
+            url, response.text, extraction="markdown-alternate", markdown_url=alternate
+        )
+
     def fetch(self, spec: SourceSpec) -> SourceContent:
         url = spec.url
         try:
-            response = self._client.get(url)
+            response = get_bounded(self._client, url)
         except httpx.HTTPError as e:
             raise HandlerHardFailure(_network_failure_message(url, e), url) from e
 
@@ -64,7 +83,20 @@ class WebHandler:
 
         if _looks_like_pdf_response(response):
             return self._content_from_pdf_response(spec, response)
+        if _looks_like_text_response(response):
+            return _content_from_text(url, response.text, extraction="markdown")
+        try:
+            return self._content_from_html(url, response)
+        except (JsRenderingRequired, HandlerSoftFailure):
+            # Some pages that need a browser, such as Apple's Human Interface
+            # Guidelines, declare a Markdown copy of themselves for agents.
+            alternate = _markdown_alternate(response)
+            content = self._fetch_markdown_alternate(url, alternate) if alternate else None
+            if content is None:
+                raise
+            return content
 
+    def _content_from_html(self, url: str, response: httpx.Response) -> SourceContent:
         extraction = extract_html_text(response.text)
         title = extraction.title or url
         fetched_at = datetime.now(UTC).isoformat()
@@ -116,6 +148,7 @@ class WebHandler:
                 updated_at=str(extraction.updated_at) if extraction.updated_at else None,
                 metadata={
                     "extraction": "soft-fallback",
+                    "extractor_version": EXTRACTOR_VERSION,
                     **(
                         {"metadata_source": extraction.metadata_source}
                         if extraction.metadata_source
@@ -148,6 +181,7 @@ class WebHandler:
             updated_at=str(extraction.updated_at) if extraction.updated_at else None,
             metadata={
                 "extraction": "trafilatura",
+                "extractor_version": EXTRACTOR_VERSION,
                 **(
                     {"metadata_source": extraction.metadata_source}
                     if extraction.metadata_source
@@ -186,6 +220,68 @@ class WebHandler:
         return content
 
 
+_MARKDOWN_ALTERNATE = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_HTML_START = re.compile(r"<(!doctype|html|head|body)\b", re.IGNORECASE)
+_ATTRIBUTE = re.compile(r'([a-z-]+)\s*=\s*["\']([^"\']*)["\']', re.IGNORECASE)
+
+
+def _looks_like_text_response(response: httpx.Response) -> bool:
+    content_type = response.headers.get("content-type", "").lower()
+    if not content_type.startswith(("text/markdown", "text/x-markdown", "text/plain")):
+        return False
+    # HTML served as plain text is still HTML. Markdown may open with a comment.
+    start = _HTML_COMMENT.sub("", response.text.lstrip("\ufeff \t\r\n"), count=1)
+    return not _HTML_START.match(start.lstrip())
+
+
+def _markdown_alternate(response: httpx.Response) -> str | None:
+    """The page's own Markdown copy, as Apple's documentation declares for agents.
+
+    Only a `<link>` in the page's head counts, and only a copy on the same origin, so
+    the page's body can't pick it and the page can't send Liner to another site.
+    """
+    text = response.text
+    end = text.lower().find("</head")
+    head = _HTML_COMMENT.sub(" ", text[: end if end >= 0 else 200_000])
+    for tag in _MARKDOWN_ALTERNATE.findall(head):
+        attributes = {name.lower(): value for name, value in _ATTRIBUTE.findall(tag)}
+        if "alternate" not in attributes.get("rel", "").lower().split():
+            continue
+        if attributes.get("type", "").split(";")[0].strip().lower() != "text/markdown":
+            continue
+        href = urljoin(str(response.url), unescape(attributes.get("href", "")))
+        if _origin(href) == _origin(str(response.url)):
+            return href
+    return None
+
+
+def _origin(url: str) -> tuple[str, str | None, int | None]:
+    parts = urlparse(url)
+    try:
+        port = parts.port or {"http": 80, "https": 443}.get(parts.scheme)
+    except ValueError:
+        port = None
+    return parts.scheme, parts.hostname, port
+
+
+def _content_from_text(url: str, text: str, *, extraction: str, **extra: str) -> SourceContent:
+    body = text.lstrip("\ufeff").strip()
+    if body.startswith("<!--"):  # Front matter, such as the page metadata Apple puts first.
+        body = _HTML_COMMENT.sub("", body, count=1).strip()
+    heading = next((line[2:].strip() for line in body.splitlines() if line.startswith("# ")), None)
+    content = SourceContent(
+        title=heading or url,
+        url=url,
+        body=body,
+        fetched_at=datetime.now(UTC).isoformat(),
+        metadata={"extraction": extraction, **extra},
+    )
+    if len(body) < MIN_USEFUL_BODY_CHARS:
+        raise HandlerSoftFailure(content, f"{url} returned almost no text ({len(body)} chars).")
+    return content
+
+
 def _looks_like_pdf_response(response: httpx.Response) -> bool:
     content_type = response.headers.get("content-type", "").lower()
     if "application/pdf" in content_type:
@@ -204,10 +300,7 @@ def _pdf_title(url: str) -> str:
 
 def _network_failure_message(url: str, error: httpx.HTTPError) -> str:
     category = "tls" if _looks_like_tls_error(error) else "network"
-    return (
-        f"Failed to fetch {url} — category: {category}; "
-        f"error: {type(error).__name__}: {error}"
-    )
+    return f"Failed to fetch {url} — category: {category}; error: {type(error).__name__}: {error}"
 
 
 def _response_failure_message(

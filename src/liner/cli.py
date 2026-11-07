@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import shutil
+import sqlite3
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -11,18 +13,23 @@ from rich.console import Console
 
 from liner import __version__
 from liner.agent_adapters import (
+    ROUTER_SKILL_NAME,
+    SKILL_NAME,
+    SUPPORTED_ENVIRONMENTS,
     AdapterError,
     apply_agent_adapter_plan,
     inspect_agent_adapter,
     plan_agent_adapter,
 )
-from liner.cache import SourceCache
+from liner.cache import CacheSchemaMismatchError, SourceCache
 from liner.cli_progress import RichProgressReporter
-from liner.compile import MissingSynthesisError, compile_project
-from liner.config import load_config
-from liner.handlers.base import SourceHandler
+from liner.compile import IncompleteCompileError, MissingSynthesisError, compile_project
+from liner.config import Config, load_config
+from liner.handlers.base import HandlerHardFailure, SourceHandler
+from liner.handlers.fetch_guard import get_bounded, guarded_client
+from liner.handlers.repository import RepositoryHandler
 from liner.handlers.web import WebHandler
-from liner.handlers.youtube import YouTubeHandler
+from liner.handlers.youtube import YouTubeHandler, is_video_url
 from liner.json_events import (
     JsonEventReporter,
     compile_result_to_payload,
@@ -39,6 +46,7 @@ from liner.maintenance import (
     apply_change_set,
     inspect_project,
     maintenance_guidance,
+    plan_operating_layer_create,
     plan_operating_layer_review,
     plan_pointer_adapter,
     plan_project_guidance_upgrade,
@@ -59,11 +67,12 @@ from liner.project import (
     SynthesisReviewRequiredError,
     init_project,
     refresh_status_snapshot,
+    slugify,
 )
 from liner.share import ShareOptions, pack, unpack
 from liner.status import build_status_payload
 from liner.tape import TapeValidationError, load_tape
-from liner.types import CompileResult, Tape
+from liner.types import CompileResult, SourceContent, SourceSpec, Tape
 
 app = typer.Typer(
     help="Liner — build Liner project folders from curated source recipes.",
@@ -85,6 +94,42 @@ adapters_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(adapters_app, name="adapters")
+agent_skill_app = typer.Typer(
+    help="Inspect and explicitly manage the optional `liner` skill that finds your liners.",
+    no_args_is_help=True,
+)
+app.add_typer(agent_skill_app, name="agent-skill")
+research_app = typer.Typer(
+    help="Build a liner step by step, with your own agent doing the research.",
+    no_args_is_help=True,
+)
+app.add_typer(research_app, name="research")
+gaps_app = typer.Typer(
+    help="Track what a liner could not answer.",
+    no_args_is_help=True,
+)
+app.add_typer(gaps_app, name="gaps")
+findings_app = typer.Typer(
+    help="Review what real work learned before it reaches a liner.",
+    no_args_is_help=True,
+)
+app.add_typer(findings_app, name="findings")
+tests_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Record whether a liner improved an answer.",
+)
+app.add_typer(tests_app, name="test")
+research_subagent_app = typer.Typer(
+    help="Manage the optional Claude Code subagent that reads fetched pages.",
+    no_args_is_help=True,
+)
+research_app.add_typer(research_subagent_app, name="subagent")
+research_guard_app = typer.Typer(
+    help="Make Claude Code ask you before it runs a command that needs your approval.",
+    no_args_is_help=True,
+)
+research_app.add_typer(research_guard_app, name="guard")
 
 err_console = Console(stderr=True)
 
@@ -114,10 +159,16 @@ def adapter_inspect(
     home: Path = typer.Option(Path.home(), "--home", help="Agent home to inspect."),
     json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
 ) -> None:
+    _run_adapter_inspect(environment, home, json_output=json_output)
+
+
+def _run_adapter_inspect(
+    environment: str, home: Path, *, json_output: bool, skill: str = SKILL_NAME
+) -> None:
     import json as _json
 
     try:
-        inspection = inspect_agent_adapter(environment, home)
+        inspection = inspect_agent_adapter(environment, home, skill=skill)
     except AdapterError as error:
         err_console.print(f"[red]{error}[/]")
         raise typer.Exit(code=1) from error
@@ -137,25 +188,65 @@ def _run_adapter_action(
     *,
     approved: bool,
     json_output: bool,
+    skill: str = SKILL_NAME,
+    safeguards: tuple[str, ...] = (),
 ) -> None:
     import json as _json
 
     try:
-        plan = plan_agent_adapter(action, environment, home)
-        if not approved and plan.approval_required:
-            typer.echo(_json.dumps(plan.to_dict(), ensure_ascii=False, indent=2))
+        plan = plan_agent_adapter(action, environment, home, skill=skill)
+        if not approved and (plan.approval_required or safeguards):
+            preview = plan.to_dict()
+            if safeguards:
+                preview["safeguards"] = [_SAFEGUARD_EFFECTS[name] for name in safeguards]
+            typer.echo(_json.dumps(preview, ensure_ascii=False, indent=2))
             raise typer.Exit(code=2)
         receipt = apply_agent_adapter_plan(plan, approved=approved)
     except AdapterError as error:
         err_console.print(f"[red]{error}[/]")
         raise typer.Exit(code=1) from error
+    results = _apply_safeguards(home, safeguards)
     if json_output:
-        typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
+        payload = receipt.to_dict()
+        if safeguards:
+            payload["safeguards"] = results
+        typer.echo(_json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         typer.echo(
             f"{receipt.action} {receipt.environment} adapter at {receipt.target}; "
             f"receipt: {receipt.receipt_path}"
         )
+        for result in results:
+            detail = result.get("reason") or result.get("path")
+            typer.echo(f"{result['name']}: {result['status']}: {detail}")
+
+
+_SAFEGUARD_EFFECTS = {
+    "subagent": "install the liner-researcher subagent in ~/.claude/agents",
+    "guard": "install the approval prompt rules in ~/.claude/settings.json",
+}
+
+
+def _safeguards(environment: str, *, subagent: bool = True, guard: bool = True) -> tuple[str, ...]:
+    """Name the Claude Code safeguards that travel with the `liner` skill."""
+    if environment != "claude":
+        return ()
+    return tuple(name for name, wanted in (("subagent", subagent), ("guard", guard)) if wanted)
+
+
+def _apply_safeguards(home: Path, safeguards: tuple[str, ...]) -> list[dict[str, object]]:
+    """Report a safeguard that can't change instead of failing the finished skill step."""
+    from liner.approval_guard import GuardError, install_guard
+    from liner.research_subagent import SubagentError, install_subagent
+
+    steps = {"subagent": install_subagent, "guard": install_guard}
+    results: list[dict[str, object]] = []
+    for name in safeguards:
+        try:
+            results.append({"name": name, **steps[name](home)})
+        except (SubagentError, GuardError, OSError) as error:
+            results.append({"name": name, "status": "skipped", "reason": str(error)})
+    return results
 
 
 @adapters_app.command("install", help="Plan or explicitly install an optional adapter.")
@@ -188,6 +279,71 @@ def adapter_remove(
     _run_adapter_action("remove", environment, home, approved=yes, json_output=json_output)
 
 
+@agent_skill_app.command("inspect", help="Inspect the `liner` skill without changing it.")
+def agent_skill_inspect(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to inspect."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_inspect(environment, home, json_output=json_output, skill=ROUTER_SKILL_NAME)
+
+
+@agent_skill_app.command(
+    "install",
+    help="Plan or explicitly install the `liner` skill, plus Claude Code's safeguards.",
+)
+def agent_skill_install(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    subagent: bool = typer.Option(
+        True, "--subagent/--no-subagent", help="On Claude Code, add the page-reading subagent."
+    ),
+    guard: bool = typer.Option(
+        True, "--guard/--no-guard", help="On Claude Code, ask you before approval commands."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action(
+        "install",
+        environment,
+        home,
+        approved=yes,
+        json_output=json_output,
+        skill=ROUTER_SKILL_NAME,
+        safeguards=_safeguards(environment, subagent=subagent, guard=guard),
+    )
+
+
+@agent_skill_app.command("update", help="Refresh the `liner` skill and its subject list.")
+def agent_skill_update(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action(
+        "update", environment, home, approved=yes, json_output=json_output, skill=ROUTER_SKILL_NAME
+    )
+
+
+@agent_skill_app.command("remove", help="Plan or explicitly remove the `liner` skill.")
+def agent_skill_remove(
+    environment: str = typer.Argument(..., help="Supported agent environment: codex or claude."),
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the exact previewed file effects."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _run_adapter_action(
+        "remove", environment, home, approved=yes, json_output=json_output, skill=ROUTER_SKILL_NAME
+    )
+    if environment == "claude" and not json_output:
+        typer.echo(
+            "The subagent and approval rules stay. Use `liner research subagent remove --yes` "
+            "and `liner research guard remove --yes` to take them out."
+        )
+
+
 @app.command(help="Scaffold a new Liner project folder.")
 def init(
     path: Path = typer.Argument(
@@ -198,7 +354,8 @@ def init(
     mode: str | None = typer.Option(
         None,
         "--mode",
-        help="Set the project mode: quick or methodology.",
+        help="A label on the tape. It changes nothing.",
+        hidden=True,
     ),
     jtbd: str | None = typer.Option(None, "--jtbd", help="Set the job-to-be-done."),
     title: str | None = typer.Option(None, "--title", help="Set the mixtape title."),
@@ -206,12 +363,6 @@ def init(
         None, "--description", help="Set the mixtape description."
     ),
     curator: str | None = typer.Option(None, "--curator", help="Set the curator name."),
-    tui_construction: bool = typer.Option(
-        False,
-        "--tui-construction",
-        hidden=True,
-        help="Prepare an empty one-shot first-run assembly boundary for the Go TUI.",
-    ),
 ) -> None:
     try:
         mode_value = _normalize_init_mode(mode)
@@ -236,8 +387,6 @@ def init(
         _apply_init_metadata(project, metadata)
     if jtbd is not None and jtbd.strip():
         _prefill_jtbd(project, jtbd.strip())
-    if tui_construction:
-        _prepare_tui_construction(project)
 
     err_console.print(f"[green]Created Liner project[/] {project.path}")
     err_console.print("Next steps:")
@@ -293,13 +442,16 @@ def _apply_init_metadata(project: ProjectFolder, metadata: dict[str, str]) -> No
     )
 
 
-def _prepare_tui_construction(project: ProjectFolder) -> None:
+def _prepare_research_start(project: ProjectFolder) -> None:
     import yaml
 
     raw = yaml.safe_load(project.tape_path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raw = {}
     raw["sources"] = []
+    # The starter tape's description and tags describe its sample sources, not this job.
+    raw["description"] = f"Guidance for {raw.get('title') or project.path.name}."
+    raw["tags"] = []
     project.tape_path.write_text(
         yaml.safe_dump(raw, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
@@ -401,9 +553,10 @@ def replay(
     err_console.print(f"[green]Replay folder ready:[/] {project.path}")
     err_console.print(f"  parent: [dim]{source.resolve()}[/] (lineage source for later comparison)")
     err_console.print("Next steps:")
-    err_console.print(f"  1. Open [bold]{project.path}[/] in the TUI")
-    err_console.print("  2. Review the pre-filled Job to Be Done and Clarify Job answers")
-    err_console.print(f"  3. Build the Mixtape, then compare its outputs with {source.name}")
+    err_console.print(f"  1. Review the Job to Be Done and answers in {project.tape_path}")
+    err_console.print(
+        f"  2. Ask your agent to build it, then compare its outputs with {source.name}"
+    )
 
 
 def _replay_tape(project: ProjectFolder, src_tape: Tape, parent_path: Path) -> None:
@@ -549,6 +702,13 @@ def compile(  # noqa: A001 - command name matches the v1 surface
         err_console.print(f"[green]Wrote[/] {project.mixtape_path}")
         source_summary = _source_output_summary(result)
         err_console.print(f"[green]Wrote[/] {project.sources_dir}/ {source_summary}")
+    from liner.citations import unlinked_citations
+
+    filtered = bool(include or exclude or skip_optional)
+    unlinked = [] if filtered else unlinked_citations(project)
+    if unlinked:
+        labels = ", ".join(f"[^{label}]" for label in unlinked)
+        err_console.print(f"[yellow]No compiled source matches these citations:[/] {labels}")
 
     total = result.total_attempted
     succeeded = result.total_succeeded
@@ -611,6 +771,17 @@ def share(
         try:
             tape = load_tape(project.tape_path)
             local_file_count = sum(1 for s in tape.sources if s.type == "local_file")
+            from liner.handlers.liner import reused_local_sources
+
+            reused_local = reused_local_sources(project, tape.sources)
+            if reused_local and options.include_source_content and not minimal:
+                err_console.print(
+                    "[yellow]Before you send this:[/] these sources were local files in "
+                    "other liners, and their saved text goes into the archive: "
+                    + ", ".join(reused_local)
+                    + ". Add --no-source-content to leave saved text out."
+                )
+            local_file_count += len(reused_local)
         except TapeValidationError:
             # Validation issues are surfaced by compile; share keeps going.
             pass
@@ -645,6 +816,9 @@ def import_(
     no_refetch: bool = typer.Option(
         False, "--no-refetch", help="Skip refetching sources after extraction."
     ),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Replace matching files in a folder that already exists."
+    ),
     cookies: Path | None = typer.Option(
         None,
         "--cookies",
@@ -655,8 +829,8 @@ def import_(
     ),
 ) -> None:
     try:
-        project = unpack(archive, destination)
-    except (FileNotFoundError, ValueError) as e:
+        project = unpack(archive, destination, overwrite=overwrite)
+    except (FileExistsError, FileNotFoundError, ValueError) as e:
         err_console.print(f"[red]{e}[/]")
         raise typer.Exit(code=1) from e
 
@@ -678,14 +852,18 @@ def import_(
     handlers: dict[str, SourceHandler] = {
         "youtube": YouTubeHandler(config.fetch),
         "web": WebHandler(config.fetch),
+        "repository": RepositoryHandler(),
     }
+
+    from liner.compile import content_is_usable
 
     refetched = 0
     skipped = 0
     failed = 0
     with SourceCache(config.cache_path) as cache:
         for spec in tape.sources:
-            if cache.get(spec.url) is not None:
+            cached = cache.get(spec.url)
+            if cached is not None and content_is_usable(spec, cached):
                 skipped += 1
                 continue
             handler = handlers.get(spec.type)
@@ -721,7 +899,12 @@ def clone(
 ) -> None:
     if source.startswith(("http://", "https://")):
         try:
-            response = httpx.get(source, follow_redirects=True, timeout=20.0)
+            with guarded_client(
+                allow_private_network=load_config().fetch.allow_private_network,
+                follow_redirects=True,
+                timeout=20.0,
+            ) as client:
+                response = get_bounded(client, source)
             response.raise_for_status()
         except httpx.HTTPError as e:
             err_console.print(f"[red]Failed to fetch[/] {source}: {e}")
@@ -1032,6 +1215,1005 @@ def _is_liner_project_dir(path: Path) -> bool:
     return project.tape_path.exists()
 
 
+def _research_project(slug: str, root: Path | None) -> ProjectFolder:
+    from liner.library import default_library_root
+
+    if slug in {"", ".", ".."} or Path(slug).name != slug:
+        err_console.print(f"[red]{slug} is not a liner name.[/]")
+        raise typer.Exit(code=1)
+    project = ProjectFolder((root or default_library_root()).expanduser().resolve() / slug)
+    if not project.is_valid():
+        err_console.print(f"[red]No liner named {slug} in {project.path.parent}.[/]")
+        raise typer.Exit(code=1)
+    return project
+
+
+def _print_research_step(step: dict[str, object], json_output: bool) -> None:
+    import json as _json
+
+    if json_output:
+        typer.echo(_json.dumps(step, ensure_ascii=False, indent=2))
+        return
+    typer.echo(f"{step['step']}: {step['instructions']}")
+    if "prompt_path" in step:
+        typer.echo(f"prompt_path: {step['prompt_path']}")
+
+
+def _refresh_liner_skills() -> list[str]:
+    """Update the installed `liner` skill's subject list in each agent that has it.
+
+    Installing the skill was the person's go-ahead, and the update only rewrites
+    Liner's own managed files, so a finished build refreshes it without asking.
+    """
+    updated: list[str] = []
+    home = Path.home()
+    for environment in sorted(SUPPORTED_ENVIRONMENTS):
+        try:
+            inspection = inspect_agent_adapter(environment, home, skill=ROUTER_SKILL_NAME)
+            if inspection["status"] != "update_required":
+                continue
+            plan = plan_agent_adapter("update", environment, home, skill=ROUTER_SKILL_NAME)
+            apply_agent_adapter_plan(plan, approved=True)
+        except (AdapterError, OSError, ValueError):
+            continue
+        updated.append(environment)
+    return updated
+
+
+def _compile_research_corpus(project: ProjectFolder) -> None:
+    from liner.citations import unlinked_citations
+    from liner.research import ResearchError
+
+    config = load_config()
+    handlers: dict[str, SourceHandler] = {
+        "youtube": YouTubeHandler(config.fetch),
+        "web": WebHandler(config.fetch),
+    }
+    cache = SourceCache(config.cache_path)
+    try:
+        compile_project(
+            project, cache=cache, handlers=handlers, config=config, require_all_sources=True
+        )
+    except (
+        IncompleteCompileError,
+        MissingSynthesisError,
+        SynthesisReviewRequiredError,
+        TapeValidationError,
+        httpx.HTTPError,
+    ) as error:
+        raise ResearchError(str(error)) from error
+    finally:
+        cache.close()
+    unlinked = unlinked_citations(project)
+    if unlinked:
+        labels = ", ".join(f"[^{label}]" for label in unlinked)
+        raise ResearchError(
+            f"The synthesis cites {labels}, but no compiled source has that address. "
+            "Each footnote must be only a source's URL or local path. Point it at one, or "
+            "add the address to that source's citation, then compile again."
+        )
+
+
+_ROOT_OPTION = typer.Option(
+    None, "--root", help="Library folder. Defaults to LINER_DIR, then ~/liner/projects."
+)
+
+
+@research_app.command("start", help="Start a new liner from a job story.")
+def research_start(
+    job: str = typer.Argument(..., help="What a future agent should be able to do."),
+    title: str | None = typer.Option(None, "--title", help="Name for the liner."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.library import default_library_root
+    from liner.research import next_step
+
+    job = job.strip()
+    if not job:
+        err_console.print("[red]Describe the job for this liner.[/]")
+        raise typer.Exit(code=1)
+    name = (title or job[:60]).strip()
+    path = (root or default_library_root()).expanduser().resolve() / slugify(name)
+    try:
+        project = init_project(path)
+    except FileExistsError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _apply_init_metadata(project, {"mode": "methodology", "jtbd": job, "title": name})
+    _prefill_jtbd(project, job)
+    _prepare_research_start(project)
+    _print_research_step(next_step(project), json_output)
+
+
+@research_app.command("improve", help="Show how to strengthen a finished liner.")
+def research_improve(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.research import ResearchError, improve_step
+
+    try:
+        step = improve_step(_research_project(slug, root))
+    except ResearchError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(step, ensure_ascii=False, indent=2))
+        return
+    for gap in step["open_gaps"]:
+        typer.echo(f"gap {gap['id']}: {gap['question']}")
+    typer.echo(step["instructions"])
+
+
+@research_app.command("next", help="Show the step an agent should do now.")
+def research_next(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+    with_prompt: bool = typer.Option(
+        False, "--with-prompt", help="Include the prompt text, for clients that can't read files."
+    ),
+) -> None:
+    from liner.research import ResearchError, next_step
+
+    try:
+        step = next_step(_research_project(slug, root), include_prompt=with_prompt)
+    except ResearchError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _print_research_step(step, json_output)
+
+
+@research_app.command("plan", help="List the agent steps ahead and the work each needs.")
+def research_plan_command(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.research import ResearchError, research_plan
+
+    try:
+        plan = research_plan(_research_project(slug, root))
+    except ResearchError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(plan, ensure_ascii=False, indent=2))
+        return
+    for item in plan["steps"]:
+        typer.echo(f"{item['step']}: {item['work']}, {plan['work_kinds'][item['work']]}")
+    typer.echo(plan["instructions"])
+
+
+@research_app.command("submit", help="Check the current step and move to the next one.")
+def research_submit(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    answers: Path | None = typer.Option(
+        None, "--answers", help="JSON file of the person's Clarify Job answers."
+    ),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+    with_prompt: bool = typer.Option(
+        False, "--with-prompt", help="Include the prompt text, for clients that can't read files."
+    ),
+) -> None:
+    import json as _json
+
+    from liner.research import ResearchError, submit_step
+
+    try:
+        parsed = _json.loads(answers.read_text(encoding="utf-8")) if answers else None
+        step = submit_step(
+            _research_project(slug, root),
+            answers=parsed,
+            compile_corpus=_compile_research_corpus,
+            include_prompt=with_prompt,
+            refresh_skills=_refresh_liner_skills,
+        )
+    except (ResearchError, OSError, ValueError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _print_research_step(step, json_output)
+
+
+@research_app.command("approve", help="Record the person's approval of what they reviewed.")
+def research_approve(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    kind: str = typer.Argument(..., help="synthesis, sources, or operating_layer."),
+    token: str = typer.Option(..., "--token", help="Token from `liner research next`."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.research import ResearchError, approve_step
+
+    try:
+        step = approve_step(_research_project(slug, root), kind, token)
+    except ResearchError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _print_research_step(step, json_output)
+
+
+@app.command(help="Save a web page or a reused source to a file and return its path.")
+def fetch(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    url: str = typer.Argument(
+        ..., help="Web page, YouTube video, or liner://<slug>/<source-id> to save."
+    ),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from urllib.parse import urlsplit
+
+    from liner.research import THIN_PAGE_CHARACTERS, save_fetched_page
+
+    project = _research_project(slug, root)
+    parts = urlsplit(url)
+    if parts.scheme == "liner":
+        _print_fetched(save_fetched_page(project, _reused_page(project, url)), json_output)
+        return
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        err_console.print(f"[red]{url} is not a web page or liner:// address.[/]")
+        raise typer.Exit(code=1)
+    config = load_config()
+    spec = SourceSpec(type="youtube" if is_video_url(url) else "web", url=url)
+    page = _cached_page(config, spec)
+    if page is None:
+        try:
+            if spec.type == "youtube":
+                page = YouTubeHandler(config.fetch).fetch(spec)
+            else:
+                page = WebHandler(config.fetch).fetch(spec)
+        except Exception as error:  # Transcript libraries raise many types of their own.
+            err_console.print(f"[red]Could not fetch {url}: {error}[/]")
+            raise typer.Exit(code=1) from error
+        if len(page.body) >= THIN_PAGE_CHARACTERS:
+            _keep_page(config, spec, page)
+    _print_fetched(save_fetched_page(project, page), json_output)
+
+
+def _reused_page(project: ProjectFolder, url: str) -> SourceContent:
+    """Another liner's saved copy of a source, read the way compile will read it."""
+    from liner.handlers.liner import LinerHandler
+
+    try:
+        return LinerHandler(project).fetch(SourceSpec(type="liner", url=url))
+    except (HandlerHardFailure, ValueError) as error:
+        err_console.print(f"[red]Could not read {url}: {error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+def _print_fetched(result: dict[str, Any], json_output: bool) -> None:
+    import json as _json
+
+    if "warning" in result and not json_output:
+        err_console.print(f"[yellow]{result['warning']}[/]")
+    typer.echo(_json.dumps(result, ensure_ascii=False, indent=2) if json_output else result["path"])
+
+
+def _cached_page(config: Config, spec: SourceSpec) -> SourceContent | None:
+    """A broken cache only costs a download, so it never stops a fetch."""
+    from liner.compile import content_is_usable
+
+    try:
+        with SourceCache(config.cache_path) as cache:
+            page = cache.get(spec.url)
+    except (CacheSchemaMismatchError, sqlite3.Error, OSError, TypeError, ValueError):
+        return None
+    return page if page is not None and content_is_usable(spec, page) else None
+
+
+def _keep_page(config: Config, spec: SourceSpec, page: SourceContent) -> None:
+    """Share a page with compile and other liners, under the address they'll ask for."""
+    from liner.compile import content_is_usable
+
+    if not content_is_usable(spec, page):
+        return
+    days = config.cache.web_ttl_days
+    if spec.type == "youtube":
+        days = config.cache.youtube_ttl_days
+    try:
+        with SourceCache(config.cache_path) as cache:
+            cache.put(replace(page, url=spec.url), spec.type, days)
+    except (CacheSchemaMismatchError, sqlite3.Error, OSError):
+        pass
+
+
+def _print_build_result(result: dict[str, object]) -> None:
+    import json as _json
+
+    typer.echo(_json.dumps(result, ensure_ascii=False))
+
+
+def _print_subagent(result: dict[str, object], json_output: bool) -> None:
+    import json as _json
+
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    typer.echo(f"{result['status']}: {result['path']}")
+    if result["status"] == "current":
+        typer.echo("If this session can't use it yet, the next one will.")
+
+
+@research_subagent_app.command("inspect", help="Show whether the subagent is installed.")
+def research_subagent_inspect(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to inspect."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.research_subagent import inspect_subagent
+
+    _print_subagent(inspect_subagent(home), json_output)
+
+
+@research_subagent_app.command("install", help="Plan or explicitly install the subagent.")
+def research_subagent_install(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the install."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.research_subagent import SubagentError, inspect_subagent, install_subagent
+
+    if not yes:
+        _print_subagent({**inspect_subagent(home), "approval_required": True}, json_output)
+        raise typer.Exit(code=2)
+    try:
+        _print_subagent(install_subagent(home), json_output)
+    except SubagentError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+@research_subagent_app.command("remove", help="Plan or explicitly remove the subagent.")
+def research_subagent_remove(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the removal."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.research_subagent import SubagentError, inspect_subagent, remove_subagent
+
+    if not yes:
+        _print_subagent({**inspect_subagent(home), "approval_required": True}, json_output)
+        raise typer.Exit(code=2)
+    try:
+        _print_subagent(remove_subagent(home), json_output)
+    except SubagentError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+def _print_guard(result: dict[str, object], json_output: bool) -> None:
+    import json as _json
+
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    typer.echo(f"{result['status']}: {result['path']}")
+
+
+@research_guard_app.command("inspect", help="Show whether Claude Code asks before approvals.")
+def research_guard_inspect(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to inspect."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.approval_guard import inspect_guard
+
+    _print_guard(inspect_guard(home), json_output)
+
+
+@research_guard_app.command(
+    "hook", help="Claude Code's PreToolUse hook: reads the tool call and asks before approvals."
+)
+def research_guard_hook() -> None:
+    import sys
+
+    from liner.approval_guard import run_hook
+
+    typer.echo(run_hook(sys.stdin.read()), nl=False)
+
+
+@research_guard_app.command("install", help="Plan or explicitly add the permission rules.")
+def research_guard_install(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the change."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.approval_guard import GuardError, inspect_guard, install_guard
+
+    if not yes:
+        _print_guard({**inspect_guard(home), "approval_required": True}, json_output)
+        raise typer.Exit(code=2)
+    try:
+        _print_guard(install_guard(home), json_output)
+    except GuardError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+@research_guard_app.command("remove", help="Plan or explicitly remove the permission rules.")
+def research_guard_remove(
+    home: Path = typer.Option(Path.home(), "--home", help="Agent home to update."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the change."),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.approval_guard import GuardError, inspect_guard, remove_guard
+
+    if not yes:
+        _print_guard({**inspect_guard(home), "approval_required": True}, json_output)
+        raise typer.Exit(code=2)
+    try:
+        _print_guard(remove_guard(home), json_output)
+    except GuardError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+@research_app.command("check", help="Check the artifact a research phase produced.")
+def research_check(
+    path: Path = typer.Argument(..., help="Liner project folder."),
+    phase: str = typer.Argument(..., help="Phase to check."),
+    corpus: bool = typer.Option(
+        False, "--corpus", help="Treat the path as the corpus folder itself."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.research_checks import check_phase
+
+    resolved = path.expanduser().resolve()
+    try:
+        result = check_phase(resolved if corpus else ProjectFolder(resolved).corpus_path, phase)
+    except ValueError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=2) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        typer.echo("passed" if result["ok"] else result["message"])
+    if not result["ok"]:
+        raise typer.Exit(code=1)
+
+
+def _print_gap(gap: dict[str, str], json_output: bool) -> None:
+    import json as _json
+
+    if json_output:
+        typer.echo(_json.dumps(gap, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"{gap['id']}\t{gap['status']}\t{gap['question']}")
+
+
+@gaps_app.command("add", help="Record a question a liner could not answer.")
+def gaps_add(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    question: str = typer.Argument(..., help="What it could not answer."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.gaps import add_gap
+    from liner.working_log import WorkingLogError
+
+    try:
+        _print_gap(add_gap(_research_project(slug, root), question), json_output)
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+@gaps_app.command("close", help="Mark a gap answered.")
+def gaps_close(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    gap_id: str = typer.Argument(..., help="Gap id from `liner gaps list`."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.gaps import close_gap
+    from liner.working_log import WorkingLogError
+
+    try:
+        _print_gap(close_gap(_research_project(slug, root), gap_id), json_output)
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+
+
+@gaps_app.command("list", help="List a liner's open gaps.")
+def gaps_list(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    include_closed: bool = typer.Option(False, "--all", help="Include closed gaps."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.gaps import list_gaps
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = list_gaps(_research_project(slug, root), include_closed=include_closed)
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    for gap in result["gaps"]:
+        _print_gap(gap, False)
+
+
+def _print_finding(finding: dict[str, object], json_output: bool) -> None:
+    import json as _json
+
+    if json_output:
+        typer.echo(_json.dumps(finding, ensure_ascii=False, indent=2))
+        return
+    typer.echo(f"{finding['id']}\t{finding['status']}\t{finding['finding']}")
+    if finding.get("next"):
+        typer.echo(str(finding["next"]))
+
+
+@findings_app.command("add", help="Put something real work learned in a liner's inbox.")
+def findings_add(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    finding: str = typer.Argument(..., help="What the work found."),
+    evidence: str = typer.Option("", "--evidence", help="Where it was seen."),
+    closes: str | None = typer.Option(None, "--closes", help="Open gap this would answer."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    from liner.findings import add_finding
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = add_finding(
+            _research_project(slug, root), finding, evidence=evidence, closes=closes
+        )
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _print_finding(result, json_output)
+
+
+@findings_app.command("list", help="List findings waiting for review.")
+def findings_list(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    include_reviewed: bool = typer.Option(False, "--all", help="Include reviewed findings."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.findings import list_findings
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = list_findings(_research_project(slug, root), include_reviewed=include_reviewed)
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    for item in result["findings"]:
+        _print_finding(item, False)
+
+
+def _review_finding(
+    slug: str, finding_id: str, *, accept: bool, yes: bool, root: Path | None, json_output: bool
+) -> None:
+    from liner.findings import accept_finding, reject_finding
+    from liner.working_log import WorkingLogError
+
+    if not yes:
+        verb = "accept" if accept else "reject"
+        err_console.print(
+            f"Ask the person, then run: liner findings {verb} {slug} {finding_id} --yes"
+        )
+        raise typer.Exit(code=2)
+    project = _research_project(slug, root)
+    try:
+        result = (accept_finding if accept else reject_finding)(project, finding_id)
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    _print_finding(result, json_output)
+
+
+@findings_app.command("accept", help="Add a reviewed finding to the liner as a Source.")
+def findings_accept(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    finding_id: str = typer.Argument(..., help="Finding id."),
+    yes: bool = typer.Option(False, "--yes", help="The person approved this finding."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _review_finding(slug, finding_id, accept=True, yes=yes, root=root, json_output=json_output)
+
+
+@findings_app.command("reject", help="Decline a finding and keep the record.")
+def findings_reject(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    finding_id: str = typer.Argument(..., help="Finding id."),
+    yes: bool = typer.Option(False, "--yes", help="The person declined this finding."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    _review_finding(slug, finding_id, accept=False, yes=yes, root=root, json_output=json_output)
+
+
+@app.command(help="Serve your liners to an agent over MCP on standard input and output.")
+def mcp(root: Path | None = _ROOT_OPTION) -> None:
+    import sys
+
+    from liner.mcp_server import serve
+
+    serve(root.expanduser().resolve() if root else None, sys.stdin.buffer, sys.stdout.buffer)
+
+
+@app.command(help="Report everything in your library, for the terminal navigator.")
+def library(root: Path | None = _ROOT_OPTION) -> None:
+    from liner.library import default_library_root
+    from liner.library_view import build_library_view, to_json
+
+    typer.echo(to_json(build_library_view((root or default_library_root()).expanduser().resolve())))
+
+
+@app.command(help="Write prompts for your agent, for the terminal navigator.")
+def handoff(
+    context: str = typer.Argument(..., help="What is on screen."),
+    slug: str = typer.Option("", "--slug", help="Liner folder name."),
+    line: int = typer.Option(0, "--line", help="Line in view."),
+    subject: str = typer.Option("", "--subject", help="Source or item in view."),
+) -> None:
+    import json as _json
+
+    from liner.handoff import handoff_prompts
+
+    try:
+        result = handoff_prompts(context, slug, line=line, subject=subject)
+    except ValueError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command(help="List the citations in a liner's synthesis and their source files.")
+def citations(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.citations import list_citations
+
+    try:
+        result = list_citations(_research_project(slug, root))
+    except OSError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    for citation in result["citations"]:
+        typer.echo(
+            f"[^{citation['label']}]\t{citation['source']}\t{citation['file'] or 'not compiled'}"
+        )
+    if not result["citations"]:
+        typer.echo("This synthesis has no citations.")
+
+
+@tests_app.command("add", help="Record one with-and-without comparison the person judged.")
+def tests_add(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    question: str = typer.Argument(..., help="The question both answers respond to."),
+    without_file: Path = typer.Option(
+        ..., "--without-file", help="File with the answer written without the liner."
+    ),
+    with_file: Path = typer.Option(
+        ..., "--with-file", help="File with the answer written with the liner."
+    ),
+    verdict: str = typer.Option(
+        ..., "--verdict", help="The person's judgment: better, same, or worse."
+    ),
+    note: str = typer.Option("", "--note", help="Why the person judged it that way."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.empirical_tests import add_test
+    from liner.working_log import WorkingLogError
+
+    project = _research_project(slug, root)
+    try:
+        result = add_test(
+            project,
+            question,
+            without_answer=without_file.read_text(encoding="utf-8", errors="replace"),
+            with_answer=with_file.read_text(encoding="utf-8", errors="replace"),
+            verdict=verdict,
+            note=note,
+        )
+    except (WorkingLogError, OSError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"{result['id']}\t{result['verdict']}\t{result['question']}")
+
+
+@tests_app.command("start", help="Set up a blind comparison for the person to judge.")
+def tests_start(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    question: str = typer.Argument(..., help="The question both answers respond to."),
+    without_file: Path = typer.Option(
+        ..., "--without-file", help="File with the answer written without the liner."
+    ),
+    with_file: Path = typer.Option(
+        ..., "--with-file", help="File with the answer written with the liner."
+    ),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.empirical_tests import start_blind_test
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = start_blind_test(
+            _research_project(slug, root),
+            question,
+            without_answer=without_file.read_text(encoding="utf-8", errors="replace"),
+            with_answer=with_file.read_text(encoding="utf-8", errors="replace"),
+        )
+    except (WorkingLogError, OSError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"{result['id']}\t{result['path']}")
+
+
+@tests_app.command("judge", help="Record which blind answer the person preferred.")
+def tests_judge(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    test_id: str = typer.Argument(..., help="The id from `liner test start`."),
+    preferred: str = typer.Option(..., "--preferred", help="The person's choice: a, b, or same."),
+    note: str = typer.Option("", "--note", help="Why the person judged it that way."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.empirical_tests import judge_blind_test
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = judge_blind_test(_research_project(slug, root), test_id, preferred, note=note)
+    except (WorkingLogError, OSError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"{result['id']}\t{result['verdict']}\t{result['question']}")
+        typer.echo(f"The answer that used the liner was {result['with_liner_was']}.")
+
+
+@tests_app.command("list", help="Show a liner's with-and-without tests.")
+def tests_list(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.empirical_tests import list_tests
+    from liner.working_log import WorkingLogError
+
+    try:
+        result = list_tests(_research_project(slug, root))
+    except WorkingLogError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    for test in result["tests"]:
+        typer.echo(f"{test['id']}\t{test['verdict']}\t{test['question']}")
+    if result["tests"]:
+        typer.echo(f"Answers are in {result['path']}")
+    else:
+        typer.echo("No tests yet.")
+
+
+@app.command(help="Refetch a liner's online sources and report what changed.")
+def refresh(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.refresh import RefreshError, check_sources
+
+    project = _research_project(slug, root)
+    config = load_config()
+    web_handler = WebHandler(config.fetch)
+    handlers: dict[str, SourceHandler] = {
+        "youtube": YouTubeHandler(config.fetch),
+        "web": web_handler,
+    }
+    try:
+        report = check_sources(
+            project,
+            handlers=handlers,
+            config=config,
+            progress=None if json_output else RichProgressReporter(),
+        )
+    except (RefreshError, TapeValidationError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    finally:
+        web_handler.close()
+    if json_output:
+        typer.echo(_json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        _print_refresh(report)
+    counts = report["counts"]
+    checked = len(report["sources"])
+    if checked and counts["unreachable"] == checked:
+        raise typer.Exit(code=3)
+    if counts["unreachable"]:
+        raise typer.Exit(code=2)
+
+
+def _print_refresh(report: dict[str, Any]) -> None:
+    counts = report["counts"]
+    typer.echo(
+        f"{counts['changed']} changed, {counts['unchanged']} unchanged, "
+        f"{counts['unreachable']} unreachable, {counts['no_baseline']} with nothing to compare, "
+        f"{counts['not_checked']} local not checked."
+    )
+    for source in report["sources"]:
+        if source["status"] == "changed":
+            typer.echo(
+                f"changed: {source['url']} "
+                f"(+{source['lines_added']} -{source['lines_removed']} lines)\n"
+                f"  diff: {source['diff_path']}"
+            )
+        elif source["status"] != "unchanged":
+            typer.echo(f"{source['status']}: {source['url']} ({source['reason']})")
+    for source in report.get("reused", []):
+        typer.echo(f"reused: {source['url']} ({source['reason']})")
+    if report["next"]:
+        typer.echo(report["next"])
+
+
+@app.command(name="use", help="Point a repository's CLAUDE.md or AGENTS.md at a liner.")
+def use_liner(
+    slug: str = typer.Argument(..., help="Liner folder name."),
+    repo: Path = typer.Option(Path("."), "--repo", help="Repository to point at the liner."),
+    agent: str | None = typer.Option(None, "--agent", help="claude or codex."),
+    remove: bool = typer.Option(False, "--remove", help="Remove the pointer instead."),
+    yes: bool = typer.Option(False, "--yes", help="Approve the previewed change."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.library import LibraryError, default_library_root
+    from liner.liner_use import UseError, apply_use, plan_use
+
+    library = (root or default_library_root()).expanduser().resolve()
+    try:
+        plan = plan_use(library, slug, repo.expanduser().resolve(), agent=agent, remove=remove)
+        if yes:
+            apply_use(plan)
+    except (UseError, LibraryError, OSError) as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    needs_approval = plan["changed"] and not yes
+    if json_output:
+        result = {**plan, "applied": yes and plan["changed"], "approval_required": needs_approval}
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+    elif not plan["changed"]:
+        typer.echo(f"{plan['file']} already matches.")
+    elif plan["deletes_file"]:
+        verb = "Deleted" if yes else "Would delete"
+        typer.echo(f"{verb} {plan['file']}, which holds only this pointer.")
+    elif yes:
+        typer.echo(f"Updated {plan['file']}.")
+    else:
+        typer.echo(f"Would update {plan['file']}:\n\n{plan['proposed']}\nRun again with --yes.")
+    if needs_approval:
+        raise typer.Exit(code=2)
+
+
+@app.command(help="List every liner in your library with its job and readiness.")
+def catalog(
+    root: Path | None = typer.Option(
+        None, "--root", help="Library folder. Defaults to LINER_DIR, then ~/liner/projects."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.library import LibraryError, build_catalog, default_library_root
+
+    try:
+        result = build_catalog((root or default_library_root()).expanduser().resolve())
+    except LibraryError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if not result["liners"]:
+        err_console.print(f"[yellow]No liners found in {result['root']}.[/]")
+    for entry in result["liners"]:
+        state = "stale" if entry["stale"] else entry["milestone"]
+        typer.echo(
+            f"{entry['slug']}\t{entry['description'] or entry['title']} "
+            f"({state}, {entry['source_count']} sources{_test_label(entry['test'])})"
+        )
+    for broken in result["unreadable"]:
+        err_console.print(f"[yellow]Skipped {broken['path']}: {broken['reason']}[/]")
+
+
+def _test_label(summary: dict[str, Any] | None) -> str:
+    if not summary or not summary["runs"]:
+        return ""
+    state = "" if summary["current"] else ", since changed"
+    return f", better in {summary['better']} of {summary['runs']} tests{state}"
+
+
+@app.command(help="Search the syntheses and sources in your liners.")
+def search(
+    query: str = typer.Argument(..., help="Words to look for."),
+    liner: list[str] | None = typer.Option(
+        None, "--liner", help="Only search this liner. Repeat for more than one."
+    ),
+    limit: int = typer.Option(10, "--limit", help="Most results to return."),
+    root: Path | None = typer.Option(
+        None, "--root", help="Library folder. Defaults to LINER_DIR, then ~/liner/projects."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.library import LibraryError, default_library_root, search_library
+
+    try:
+        result = search_library(
+            query,
+            root=(root or default_library_root()).expanduser().resolve(),
+            liners=liner,
+            limit=limit,
+        )
+    except LibraryError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if not result["results"]:
+        err_console.print("[yellow]No matching passages.[/]")
+    for hit in result["results"]:
+        typer.echo(f"{hit['path']}:{hit['line']}\n  {' '.join(hit['snippet'].split())}")
+
+
 @project_app.command("inspect", help="Inspect a Liner Project without changing it.")
 def project_inspect(
     path: Path | None = typer.Argument(
@@ -1156,6 +2338,8 @@ def project_plan(
                 liner_content=operation.get("liner_content"),
                 skill_content=operation.get("skill_content"),
             )
+        elif operation_type == "operating_layer.create":
+            change_set = plan_operating_layer_create(path)
         elif operation_type == "project.rename":
             name = operation.get("name")
             if not isinstance(name, str):
@@ -1362,6 +2546,38 @@ def project_apply(
         typer.echo(_json.dumps(receipt.to_dict(), ensure_ascii=False, indent=2))
         return
     _print_change_receipt(receipt)
+
+
+@app.command(
+    name="find-sources", help="Find sources already in your library, with earlier verdicts."
+)
+def find_library_sources(
+    query: str = typer.Argument(..., help="Words to look for."),
+    limit: int = typer.Option(20, "--limit", min=1, help="Most rows to return."),
+    root: Path | None = _ROOT_OPTION,
+    json_output: bool = typer.Option(False, "--json", help="Emit versioned JSON."),
+) -> None:
+    import json as _json
+
+    from liner.library import LibraryError, default_library_root, find_sources
+
+    try:
+        result = find_sources(
+            query, root=(root or default_library_root()).expanduser().resolve(), limit=limit
+        )
+    except LibraryError as error:
+        err_console.print(f"[red]{error}[/]")
+        raise typer.Exit(code=1) from error
+    if json_output:
+        typer.echo(_json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if not result["sources"]:
+        err_console.print("[yellow]No matching sources.[/]")
+    for row in result["sources"]:
+        typer.echo(f"{row['liner']}  {row['decision']}  {row['title']}  {row['url'] or ''}")
+    if result["total"] > len(result["sources"]):
+        err_console.print(f"Showing {len(result['sources'])} of {result['total']}.")
+    err_console.print(str(result["notice"]))
 
 
 @sources_app.command("add", help="Add one Source through the canonical plan/apply path.")
@@ -1826,6 +3042,9 @@ def status_cmd(
         payload = stored_payload
 
     status_payload = build_status_payload(project, payload)
+    from liner.research_checks import research_funnel
+
+    status_payload["funnel"] = research_funnel(corpus)
     if not no_write:
         status_payload["status_snapshot"] = refresh_status_snapshot(project)
     payload.update(status_payload)
@@ -1844,7 +3063,6 @@ def _print_status(payload: dict) -> None:  # type: ignore[type-arg]
     console = Console()
     mixtape = payload.get("mixtape", {})
     totals = payload.get("totals", {})
-    tokens = totals.get("tokens", {})
     title = mixtape.get("title") or mixtape.get("name") or "(untitled)"
     console.print()
     console.print(f"[bold cyan]{title}[/]  [dim]({mixtape.get('path', '')})[/]")
@@ -1855,6 +3073,33 @@ def _print_status(payload: dict) -> None:  # type: ignore[type-arg]
     summary = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
     summary.add_column(style="dim", no_wrap=True)
     summary.add_column()
+    funnel = payload.get("funnel") or {}
+    if funnel.get("candidates"):
+        # Agent builds leave no app run logs, so this is what shows their work.
+        searches = funnel.get("searches")
+        summary.add_row(
+            "Searches",
+            f"{searches} with {funnel.get('search_results') or 0:,} results, reported by the agent"
+            if searches
+            else "— (no search log)",
+        )
+        for label, key in (
+            ("Candidates", "candidates"),
+            ("Pages read", "pages_read"),
+            ("Evaluated", "evaluated"),
+            ("Kept", "kept"),
+            ("Final sources", "final"),
+        ):
+            summary.add_row(label, str(funnel.get(key, 0)))
+    if totals.get("runs") or not funnel.get("candidates"):
+        _add_run_totals(summary, payload)
+    console.print(summary)
+    _print_runs(payload)
+
+
+def _add_run_totals(summary: Any, payload: dict) -> None:  # type: ignore[type-arg]
+    totals = payload.get("totals", {})
+    tokens = totals.get("tokens", {})
     summary.add_row("Runs", str(totals.get("runs", 0)))
     summary.add_row("Tool calls", str(totals.get("tool_calls", 0)))
     summary.add_row("Fetches", str(totals.get("fetches", 0)))
@@ -1867,8 +3112,13 @@ def _print_status(payload: dict) -> None:  # type: ignore[type-arg]
     )
     summary.add_row("Agents", ", ".join(payload.get("agents_used") or []) or "—")
     summary.add_row("Models", ", ".join(payload.get("models_used") or []) or "—")
-    console.print(summary)
 
+
+def _print_runs(payload: dict) -> None:  # type: ignore[type-arg]
+    from rich import box
+    from rich.table import Table
+
+    console = Console()
     runs = payload.get("runs") or []
     if runs:
         rt = Table(title="Runs", box=box.SIMPLE_HEAD, header_style="bold")
